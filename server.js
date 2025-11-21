@@ -4,6 +4,7 @@ const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs/promises'); // Dateisystem-Modul für asynchrone Operationen
 
 // --- SETUP ---
 const app = express();
@@ -23,6 +24,30 @@ mongoose.connect(DB_URI)
 
 // --- MODELL IMPORTIEREN ---
 const Game = require('./models/Quiz');
+
+
+
+// --- NEUE HILFSFUNKTION ---
+async function deleteMediaFile(filePath) {
+    if (!filePath || filePath.startsWith('http')) return; // Keine Aktion bei leeren oder externen Pfaden
+
+    // Baue den absoluten Pfad zum Löschen
+    const absolutePath = path.join(__dirname, 'public', filePath);
+
+    try {
+        await fs.unlink(absolutePath);
+        console.log(`Datei gelöscht: ${absolutePath}`);
+        return true;
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            // Datei existiert nicht, was OK ist
+            console.log(`Datei existiert nicht, Löschvorgang übersprungen: ${absolutePath}`);
+            return false;
+        }
+        console.error(`Fehler beim Löschen der Datei ${absolutePath}:`, error);
+        return false;
+    }
+}
 
 // --- GLOBALE SPIELVARIABLEN ---
 let players = {}; // { socketId: { name: 'PlayerName', score: 0 } }
@@ -106,16 +131,56 @@ app.post('/api/create-game', async (req, res) => {
     }
 });
 
-// API: Ein Spiel löschen
+// API: Ein Spiel löschen (MIT DATEI-CLEANUP)
 app.delete('/api/games/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    await Game.findByIdAndDelete(id);
-    res.json({ success: true });
-    console.log(`Spiel mit ID ${id} wurde gelöscht.`);
-  } catch (err) {
-    res.status(500).json({ error: "Konnte Spiel nicht löschen" });
-  }
+    try {
+        const id = req.params.id;
+        
+        // 1. Quiz laden, um Mediendateien zu finden
+        const gameToDelete = await Game.findById(id);
+        
+        if (gameToDelete) {
+            // 2. Alle Mediendateien sammeln und löschen
+            const mediaFiles = [];
+            gameToDelete.categories.forEach(cat => {
+                cat.questions.forEach(q => {
+                    if (q.mediaPath) {
+                        mediaFiles.push(q.mediaPath);
+                    }
+                });
+            });
+
+            console.log(`Lösche ${mediaFiles.length} Mediendateien für Quiz ID ${id}.`);
+
+            // Alle Löschvorgänge parallel ausführen
+            await Promise.all(mediaFiles.map(deleteMediaFile));
+        }
+
+        // 3. Quiz aus der Datenbank löschen
+        await Game.findByIdAndDelete(id);
+        
+        res.json({ success: true });
+        console.log(`Quiz mit ID ${id} wurde gelöscht.`);
+    } catch (err) {
+        res.status(500).json({ error: "Konnte Quiz nicht löschen" });
+    }
+});
+
+// API: Dateien löschen (Wird vom Frontend beim Speichern aufgerufen)
+app.post('/api/delete-files', async (req, res) => {
+    const files = req.body.files || [];
+    
+    if (files.length === 0) {
+        return res.json({ success: true, message: 'Keine Dateien zum Löschen übermittelt.' });
+    }
+
+    try {
+        await Promise.all(files.map(deleteMediaFile));
+        res.json({ success: true, deletedCount: files.length });
+    } catch (error) {
+        console.error('Fehler beim Löschen einer Dateigruppe:', error);
+        res.status(500).json({ success: false, error: 'Fehler beim Löschen der Dateien.' });
+    }
 });
 
 // --- SOCKET.IO LOGIK ---

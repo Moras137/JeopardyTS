@@ -227,33 +227,9 @@
                 titleSpan.innerText = game.title;
                 titleSpan.onclick = () => loadGame(game); 
 
-                const delBtn = document.createElement('button');
-                delBtn.className = 'delete-btn';
-                delBtn.innerHTML = "🗑️"; 
-                delBtn.onclick = (e) => {
-                    e.stopPropagation(); 
-                    deleteGame(game._id, game.title);
-                };
-
                 div.appendChild(titleSpan);
-                div.appendChild(delBtn);
                 list.appendChild(div);
             });
-        }
-
-        async function deleteGame(id, title) {
-            if(!confirm(`Möchtest du das Quiz "${title}" wirklich unwiderruflich löschen?`)) {
-                return;
-            }
-
-            try {
-                await fetch(`/api/games/${id}`, { method: 'DELETE' });
-                loadGames();
-                document.getElementById('controls').style.display = 'none'; 
-            } catch (e) {
-                console.error(e);
-                alert("Fehler beim Löschen oder Serververbindung.");
-            }
         }
 
         function loadGame(gameShort) {

@@ -49,6 +49,34 @@
             z-index: 1;
         }
         
+        .load-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .load-item-row:hover { background: #f0f0f0; }
+
+        .load-item-title {
+            flex-grow: 1;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+        .load-item.active .load-item-title { color: white; }
+
+        .delete-quiz-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: #dc3545; /* Rot */
+            padding: 5px;
+            margin-left: 10px;
+            border-radius: 4px;
+        }
+        .delete-quiz-btn:hover { background: #ffdddd; }
+
         button { cursor: pointer; padding: 10px 15px; border: none; border-radius: 4px; margin-top: 10px; }
         button.secondary { background: #6c757d; color: white; }
         button.add-cat-btn { background: #28a745; color: white; }
@@ -87,7 +115,9 @@
 
 <script>
         let editingGameId = null; 
-        let currentCategoriesCount = 0; 
+        let currentCategoriesCount = 0;
+        // Globaler Speicher für Pfade, die gelöscht werden müssen
+        let filesToDeleteOnSave = [];
 
         // --- HILFSFUNKTIONEN ---
 
@@ -130,11 +160,26 @@
         }
         
         function removeQuestion(btn) {
-            btn.closest('.question-block').remove();
+            const qBlock = btn.closest('.question-block');
+            const mediaPathEl = qBlock.querySelector('.q-media-path');
+            
+            if (mediaPathEl && mediaPathEl.value) {
+                // Pfad zum späteren Löschen vormerken
+                filesToDeleteOnSave.push(mediaPathEl.value);
+                console.log(`Vorgemerkt zum Löschen: ${mediaPathEl.value}`);
+            }
+            qBlock.remove();
         }
 
-        function removeCategory(catDiv) {
-             catDiv.remove();
+       function removeCategory(catDiv) {
+            // Alle Fragen in dieser Kategorie durchlaufen und Medienpfade sammeln
+            catDiv.querySelectorAll('.q-media-path').forEach(mediaPathEl => {
+                if (mediaPathEl.value) {
+                     filesToDeleteOnSave.push(mediaPathEl.value);
+                     console.log(`Vorgemerkt zum Löschen (durch Kat. entfernt): ${mediaPathEl.value}`);
+                }
+            });
+            catDiv.remove();
         }
 
         // --- FORMULAR-MANAGEMENT ---
@@ -241,14 +286,14 @@
             }
         }
 
-        // --- SPEICHERN ---
-
+        // --- SPEICHERN (MIT DATEI-CLEANUP) ---
         async function saveGame() {
-            // ... (unveränderte Logik zum Speichern) ...
             const title = document.getElementById('gameTitle').value;
             const categories = [];
 
+            // 1. Sammle alle aktuellen Daten ... (unverändert)
             document.querySelectorAll('.category').forEach(catDiv => {
+                // ... (Logik zum Sammeln der Kategorien und Fragen bleibt) ...
                 const catName = catDiv.querySelector('.cat-name').value;
                 const questions = [];
 
@@ -268,11 +313,24 @@
             });
 
             const gameData = { title, categories };
-            
             if (editingGameId) {
                 gameData._id = editingGameId;
             }
+            
+            // 2. Rufe zuerst den Dateilösch-Endpunkt auf
+            if (filesToDeleteOnSave.length > 0) {
+                console.log(`Starte Löschvorgang für ${filesToDeleteOnSave.length} Dateien.`);
+                await fetch('/api/delete-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: filesToDeleteOnSave })
+                });
+                // Liste leeren, nachdem der Server den Auftrag erhalten hat
+                filesToDeleteOnSave = [];
+            }
 
+
+            // 3. Speichere das Quiz in der Datenbank
             const res = await fetch('/api/create-game', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -290,10 +348,26 @@
             }
         }
 
+        // --- API-AUFRUF ZUM LÖSCHEN (NEU/VERSCHOBEN) ---
+        async function deleteGame(id, title) {
+            if(!confirm(`Möchtest du das Quiz "${title}" wirklich unwiderruflich löschen?`)) {
+                return;
+            }
+
+            try {
+                await fetch(`/api/games/${id}`, { method: 'DELETE' });
+                // Nach erfolgreichem Löschen die Liste neu laden und das Formular zurücksetzen
+                clearForm();
+                loadGameList(); 
+            } catch (e) {
+                console.error(e);
+                alert("Fehler beim Löschen oder Serververbindung.");
+            }
+        }
+
         // --- LADEN ZUM BEARBEITEN ---
 
         async function loadGameList() {
-            // ... (unveränderte Logik zum Laden der Liste) ...
             const res = await fetch('/api/games'); 
             const games = await res.json();
             
@@ -306,12 +380,30 @@
             }
             
             games.forEach(game => {
-                const div = document.createElement('div');
-                div.className = 'load-item';
-                div.innerText = game.title;
-                div.dataset.id = game._id;
-                div.onclick = () => loadGameForEdit(game._id);
-                list.appendChild(div);
+                const row = document.createElement('div');
+                row.className = 'load-item load-item-row';
+                row.dataset.id = game._id;
+
+                // Titel (zum Laden)
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'load-item-title';
+                titleSpan.innerText = game.title;
+                titleSpan.onclick = () => loadGameForEdit(game._id);
+                
+                // Lösch-Button (NEU)
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-quiz-btn';
+                delBtn.innerHTML = "🗑️"; 
+                delBtn.title = `Quiz "${game.title}" löschen`;
+                delBtn.onclick = (e) => {
+                    e.stopPropagation(); // Verhindert, dass loadGameForEdit getriggert wird
+                    deleteGame(game._id, game.title);
+                };
+
+
+                row.appendChild(titleSpan);
+                row.appendChild(delBtn);
+                list.appendChild(row);
             });
         }
 
