@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeopardy Host</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #eee; display: flex; height: 95vh; gap: 20px; }
+        
+        /* Linke Seite: Spielauswahl */
+        #sidebar { 
+            width: 250px; 
+            background: white; 
+            padding: 20px; 
+            overflow-y: auto; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+
+        /* Liste der Spiele */
+        .game-item { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            padding: 10px; 
+            border-bottom: 1px solid #eee; 
+            background: white;
+        }
+        .game-item:hover { background: #f9f9f9; }
+
+        /* Der Titel (Klickbar zum Starten) */
+        .game-title-click {
+            flex-grow: 1; 
+            cursor: pointer;
+            font-weight: bold;
+            color: #333;
+        }
+        .game-title-click:hover { color: #007bff; }
+
+        /* Der Lösch-Button */
+        .delete-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px 10px;
+            color: #dc3545; /* Rot */
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        .delete-btn:hover { background: #ffe6e6; }
+
+        /* Rechte Seite: Das aktive Spiel */
+        #controls { 
+            flex-grow: 1; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none; 
+            flex-direction: column; 
+        }
+        
+        /* Das Mini-Grid für den Host */
+        #host-grid { 
+            display: flex; 
+            gap: 10px; 
+            overflow-x: auto; 
+            margin-bottom: 20px; 
+            padding-bottom: 10px; 
+            border-bottom: 2px solid #ddd; 
+        }
+        .host-col { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 5px; }
+        .host-cat-title { font-weight: bold; text-align: center; margin-bottom: 5px; }
+        
+        .q-btn {
+            padding: 15px; background: #ddd; border: 1px solid #999; cursor: pointer; text-align: center; font-weight: bold;
+        }
+        .q-btn:hover { background: #ccc; }
+        .q-btn.active { background: #007bff; color: white; } 
+        .q-btn.done { background: #333; color: #888; text-decoration: line-through; } 
+
+        /* Steuerleiste unten */
+        #action-bar { margin-top: auto; padding-top: 20px; text-align: center; border-top: 2px solid #ddd; }
+        #current-answer { font-size: 1.5rem; color: #d63384; margin: 10px 0; font-weight: bold; min-height: 30px; }
+        
+        button.big-btn { padding: 15px 30px; font-size: 1.2rem; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn-buzz { background: #dc3545; color: white; }
+        .btn-close { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h3>Spiele</h3>
+        <div id="game-list">Lade...</div>
+        <br>
+        <a href="/create" target="_blank" style="display:block; text-align:center;">+ Neues Spiel erstellen</a>
+    </div>
+
+    <div id="controls">
+        <h2 id="game-title">Titel</h2>
+        
+        <div id="score-display"></div> <div id="host-grid"></div>
+
+        <div id="action-bar">
+            <div id="current-answer">Wähle oben eine Frage aus...</div>
+            
+            <button class="big-btn btn-buzz" onclick="unlockBuzzers()">🚨 BUZZER FREIGEBEN</button>
+            <button class="big-btn btn-close" onclick="closeQuestion()">❌ FRAGE BEENDEN (Zurück)</button>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let activeGame = null;
+        let currentPlayers = {}; 
+        let currentBuzzWinnerId = null; 
+        let activeQuestionPoints = 0; 
+
+        // --- SCORE RENDERING ---
+
+        function renderScores() {
+            let html = '<h4>Scores</h4><div style="display:flex; flex-wrap:wrap; gap:15px;">';
+            for (const id in currentPlayers) {
+                const p = currentPlayers[id];
+                html += `<div style="padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background: #f0f0f0;">
+                            <strong>${p.name}:</strong> ${p.score}
+                        </div>`;
+            }
+            html += '</div>';
+            
+            const scoreDisplay = document.getElementById('score-display');
+            if(scoreDisplay) {
+                scoreDisplay.innerHTML = html;
+            }
+        }
+        
+        socket.on('update_scores', (players) => {
+            currentPlayers = players;
+            renderScores();
+        });
+        
+        // NEU: Host-Steuerung aktualisieren (z.B. Buzzer-Gewinner)
+        socket.on('update_host_controls', (data) => {
+            currentBuzzWinnerId = data.buzzWinnerId || null;
+            if(data.points) activeQuestionPoints = data.points;
+            
+            updateAnswerBar(data);
+        });
+        
+        // Buzzer Gewinner anzeigen und Scoring-Buttons bereitstellen
+        function updateAnswerBar(data) {
+            const bar = document.getElementById('current-answer');
+            const actionBar = document.getElementById('action-bar');
+            
+            // Scoring-Buttons entfernen (falls schon vorhanden)
+            const oldBtns = document.querySelectorAll('.scoring-btn');
+            oldBtns.forEach(btn => btn.remove());
+            
+            if (data.buzzWinnerId) {
+                // Die korrekte Antwort wird vom Server/Frontend nicht automatisch gesendet, 
+                // daher suchen wir sie im activeGame Objekt.
+                let currentAnswerText = "Lösung nicht verfügbar";
+                
+                // Wir nehmen die Antwort von der Frage, die aktuell als "active" markiert ist.
+                const activeBtn = document.querySelector('.q-btn.active');
+                if (activeBtn) {
+                     // Die ID des Buttons ist card-catIndex-qIndex
+                     const [ , catIndex, qIndex ] = activeBtn.id.split('-');
+                     if (activeGame && activeGame.categories[catIndex] && activeGame.categories[catIndex].questions[qIndex]) {
+                         currentAnswerText = activeGame.categories[catIndex].questions[qIndex].answerText;
+                     }
+                }
+                
+                bar.innerHTML = `Lösung: **${currentAnswerText}** <br>
+                                <span style="color:red; font-size:2rem;">${data.buzzWinnerName} WILL ANTWORTEN!</span>`;
+                
+                // Scoring Buttons hinzufügen
+                const correctBtn = document.createElement('button');
+                correctBtn.className = 'big-btn scoring-btn';
+                correctBtn.innerText = `✅ Richtig (+${activeQuestionPoints})`;
+                correctBtn.style.background = '#28a745';
+                correctBtn.onclick = () => scoreAnswer('correct', data.buzzWinnerId);
+                actionBar.insertBefore(correctBtn, actionBar.firstChild);
+
+                const incorrectBtn = document.createElement('button');
+                incorrectBtn.className = 'big-btn scoring-btn';
+                incorrectBtn.innerText = `❌ Falsch (-${activeQuestionPoints})`;
+                incorrectBtn.style.background = '#dc3545';
+                incorrectBtn.onclick = () => scoreAnswer('incorrect', data.buzzWinnerId);
+                actionBar.insertBefore(incorrectBtn, actionBar.firstChild);
+            
+            } else {
+                bar.innerText = "Wähle oben eine Frage aus...";
+            }
+        }
+        
+        function scoreAnswer(action, playerId) {
+            document.querySelectorAll('.scoring-btn').forEach(btn => btn.remove());
+            
+            socket.emit('host_score_answer', {
+                action: action,
+                playerId: playerId
+            });
+        }
+        
+        // --- QUIZ VERWALTUNG ---
+        
+        async function loadGames() {
+            const res = await fetch('/api/games');
+            const games = await res.json();
+            
+            const list = document.getElementById('game-list');
+            list.innerHTML = "";
+            
+            if(games.length === 0) {
+                list.innerHTML = "<p style='padding:10px; color:#999;'>Keine Spiele gefunden.</p>";
+                return;
+            }
+
+            games.forEach(game => {
+                const div = document.createElement('div');
+                div.className = 'game-item';
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'game-title-click';
+                titleSpan.innerText = game.title;
+                titleSpan.onclick = () => loadGame(game); 
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.innerHTML = "🗑️"; 
+                delBtn.onclick = (e) => {
+                    e.stopPropagation(); 
+                    deleteGame(game._id, game.title);
+                };
+
+                div.appendChild(titleSpan);
+                div.appendChild(delBtn);
+                list.appendChild(div);
+            });
+        }
+
+        async function deleteGame(id, title) {
+            if(!confirm(`Möchtest du das Quiz "${title}" wirklich unwiderruflich löschen?`)) {
+                return;
+            }
+
+            try {
+                await fetch(`/api/games/${id}`, { method: 'DELETE' });
+                loadGames();
+                document.getElementById('controls').style.display = 'none'; 
+            } catch (e) {
+                console.error(e);
+                alert("Fehler beim Löschen oder Serververbindung.");
+            }
+        }
+
+        function loadGame(gameShort) {
+            document.getElementById('controls').style.display = 'flex';
+            document.getElementById('game-title').innerText = gameShort.title;
+            
+            // Sicherstellen, dass der Score-Anzeiger existiert
+            if(!document.getElementById('score-display')) {
+                const newDiv = document.createElement('div');
+                newDiv.id = 'score-display';
+                document.getElementById('controls').insertBefore(newDiv, document.getElementById('host-grid'));
+            }
+            
+            // WICHTIG: Befehl an Server -> voller Ladevorgang
+            socket.emit('host_start_game', gameShort); 
+        }
+
+        // Wenn Server das volle Spiel zurückschickt, rendern wir das Host-Grid
+        socket.on('load_game_on_board', (game) => {
+            console.log("Host: Quizdaten empfangen und rendere Grid.", game.title); // <-- DIAGNOSE
+            activeGame = game;
+            renderHostGrid();
+            renderScores();
+        });
+
+        // --- FUNKTION: HOST GRID RENDERN ---
+        function renderHostGrid() {
+            const grid = document.getElementById('host-grid');
+            grid.innerHTML = "";
+            
+            if (!activeGame || !activeGame.categories || activeGame.categories.length === 0) {
+                 grid.innerHTML = '<p style="text-align:center;">Quiz enthält keine Kategorien.</p>';
+                 return;
+            }
+
+            activeGame.categories.forEach((cat, catIndex) => {
+                const col = document.createElement('div');
+                col.className = 'host-col';
+                
+                const title = document.createElement('div');
+                title.className = 'host-cat-title';
+                title.innerText = cat.name;
+                col.appendChild(title);
+
+                cat.questions.forEach((q, qIndex) => {
+                    const btn = document.createElement('div');
+                    btn.className = 'q-btn';
+                    btn.id = `btn-${catIndex}-${qIndex}`;
+                    btn.innerText = q.points;
+                    
+                    // KLICK AUF EINE FRAGE
+                    btn.onclick = () => {
+                        document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        
+                        // Hier setzen wir die Antwort (für Host-Anzeige und späteres Scoring)
+                        document.getElementById('current-answer').innerText = "Lösung: " + q.answerText;
+
+                        // Befehl an Server -> Board (Zeige Frage)
+                        socket.emit('host_pick_question', { catIndex, qIndex, question: q });
+                    };
+                    col.appendChild(btn);
+                });
+                grid.appendChild(col);
+            });
+        }
+
+        // --- SPIEL-STEUERUNG (BUZZER/RUNDE) ---
+        function unlockBuzzers() {
+            document.querySelectorAll('.scoring-btn').forEach(btn => btn.remove());
+            socket.emit('host_unlock_buzzers');
+        }
+
+        function closeQuestion() {
+            document.querySelectorAll('.scoring-btn').forEach(btn => btn.remove());
+            socket.emit('host_close_question');
+            document.getElementById('current-answer').innerText = "---";
+            
+            const activeBtn = document.querySelector('.q-btn.active');
+            if(activeBtn) {
+                activeBtn.classList.remove('active');
+                activeBtn.classList.add('done');
+            }
+        }
+        
+        socket.on('player_won_buzz', (data) => {
+             // Dient nur noch als Konsolen-Log, die Hauptsteuerung läuft über update_host_controls
+             console.log(`Buzzer gewonnen: ${data.name}`);
+        });
+
+        // Init: Spiele beim Laden der Seite anzeigen
+        loadGames();
+    </script>
+</body>
+</html>

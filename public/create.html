@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz Erstellen & Bearbeiten</title>
+    <style>
+        body { font-family: sans-serif; display: flex; height: 95vh; margin: 0; background: #eee; }
+        
+        /* Linke Leiste zum Laden */
+        #load-game-sidebar {
+            width: 250px;
+            background: #fff;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        .load-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .load-item:hover { background: #f0f0f0; color: #007bff; }
+        .load-item.active { background: #007bff; color: white; font-weight: bold; }
+        
+        /* Hauptbereich */
+        #main-content {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            max-width: 1000px;
+        }
+
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+        
+        .question-block { 
+            border-left: 4px solid #007bff; 
+            padding-left: 15px; 
+            margin-top: 15px; 
+            background: #f9f9f9; 
+            padding: 10px; 
+            position: relative;
+        }
+        .remove-q-btn {
+            position: absolute;
+            top: -10px; /* Hochgeschoben */
+            right: 5px;
+            background: none; border: none; color: #dc3545; cursor: pointer;
+            font-size: 1.2rem;
+            z-index: 1;
+        }
+        
+        button { cursor: pointer; padding: 10px 15px; border: none; border-radius: 4px; margin-top: 10px; }
+        button.secondary { background: #6c757d; color: white; }
+        button.add-cat-btn { background: #28a745; color: white; }
+        button.save { background: #007bff; color: white; font-size: 1.2rem; width: 100%; margin-top: 30px; }
+        
+        .media-preview { max-width: 100px; max-height: 100px; display: block; margin-top: 5px; border: 1px solid #ccc; }
+        .upload-status { font-size: 0.8rem; color: #666; }
+    </style>
+</head>
+<body>
+
+    <div id="load-game-sidebar">
+        <h3>Quiz Verwaltung</h3>
+        <button onclick="clearForm()" class="add-cat-btn" style="width:100%; margin-bottom:15px;">+ NEUES QUIZ ERSTELLEN</button>
+        
+        <p><strong>Zum Bearbeiten auswählen:</strong></p>
+        <div id="game-list">Lade Spiele...</div>
+    </div>
+
+    <div id="main-content">
+        <h1><span id="form-mode">Neues</span> Quiz</h1>
+
+        <div class="card">
+            <label>Name des Quiz</label>
+            <input type="text" id="gameTitle" placeholder="Titel eingeben...">
+        </div>
+
+        <div id="categories-container">
+            </div>
+
+        <button class="add-cat-btn" onclick="addCategory()">+ Neue Kategorie hinzufügen</button>
+        
+        <hr>
+        <button class="save" onclick="saveGame()">💾 SPIEL SPEICHERN/AKTUALISIEREN</button>
+    </div>
+
+<script>
+        let editingGameId = null; 
+        let currentCategoriesCount = 0; 
+
+        // --- HILFSFUNKTIONEN ---
+
+        async function uploadFile(inputElement, previewId, hiddenInputId, path = null) {
+            const statusEl = inputElement.nextElementSibling;
+            const img = document.getElementById(previewId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            
+            if (path) {
+                hiddenInput.value = path;
+                img.src = path;
+                img.style.display = 'block';
+                return;
+            }
+
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('mediaFile', file);
+
+            try {
+                statusEl.innerText = "Lade hoch...";
+                img.style.display = 'none';
+
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                hiddenInput.value = data.filePath;
+                statusEl.innerText = "Upload fertig! (Pfad: " + data.filePath + ")";
+                
+                if(file.type.startsWith('image')) {
+                    img.src = data.filePath;
+                    img.style.display = 'block';
+                }
+            } catch (e) {
+                alert("Fehler beim Upload: " + e);
+                statusEl.innerText = "Upload fehlgeschlagen.";
+            }
+        }
+        
+        function removeQuestion(btn) {
+            btn.closest('.question-block').remove();
+        }
+
+        function removeCategory(catDiv) {
+             catDiv.remove();
+        }
+
+        // --- FORMULAR-MANAGEMENT ---
+        
+        function clearForm() {
+            editingGameId = null;
+            document.getElementById('gameTitle').value = '';
+            document.getElementById('categories-container').innerHTML = '';
+            document.getElementById('form-mode').innerText = 'Neues';
+            currentCategoriesCount = 0;
+            addCategory(); 
+            
+            document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
+        }
+
+        function addQuestion(catId, questionData = {}) {
+            const qContainer = document.getElementById(`q-cont-${catId}`);
+            const qId = Date.now() + Math.random();
+            
+            // Robustheit: Sicherstellen, dass Werte nicht 'null' sind
+            const points = questionData.points || 100;
+            const qText = questionData.questionText || '';
+            const answerText = questionData.answerText || '';
+            const mediaPath = questionData.mediaPath || '';
+            
+            const html = `
+            <div class="question-block">
+                <button class="remove-q-btn" onclick="removeQuestion(this)">🗑️</button>
+
+                <label>Punkte:</label>
+                <input type="number" class="q-points" value="${points}" step="100">
+                
+                <label>Frage:</label>
+                <input type="text" class="q-text" placeholder="Die Frage..." value="${qText}">
+                
+                <label>Antwort (für Moderator):</label>
+                <input type="text" class="q-answer" placeholder="Die Lösung..." value="${answerText}">
+                
+                <label>Bild oder Video (optional):</label>
+                <input type="file" onchange="uploadFile(this, 'prev-${qId}', 'media-${qId}')">
+                <span class="upload-status">${mediaPath ? 'Datei geladen.' : ''}</span>
+                <input type="hidden" class="q-media-path" id="media-${qId}" value="${mediaPath}">
+                <img src="${mediaPath}" id="prev-${qId}" class="media-preview" style="display:${mediaPath ? 'block' : 'none'};">
+            </div>`;
+            
+            qContainer.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function addCategory(categoryData = {}) {
+            const container = document.getElementById('categories-container');
+            currentCategoriesCount++;
+            const catId = `cat-${Date.now()}-${currentCategoriesCount}`; 
+            
+            const catName = categoryData.name || '';
+
+            const html = `
+            <div class="card category" id="${catId}">
+                <button class="remove-q-btn" onclick="removeCategory(document.getElementById('${catId}'))" style="right:10px;">🗑️ Kategorie</button>
+                <h2>Kategorie</h2>
+                <label>Name der Kategorie:</label>
+                <input type="text" class="cat-name" placeholder="z.B. Geografie" value="${catName}">
+                
+                <div class="questions-container" id="q-cont-${catId}"></div>
+                
+                <button class="secondary" onclick="addQuestion('${catId}')">+ Frage hinzufügen</button>
+            </div>`;
+            
+            container.insertAdjacentHTML('beforeend', html);
+
+            // Robustheit: Überprüfen, ob Fragen existieren und ein Array sind
+            if (categoryData.questions && Array.isArray(categoryData.questions) && categoryData.questions.length > 0) {
+                categoryData.questions.forEach(q => addQuestion(catId, q));
+            } else {
+                 addQuestion(catId); 
+            }
+        }
+
+        // --- SPEICHERN ---
+
+        async function saveGame() {
+            // ... (unveränderte Logik zum Speichern) ...
+            const title = document.getElementById('gameTitle').value;
+            const categories = [];
+
+            document.querySelectorAll('.category').forEach(catDiv => {
+                const catName = catDiv.querySelector('.cat-name').value;
+                const questions = [];
+
+                catDiv.querySelectorAll('.question-block').forEach(qDiv => {
+                    const mediaPath = qDiv.querySelector('.q-media-path').value;
+                    questions.push({
+                        points: parseInt(qDiv.querySelector('.q-points').value) || 0,
+                        questionText: qDiv.querySelector('.q-text').value,
+                        answerText: qDiv.querySelector('.q-answer').value,
+                        mediaPath: mediaPath,
+                        hasMedia: !!mediaPath,
+                        mediaType: mediaPath ? mediaPath.split('.').pop().toLowerCase() : 'none' 
+                    });
+                });
+
+                categories.push({ name: catName, questions: questions });
+            });
+
+            const gameData = { title, categories };
+            
+            if (editingGameId) {
+                gameData._id = editingGameId;
+            }
+
+            const res = await fetch('/api/create-game', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(gameData)
+            });
+
+            const result = await res.json();
+            if(result.success) {
+                alert(`Spiel erfolgreich ${editingGameId ? 'aktualisiert' : 'gespeichert'}!`);
+                editingGameId = result.gameId;
+                loadGameList(); 
+                document.getElementById('form-mode').innerText = 'Bearbeitetes';
+            } else {
+                alert("Fehler: " + (result.error || "Unbekannter Fehler beim Speichern."));
+            }
+        }
+
+        // --- LADEN ZUM BEARBEITEN ---
+
+        async function loadGameList() {
+            // ... (unveränderte Logik zum Laden der Liste) ...
+            const res = await fetch('/api/games'); 
+            const games = await res.json();
+            
+            const list = document.getElementById('game-list');
+            list.innerHTML = "";
+
+            if(games.length === 0) {
+                list.innerHTML = "<p style='color:#666;'>Noch keine Spiele vorhanden.</p>";
+                return;
+            }
+            
+            games.forEach(game => {
+                const div = document.createElement('div');
+                div.className = 'load-item';
+                div.innerText = game.title;
+                div.dataset.id = game._id;
+                div.onclick = () => loadGameForEdit(game._id);
+                list.appendChild(div);
+            });
+        }
+
+        async function loadGameForEdit(gameId) {
+            document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
+            document.querySelector(`[data-id="${gameId}"]`).classList.add('active');
+
+            try {
+                const res = await fetch(`/api/games/${gameId}`);
+                const gameData = await res.json();
+                
+                // NEU: WICHTIGE DIAGNOSE
+                console.log("--- Quizdaten zum Bearbeiten empfangen ---", gameData);
+
+                document.getElementById('categories-container').innerHTML = '';
+                currentCategoriesCount = 0;
+                editingGameId = gameData._id;
+                document.getElementById('form-mode').innerText = 'Bearbeitetes';
+
+                document.getElementById('gameTitle').value = gameData.title;
+
+                // Robustheit: Überprüfen, ob Kategorien existieren und ein Array sind
+                if (gameData.categories && Array.isArray(gameData.categories)) {
+                    gameData.categories.forEach(cat => addCategory(cat));
+                } else {
+                     console.error("Fehler: 'categories' ist kein Array in den Quizdaten.", gameData);
+                }
+
+
+            } catch (e) {
+                alert("Fehler beim Laden des Spiels: " + (e.message || ""));
+            }
+        }
+
+        // Starten mit einer leeren Kategorie und der Ladeliste
+        clearForm();
+        loadGameList();
+    </script>
+</body>
+</html>

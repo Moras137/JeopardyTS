@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeopardy Board</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { background: #00008b; color: #fff; font-family: 'Impact', sans-serif; margin: 0; overflow: hidden; }
+        
+        /* Das Raster für die Fragen */
+        #game-grid {
+            display: grid;
+            gap: 10px; padding: 20px; height: 80vh; text-align: center;
+        }
+        
+        .cat-header { color: white; font-size: 1.5rem; text-transform: uppercase; padding-bottom: 20px; text-shadow: 2px 2px 0 #000; }
+        
+        .q-card {
+            background: #0000cc; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 3rem; color: #ffcc00; cursor: pointer; text-shadow: 3px 3px 0 #000;
+        }
+        .q-card.played { opacity: 0; visibility: hidden; } 
+
+        /* Die Frage (Vollbild Overlay) */
+        #question-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0000cc; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+        }
+        #q-text { font-size: 4rem; margin: 20px; text-align: center; text-shadow: 4px 4px 0 #000; max-width: 80%; }
+        
+        /* Medien */
+        #media-container img { max-height: 50vh; border: 5px solid white; }
+        #media-container video { max-height: 50vh; border: 5px solid white; }
+        
+        /* Spieler Leiste unten */
+        #player-bar {
+            position: fixed; bottom: 0; width: 100%; height: 15vh; background: #111; display: flex; justify-content: center; gap: 20px; align-items: center; border-top: 3px solid white;
+        }
+        .player-card { border: 2px solid white; padding: 10px 20px; font-size: 1.5rem; background: #00008b; }
+        .player-card.buzzing { background: #fff; color: #00008b; border-color: #ffcc00; transform: scale(1.2); }
+
+        /* QR Code Platzierung */
+        #qr-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: white;
+            padding: 5px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="qr-container">
+        <p style="color:black; font-family:sans-serif; font-size:12px; margin:0 0 5px 0;">Mit Handy scannen:</p>
+        <div id="qrcode"></div>
+    </div>
+
+    <div id="game-grid">
+        <h1 style="width:100%; text-align:center; margin-top: 200px;">WARTE AUF SPIEL...</h1>
+    </div>
+
+    <div id="question-overlay">
+        <div id="media-container"></div>
+        <div id="q-text">Die Frage steht hier...</div>
+    </div>
+
+    <div id="player-bar"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentGame = null;
+        
+        // QR Code Logik
+        (function generateQrCode() {
+            const playerUrl = window.location.protocol + "//" + "LAPTOP-4E3BVSIR:3000/player.html";
+            
+            new QRCode(document.getElementById("qrcode"), {
+                text: playerUrl,
+                width: 128,
+                height: 128,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        })();
+
+        // Funktion zum Rendern der Spieler und Scores
+        function renderPlayerBar(playersData) {
+            const bar = document.getElementById('player-bar');
+            bar.innerHTML = "";
+            
+            for (const id in playersData) {
+                const p = playersData[id];
+                const div = document.createElement('div');
+                div.className = 'player-card';
+                div.id = 'p-' + id; 
+                div.innerText = `${p.name} (${p.score})`; 
+                bar.appendChild(div);
+            }
+        }
+        
+        // NEU: Scores werden aktualisiert
+        socket.on('update_scores', (players) => {
+            renderPlayerBar(players);
+        });
+
+        // --- SPIEL LADEN ---
+        socket.on('load_game_on_board', (game) => {
+            currentGame = game;
+            renderGrid();
+        });
+
+        function renderGrid() {
+            const grid = document.getElementById('game-grid');
+            grid.innerHTML = "";
+            
+            grid.style.gridTemplateColumns = `repeat(${currentGame.categories.length}, 1fr)`;
+            grid.style.display = "grid"; 
+            
+            currentGame.categories.forEach((cat, catIndex) => {
+                // Header (ist jetzt Teil des Grids)
+                const head = document.createElement('div');
+                head.className = 'cat-header';
+                head.innerText = cat.name;
+                grid.appendChild(head);
+
+                // Fragen (als eigene Spalte/Reihe im CSS behandelt)
+                cat.questions.forEach((q, qIndex) => {
+                    const card = document.createElement('div');
+                    card.className = 'q-card';
+                    card.innerText = q.points;
+                    card.id = `card-${catIndex}-${qIndex}`; 
+                    grid.appendChild(card);
+                });
+            });
+            
+            // Setzt die Platzierung der Cards zurück, um im Grid zu funktionieren
+            const cards = document.querySelectorAll('.q-card');
+            cards.forEach(card => card.style.flex = '');
+        }
+
+        // --- FRAGE ANZEIGEN (Kommando vom Host) ---
+        socket.on('board_show_question', (data) => {
+            const { catIndex, qIndex, question } = data;
+            
+            document.getElementById('q-text').innerText = question.questionText;
+            const mediaCont = document.getElementById('media-container');
+            mediaCont.innerHTML = ""; 
+
+            if(question.mediaPath) {
+                const ext = question.mediaPath.split('.').pop().toLowerCase();
+                if(['mp4', 'webm', 'mov'].includes(ext)) {
+                    const vid = document.createElement('video');
+                    vid.src = question.mediaPath;
+                    vid.autoplay = true; 
+                    vid.controls = true; // Steuerung für Board anzeigen
+                    mediaCont.appendChild(vid);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = question.mediaPath;
+                    mediaCont.appendChild(img);
+                }
+            }
+
+            document.getElementById('question-overlay').style.display = 'flex';
+            
+            const card = document.getElementById(`card-${catIndex}-${qIndex}`);
+            if(card) card.classList.add('played');
+        });
+
+        // --- ZURÜCK ZUM BOARD ---
+        socket.on('board_hide_question', () => {
+            document.getElementById('question-overlay').style.display = 'none';
+            document.getElementById('media-container').innerHTML = "";
+        });
+
+        // --- BUZZER LOGIK (Visualisierung) ---
+        socket.on('update_player_list', (players) => {
+             // Wird jetzt von update_scores übernommen, dient als Fallback
+             renderPlayerBar(players);
+        });
+
+        socket.on('player_won_buzz', (data) => {
+            document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
+            const winner = document.getElementById('p-' + data.id);
+            if(winner) winner.classList.add('buzzing');
+        });
+        
+        socket.on('buzzers_unlocked', () => {
+             document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
+        });
+
+    </script>
+</body>
+</html>

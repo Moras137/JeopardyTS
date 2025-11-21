@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeopardy Buzzer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: sans-serif; text-align: center; margin: 0; background: #222; color: white; display: flex; flex-direction: column; height: 100vh; justify-content: center; align-items: center; }
+        
+        #join-section, #game-section { padding: 20px; }
+        
+        #game-section { display: none; }
+
+        #buzzer-button {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background-color: #dc3545; /* Rot (Gesperrt) */
+            color: white;
+            font-size: 2rem;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.1s ease;
+        }
+
+        #buzzer-button:active {
+            transform: scale(0.95);
+        }
+
+        #status-message {
+            margin-top: 20px;
+            font-size: 1.5rem;
+            color: #ffc107;
+        }
+        
+        #player-name {
+            font-size: 2.5rem;
+            color: #007bff;
+        }
+        
+        #player-score { /* NEU */
+            color: #ffc107;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="join-section">
+        <h1>Spiel beitreten</h1>
+        <input type="text" id="name-input" placeholder="Dein Name" style="padding: 10px; font-size: 1.2rem; margin-bottom: 15px;">
+        <button onclick="joinGame()" style="padding: 10px 20px; font-size: 1.2rem; background: #28a745; color: white; border: none; border-radius: 5px;">Beitreten</button>
+    </div>
+
+    <div id="game-section">
+        <h1 id="player-name"></h1>
+        <h2 id="player-score">Score: 0</h2> <button id="buzzer-button" onclick="buzz()">BUZZ</button>
+        <div id="status-message">Warte auf Freigabe...</div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let playerName = '';
+        let playerBuzzed = false;
+        let myId = null;
+
+        const joinSection = document.getElementById('join-section');
+        const gameSection = document.getElementById('game-section');
+        const buzzerButton = document.getElementById('buzzer-button');
+        const statusMessage = document.getElementById('status-message');
+        const playerNameEl = document.getElementById('player-name');
+        const playerScoreEl = document.getElementById('player-score'); 
+
+        function joinGame() {
+            playerName = document.getElementById('name-input').value.trim();
+            if (playerName) {
+                socket.emit('player_join', playerName);
+            }
+        }
+
+        socket.on('name_taken', () => {
+            alert('Dieser Name wird bereits verwendet. Bitte wähle einen anderen.');
+        });
+        
+        socket.on('joined', (id) => {
+            myId = id; 
+            joinSection.style.display = 'none';
+            gameSection.style.display = 'block';
+            playerNameEl.innerText = playerName;
+            playerScoreEl.innerText = 'Score: 0';
+        });
+
+        function buzz() {
+            if (!playerBuzzed) {
+                playerBuzzed = true;
+                buzzerButton.style.backgroundColor = '#6c757d'; 
+                statusMessage.innerText = 'Warte auf Freigabe...';
+                
+                socket.emit('player_buzz', { id: myId }); 
+            }
+        }
+
+        socket.on('buzzers_unlocked', () => {
+            playerBuzzed = false;
+            buzzerButton.style.backgroundColor = '#28a745'; 
+            statusMessage.innerText = 'Drücken!';
+        });
+
+        socket.on('buzzers_locked', () => {
+            playerBuzzed = true; 
+            buzzerButton.style.backgroundColor = '#dc3545'; 
+            statusMessage.innerText = 'Gesperrt';
+        });
+
+        socket.on('player_won_buzz', (data) => {
+            buzzerButton.style.backgroundColor = '#dc3545'; 
+            statusMessage.innerText = (data.name === playerName) 
+                ? 'Du bist dran!' 
+                : `${data.name} ist dran!`;
+        });
+        
+        // NEU: Scores von anderen Spielern erhalten
+        socket.on('update_scores', (players) => {
+            const myPlayer = players[myId];
+            if (myPlayer) {
+                playerScoreEl.innerText = `Score: ${myPlayer.score}`;
+            }
+        });
+    </script>
+</body>
+</html>
