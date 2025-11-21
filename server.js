@@ -131,7 +131,7 @@ app.post('/api/create-game', async (req, res) => {
     }
 });
 
-// API: Ein Spiel löschen (MIT DATEI-CLEANUP)
+// API: Ein Spiel löschen (MIT ERWEITERTEM DATEI-CLEANUP)
 app.delete('/api/games/:id', async (req, res) => {
     try {
         const id = req.params.id;
@@ -144,8 +144,13 @@ app.delete('/api/games/:id', async (req, res) => {
             const mediaFiles = [];
             gameToDelete.categories.forEach(cat => {
                 cat.questions.forEach(q => {
+                    // Prüfe Question Media
                     if (q.mediaPath) {
                         mediaFiles.push(q.mediaPath);
+                    }
+                    // Prüfe Answer Media (NEU)
+                    if (q.answerMediaPath) {
+                        mediaFiles.push(q.answerMediaPath);
                     }
                 });
             });
