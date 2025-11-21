@@ -160,6 +160,32 @@
             const answerText = questionData.answerText || '';
             const mediaPath = questionData.mediaPath || '';
             
+            let mediaPreviewHtml = '';
+            
+            if (mediaPath) {
+                const ext = mediaPath.split('.').pop().toLowerCase();
+                const mediaIsVideo = ['mp4', 'webm', 'mov'].includes(ext);
+
+                if (mediaIsVideo) {
+                    // NEU: Video-Element mit Steuerung anzeigen
+                    mediaPreviewHtml = `
+                        <video src="${mediaPath}" controls class="media-preview" style="display:block; max-height: 100px;"></video>
+                        <span style="color: #28a745;">Video geladen: ${mediaPath.split('/').pop()}</span>
+                    `;
+                } else {
+                    // Bild-Element anzeigen
+                    mediaPreviewHtml = `
+                        <img src="${mediaPath}" class="media-preview" style="display:block;">
+                        <span style="color: #28a745;">Bild geladen: ${mediaPath.split('/').pop()}</span>
+                    `;
+                }
+            } else {
+                mediaPreviewHtml = `
+                    <img src="" class="media-preview" style="display:none;">
+                    <span class="upload-status">Keine Datei ausgewählt.</span>
+                `;
+            }
+            
             const html = `
             <div class="question-block">
                 <button class="remove-q-btn" onclick="removeQuestion(this)">🗑️</button>
@@ -174,10 +200,13 @@
                 <input type="text" class="q-answer" placeholder="Die Lösung..." value="${answerText}">
                 
                 <label>Bild oder Video (optional):</label>
-                <input type="file" onchange="uploadFile(this, 'prev-${qId}', 'media-${qId}')">
-                <span class="upload-status">${mediaPath ? 'Datei geladen.' : ''}</span>
+                <input type="file" onchange="uploadFile(this, 'preview-container-${qId}', 'media-${qId}')">
+                
+                <div id="preview-container-${qId}" style="margin-top: 5px;">
+                    ${mediaPreviewHtml}
+                </div>
+
                 <input type="hidden" class="q-media-path" id="media-${qId}" value="${mediaPath}">
-                <img src="${mediaPath}" id="prev-${qId}" class="media-preview" style="display:${mediaPath ? 'block' : 'none'};">
             </div>`;
             
             qContainer.insertAdjacentHTML('beforeend', html);
