@@ -119,7 +119,7 @@
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
         background-color: rgba(0, 0, 0, 0.95); 
         z-index: 1000; 
-        display: none; /* WICHTIG: Standardmäßig ausgeblendet */
+        display: none; /* WICHTIG: Zurück auf 'none' */
         flex-direction: column; 
         align-items: center; 
         justify-content: center;
@@ -152,8 +152,6 @@
             }
         }
 
-        let qrCodeVisible = false; // Hält fest, ob der Code bereits generiert wurde
-
         function generateQrCode() {
             // Ersetze 'board.html' durch 'player.html', um den Join-Link zu erhalten
             const url = window.location.href.replace('board.html', 'player.html');
@@ -174,6 +172,7 @@
             });
         }
 
+        let qrCodeVisible = false;
 
         // --- LISTENER VOM SERVER ---
         socket.on('board_toggle_qr', () => {
@@ -201,16 +200,25 @@
             console.log('Quiz-Daten empfangen:', game);
             currentGame = game;
             
-            // NEU: Hintergrundbild setzen
+            // NEU: Hintergrundbild setzen (bestehende Logik)
             if (currentGame.boardBackgroundPath) {
                 document.body.style.backgroundImage = `url(${currentGame.boardBackgroundPath})`;
             } else {
-                // Setzt einen Standardhintergrund (z.B. eine einheitliche Farbe)
                 document.body.style.backgroundImage = 'none'; 
                 document.body.style.backgroundColor = '#1a1a1a'; 
             }
 
             renderGrid();
+            
+            // NEU: Beim Laden des Quiz den QR-Code generieren und anzeigen
+            const qrOverlay = document.getElementById('qr-overlay');
+
+            // 1. QR Code generieren (wichtig: nur hier nach Spielauswahl)
+            generateQrCode(); 
+            qrCodeVisible = true; // Setze den Status auf "generiert und sichtbar"
+
+            // 2. Overlay anzeigen (da der Host-Button standardmäßig auf 'Ein' steht)
+            qrOverlay.style.display = 'flex'; 
         });
 
         function renderGrid() {
@@ -254,7 +262,8 @@
             // const cards = document.querySelectorAll('.q-card');
             // cards.forEach(card => card.style.flex = ''); // Diese Zeilen werden nicht mehr benötigt.
         }
-
+        
+        
         // --- FRAGE ANZEIGEN (Kommando vom Host) ---
         socket.on('board_show_question', (data) => {
             const { catIndex, qIndex, question } = data;

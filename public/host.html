@@ -86,9 +86,18 @@
         button.big-btn { padding: 15px 30px; font-size: 1.2rem; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
         .btn-buzz { background: #dc3545; color: white; }
         .btn-close { background: #6c757d; color: white; }
-        <button class="primary" onclick="toggleQrCode()">
-        QR-Code ein-/ausblenden
-    </button>
+        
+        /* Visueller Stil für den aktiven QR-Code-Button */
+        .is-on {
+            background-color: #28a745; /* Grüner Hintergrund für "Ein" */
+            border-color: #28a745;
+            color: white;
+        }
+        .is-on:hover {
+            background-color: #1e7e34;
+            border-color: #1e7e34;
+        }
+        
     </style>
 </head>
 <body>
@@ -106,8 +115,8 @@
 
         <div id="action-bar">
             <div id="current-answer">Wähle oben eine Frage aus...</div>
-            <button class="primary" onclick="toggleQrCode()">
-                QR-Code ein-/ausblenden 
+            <button class="secondary" id="qrCodeToggleButton" onclick="toggleQrCode()">
+                QR-Code: Ein
             </button>
             <button class="big-btn btn-buzz" onclick="unlockBuzzers()">🚨 BUZZER FREIGEBEN</button>
             <button class="big-btn btn-close" onclick="closeQuestion()">❌ FRAGE BEENDEN (Zurück)</button>
@@ -120,6 +129,7 @@
         let currentPlayers = {}; 
         let currentBuzzWinnerId = null; 
         let activeQuestionPoints = 0; 
+        let qrCodeIsVisible = true; // Statusvariable für den QR-Code-Zustand
 
         // --- SCORE RENDERING ---
 
@@ -320,9 +330,23 @@
         }
         
         function toggleQrCode() {
-            // Signal an den Server senden
+            const button = document.getElementById('qrCodeToggleButton');
+            
+            // 1. Status umschalten
+            qrCodeIsVisible = !qrCodeIsVisible;
+
+            // 2. Button-Text basierend auf dem neuen Status anpassen
+            if (qrCodeIsVisible) {
+                button.innerText = 'QR-Code: Ein';
+                button.classList.add('active-toggle'); // Optional: Visuellen Hinweis geben
+            } else {
+                button.innerText = 'QR-Code: Aus';
+                button.classList.remove('active-toggle');
+            }
+
+            // 3. Signal an den Server senden
             socket.emit('host_toggle_qr');
-            console.log('Signal gesendet: QR-Code umschalten');
+            console.log(`Signal gesendet: QR-Code ist jetzt ${qrCodeIsVisible ? 'sichtbar' : 'versteckt'}.`);
         }
 
         socket.on('player_won_buzz', (data) => {
