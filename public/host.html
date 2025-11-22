@@ -81,7 +81,21 @@
 
         /* Steuerleiste unten */
         #action-bar { margin-top: auto; padding-top: 20px; text-align: center; border-top: 2px solid #ddd; }
-        #current-answer { font-size: 1.5rem; color: #d63384; margin: 10px 0; font-weight: bold; min-height: 30px; }
+        #current-answer { 
+            font-size: 1.5rem; 
+            color: #d63384; 
+            margin: 10px auto; /* Zentrieren */
+            font-weight: bold; 
+            min-height: 30px;
+            
+            /* NEU: Wichtig für lange Wörter ohne Leerzeichen */
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            
+            max-width: 90%; /* Verhindert, dass es ganz an den Rand klatscht */
+            line-height: 1.4;
+        }
         
         button.big-btn { padding: 15px 30px; font-size: 1.2rem; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
         .btn-buzz { background: #dc3545; color: white; }
@@ -130,7 +144,9 @@
         let currentBuzzWinnerId = null; 
         let activeQuestionPoints = 0; 
         let qrCodeIsVisible = true; // Statusvariable für den QR-Code-Zustand
-
+        let currentAnswerText = "Wähle oben eine Frage aus"; // Speichert den aktuellen Antworttext
+        let activeQuestionPicked = false; // Flag, ob eine Frage geöffnet ist
+        
         // --- SCORE RENDERING ---
 
         function renderScores() {
@@ -156,10 +172,29 @@
         
         // NEU: Host-Steuerung aktualisieren (z.B. Buzzer-Gewinner)
         socket.on('update_host_controls', (data) => {
-            currentBuzzWinnerId = data.buzzWinnerId || null;
-            if(data.points) activeQuestionPoints = data.points;
+            const answerDisplay = document.getElementById('current-answer');
+            const controlsDiv = document.getElementById('controls-div'); // Ihr Kontroll-Container
             
-            updateAnswerBar(data);
+            // ... (Hier Ihre Logik zum Entfernen alter Scoring-Buttons, falls vorhanden) ...
+
+            if (data.buzzWinnerId) {
+                // BUZZER GEWINNER VORHANDEN: Zeige Gewinner & Antwort
+                const winnerName = currentGame.players[data.buzzWinnerId]?.name || 'Unbekannt';
+                
+                // Wichtig: Verwende den gespeicherten Text
+                answerDisplay.innerHTML = `Lösung: <span style="color: #333; border-bottom: 2px solid #d63384;">${currentAnswerText}</span> <br><br>
+                                <span style="color:red; font-size:2rem; display:block; margin-top:10px;">${winnerName} WILL ANTWORTEN!</span>`;
+                
+                // ... (Logik zum Hinzufügen der Scoring-Buttons) ...
+
+            } else if (activeQuestionPicked) {
+                // FRAGE AKTIV, ABER KEIN GEWINNER: Zeige nur die Antwort an
+                answerDisplay.innerText = "Lösung: " + currentAnswerText;
+                
+            } else {
+                // KEINE FRAGE AKTIV: Initial- oder Reset-Zustand
+                answerDisplay.innerText = "Wähle oben eine Frage aus";
+            }
         });
         
         // Buzzer Gewinner anzeigen und Scoring-Buttons bereitstellen
@@ -186,8 +221,9 @@
                      }
                 }
                 
-                bar.innerHTML = `Lösung: **${currentAnswerText}** <br>
-                                <span style="color:red; font-size:2rem;">${data.buzzWinnerName} WILL ANTWORTEN!</span>`;
+                // Nutzen Sie <span> oder <strong> statt Sternchen für die Formatierung
+                bar.innerHTML = `Lösung: <span style="color: #333; border-bottom: 2px solid #d63384;">${currentAnswerText}</span> <br><br>
+                        <span style="color:red; font-size:2rem; display:block; margin-top:10px;">${data.buzzWinnerName} WILL ANTWORTEN!</span>`;    
                 
                 // Scoring Buttons hinzufügen
                 const correctBtn = document.createElement('button');
@@ -296,13 +332,18 @@
                     
                     // KLICK AUF EINE FRAGE
                     btn.onclick = () => {
+                        // 1. Visuelle Markierung
                         document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
                         
-                        // Hier setzen wir die Antwort (für Host-Anzeige und späteres Scoring)
-                        document.getElementById('current-answer').innerText = "Lösung: " + q.answerText;
-
-                        // Befehl an Server -> Board (Zeige Frage)
+                        // 2. Antwort speichern und Flag setzen (NEU)
+                        currentAnswerText = q.answerText || '---';
+                        activeQuestionPicked = true; 
+                        
+                        // 3. Antwort im Host-Interface sofort anzeigen
+                        document.getElementById('current-answer').innerText = "Lösung: " + currentAnswerText;
+                        
+                        // 4. Befehl an Server -> Board (Zeige Frage)
                         socket.emit('host_pick_question', { catIndex, qIndex, question: q });
                     };
                     col.appendChild(btn);
@@ -320,6 +361,10 @@
         function closeQuestion() {
             document.querySelectorAll('.scoring-btn').forEach(btn => btn.remove());
             socket.emit('host_close_question');
+
+            currentAnswerText = "Wähle oben eine Frage aus"; 
+            activeQuestionPicked = false;
+
             document.getElementById('current-answer').innerText = "---";
             
             const activeBtn = document.querySelector('.q-btn.active');
@@ -327,6 +372,7 @@
                 activeBtn.classList.remove('active');
                 activeBtn.classList.add('done');
             }
+            
         }
         
         function toggleQrCode() {

@@ -7,6 +7,18 @@
     <style>
         body { background: #00008b; color: #fff; font-family: 'Impact', sans-serif; margin: 0; overflow: hidden; }
         
+        /* Hintergrundbild-Handling */
+        body {
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            transition: background-image 0.5s ease-in-out;
+        }
+        body::before {
+            content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); z-index: -1;
+        }
+
         /* Das Raster für die Fragen */
         #game-grid {
             display: grid;
@@ -14,121 +26,85 @@
         }
         
         .cat-header { 
-            color: white; 
-            font-size: 1.5rem; 
-            text-transform: uppercase; 
+            color: white; font-size: 1.5rem; text-transform: uppercase; 
             text-shadow: 2px 2px 0 #000; 
-            
-            /* NEU: Hintergrundfarbe und Rahmen, um das Element sichtbar zu machen */
-            background: #00008b; /* Dunkles Blau, wie der Body */
-            border: 3px solid #fff; /* Weißer Rahmen */
-            
-            /* Feste Höhe und Ausrichtung in der Zelle */
-            display: flex;
-            align-items: center; /* Text vertikal zentrieren */
-            justify-content: center; /* Text horizontal zentrieren */
-            padding: 10px;
-            text-align: center; /* Fallback */
-            word-break: break-word; /* Lange Wörtern umbrechen */
+            background: #00008b; border: 3px solid #fff; 
+            display: flex; align-items: center; justify-content: center; 
+            padding: 10px; text-align: center; word-break: break-word;
         }
         
-        /* Wichtig: Stellt sicher, dass die Header in der ersten Zeile bleiben */
-        #game-grid .cat-header {
-            grid-row: 1; 
-        }
-        
-       .q-card {
-            /* Wichtig: grid-row wird jetzt dynamisch im JS gesetzt */
+        /* Karten */
+        .q-card {
             background: #0000cc; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
             font-size: 3rem; color: #ffcc00; cursor: pointer; text-shadow: 3px 3px 0 #000;
         }
         .q-card.played { opacity: 0; visibility: hidden; }
 
-        /* NEU: Wichtig, damit Header und Fragen im Grid richtig ausgerichtet werden */
-        #game-grid .cat-header {
-            /* Stellt sicher, dass die Header in der ersten Zeile bleiben */
-            grid-row: 1; 
-            /* Setzt die Header auf die korrekte Textausrichtung */
-            display: flex; 
-            align-items: flex-end; /* Text unten platzieren */
-            justify-content: center;
-        }
+        /* Wichtig: Header in Zeile 1 zwingen */
+        #game-grid .cat-header { grid-row: 1; }
 
-        /* Die Frage (Vollbild Overlay) */
+        /* --- OVERLAY STYLES (Korrigiert) --- */
         #question-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #0000cc; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+            background: #00008b; z-index: 50;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 5vh 5vw; box-sizing: border-box;
         }
-        #q-text { font-size: 4rem; margin: 20px; text-align: center; text-shadow: 4px 4px 0 #000; max-width: 80%; }
+
+        #question-text, #answer-text {
+            color: white; text-align: center;
+            word-wrap: break-word; word-break: break-word;
+            max-width: 90%; padding: 20px; margin: 20px 0; border-radius: 10px;
+        }
         
-        /* Medien */
-        #media-container img { max-height: 50vh; border: 5px solid white; }
-        #media-container video { max-height: 50vh; border: 5px solid white; }
+        #question-text {
+            font-size: 8vh; line-height: 1.2; min-height: 10vh;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        #answer-text {
+            font-size: 6vh; background: #000066; display: none;
+        }
+
+        #media-container {
+            max-width: 80%; max-height: 50vh; margin-bottom: 20px;
+        }
+        #media-container img, #media-container video {
+            max-width: 100%; max-height: 100%; display: block; object-fit: contain;
+            border: 5px solid white;
+        }
         
-        /* Spieler Leiste unten */
+        /* Spieler Leiste */
         #player-bar {
-            position: fixed; bottom: 0; width: 100%; height: 15vh; background: #111; display: flex; justify-content: center; gap: 20px; align-items: center; border-top: 3px solid white;
+            position: fixed; bottom: 0; width: 100%; height: 15vh; background: #111; 
+            display: flex; justify-content: center; gap: 20px; align-items: center; border-top: 3px solid white;
         }
         .player-card { border: 2px solid white; padding: 10px 20px; font-size: 1.5rem; background: #00008b; }
         .player-card.buzzing { background: #fff; color: #00008b; border-color: #ffcc00; transform: scale(1.2); }
-
-        /* QR Code Platzierung */
-        #qr-container {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            background: white;
-            padding: 5px;
-            border-radius: 5px;
-            z-index: 1000;
-        }
-
-        body {
-            background-size: cover; /* Stellt sicher, dass das Bild den gesamten Viewport bedeckt */
-            background-position: center center; /* Zentriert das Bild */
-            background-repeat: no-repeat; /* Verhindert Kachelung */
-            transition: background-image 0.5s ease-in-out; /* Optional: Schönerer Übergang beim Laden */
-        }
-
-        /* Optional: Füge einen dunklen Overlay-Effekt hinzu, um den Text besser lesbar zu machen */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.4); /* Dunkler, leicht transparenter Filter */
-            z-index: -1;
-        }
     </style>
 </head>
 <body>
+
     <div id="game-grid">
         <h1 style="width:100%; text-align:center; margin-top: 200px;">WARTE AUF SPIEL...</h1>
     </div>
 
     <div id="question-overlay">
         <div id="media-container"></div>
-        <div id="q-text">Die Frage steht hier...</div>
+        <div id="question-text">Die Frage steht hier...</div>
+        <div id="answer-text">Die Antwort steht hier...</div>
     </div>
 
     <div id="player-bar"></div>
     
     <div id="qr-overlay" style="
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background-color: rgba(0, 0, 0, 0.95); 
-        z-index: 1000; 
-        display: none; /* WICHTIG: Zurück auf 'none' */
-        flex-direction: column; 
-        align-items: center; 
-        justify-content: center;
+        background-color: rgba(0, 0, 0, 0.95); z-index: 1000; 
+        display: none; flex-direction: column; align-items: center; justify-content: center;
     ">
         <h1 style="color: white; font-size: 4rem; margin-bottom: 40px;">Zum Spiel beitreten</h1>
-        <div id="qrcode-container" style="
-            background: white; padding: 20px; border-radius: 10px;
-        ">
-            </div>
+        <div id="qrcode-container" style="background: white; padding: 20px; border-radius: 10px;"></div>
         <p style="color: white; font-size: 2rem; margin-top: 40px;">Gehe zu: <span id="join-url"></span></p>
     </div>
 
@@ -136,12 +112,82 @@
     <script>
         const socket = io();
         let currentGame = null;
+        let qrCodeVisible = false;
 
-        // Funktion zum Rendern der Spieler und Scores
+        // --- HELFER: Schriftgröße anpassen ---
+        function adjustFontSize(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            element.style.fontSize = '8vh'; 
+            let currentSize = 8; 
+            
+            for (let i = 0; i < 10; i++) {
+                if (element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight) {
+                    currentSize -= 0.5;
+                    element.style.fontSize = `${currentSize}vh`;
+                } else {
+                    break; 
+                }
+                if (currentSize <= 2) break; 
+            }
+        }
+
+        // --- FRAGE ANZEIGEN (KORRIGIERT) ---
+        socket.on('board_show_question', (data) => {
+            const { catIndex, qIndex, question } = data;
+            
+            // KORREKTUR: Elemente sicher abrufen
+            const mediaCont = document.getElementById('media-container');
+            const qTextEl = document.getElementById('question-text');
+            const aTextEl = document.getElementById('answer-text');
+
+            // KORREKTUR: Richtige Feldnamen benutzen (.questionText statt .question)
+            qTextEl.innerText = question.questionText || "Fehler: Keine Frage";
+            aTextEl.innerText = question.answerText || "";
+            aTextEl.style.display = 'none'; 
+            
+            // Medien setzen
+            mediaCont.innerHTML = "";
+            if (question.mediaPath) {
+                const ext = question.mediaPath.split('.').pop().toLowerCase();
+                if (['mp4', 'webm', 'mov'].includes(ext)) {
+                    const vid = document.createElement('video');
+                    vid.src = question.mediaPath;
+                    vid.controls = true;
+                    // Autoplay mit Ton ist in Chrome oft blockiert, daher muted oder manuell
+                    // vid.autoplay = true; 
+                    mediaCont.appendChild(vid);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = question.mediaPath;
+                    mediaCont.appendChild(img);
+                }
+            }
+            
+            // Overlay anzeigen
+            document.getElementById('question-overlay').style.display = 'flex';
+            
+            // Schriftgröße anpassen (kurze Verzögerung für Rendering)
+            setTimeout(() => {
+                adjustFontSize('question-text'); 
+            }, 10);
+            
+            // Karte als gespielt markieren
+            const card = document.getElementById(`card-${catIndex}-${qIndex}`);
+            if(card) card.classList.add('played');
+        });
+
+        // --- ZURÜCK ZUM BOARD ---
+        socket.on('board_hide_question', () => {
+            document.getElementById('question-overlay').style.display = 'none';
+            document.getElementById('media-container').innerHTML = "";
+        });
+
+        // --- STANDARD FUNKTIONEN ---
         function renderPlayerBar(playersData) {
             const bar = document.getElementById('player-bar');
             bar.innerHTML = "";
-            
             for (const id in playersData) {
                 const p = playersData[id];
                 const div = document.createElement('div');
@@ -153,158 +199,76 @@
         }
 
         function generateQrCode() {
-            // Ersetze 'board.html' durch 'player.html', um den Join-Link zu erhalten
             const url = window.location.href.replace('board.html', 'player.html');
-            
             document.getElementById('join-url').innerText = url;
-
             const container = document.getElementById('qrcode-container');
             container.innerHTML = ''; 
+            new QRCode(container, { text: url, width: 400, height: 400, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('game-grid');
+            grid.innerHTML = "";
             
-            // Generiert den QR-Code
-            new QRCode(container, {
-                text: url,
-                width: 400,
-                height: 400,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
+            if(!currentGame || !currentGame.categories) return;
+
+            grid.style.gridTemplateColumns = `repeat(${currentGame.categories.length}, 1fr)`;
+            grid.style.display = "grid"; 
+            
+            const numQuestions = currentGame.categories[0]?.questions?.length || 5; 
+            grid.style.gridTemplateRows = `0.5fr repeat(${numQuestions}, 1fr)`;
+
+            currentGame.categories.forEach((cat, catIndex) => {
+                const head = document.createElement('div');
+                head.className = 'cat-header';
+                head.innerText = cat.name;
+                grid.appendChild(head);
+
+                cat.questions.forEach((q, qIndex) => {
+                    const card = document.createElement('div');
+                    card.className = 'q-card';
+                    card.innerText = q.points;
+                    card.id = `card-${catIndex}-${qIndex}`; 
+                    card.style.gridColumn = catIndex + 1;
+                    card.style.gridRow = qIndex + 2; 
+                    grid.appendChild(card);
+                });
             });
         }
 
-        let qrCodeVisible = false;
-
-        // --- LISTENER VOM SERVER ---
-        socket.on('board_toggle_qr', () => {
-            const qrOverlay = document.getElementById('qr-overlay');
-            
-            if (qrOverlay.style.display === 'none' || qrOverlay.style.display === '') {
-                // Bei der ersten Anzeige den QR-Code generieren
-                if (!qrCodeVisible) {
-                    generateQrCode();
-                    qrCodeVisible = true;
-                }
-                qrOverlay.style.display = 'flex'; // Einblenden
-            } else {
-                qrOverlay.style.display = 'none'; // Ausblenden
-            }
-        });
-        
-        // NEU: Scores werden aktualisiert
-        socket.on('update_scores', (players) => {
-            renderPlayerBar(players);
-        });
-
-        // --- SPIEL LADEN ---
+        // --- LISTENERS ---
         socket.on('load_game_on_board', (game) => {
-            console.log('Quiz-Daten empfangen:', game);
+            console.log('Quiz geladen:', game.title);
             currentGame = game;
             
-            // NEU: Hintergrundbild setzen (bestehende Logik)
             if (currentGame.boardBackgroundPath) {
                 document.body.style.backgroundImage = `url(${currentGame.boardBackgroundPath})`;
             } else {
                 document.body.style.backgroundImage = 'none'; 
                 document.body.style.backgroundColor = '#1a1a1a'; 
             }
-
             renderGrid();
             
-            // NEU: Beim Laden des Quiz den QR-Code generieren und anzeigen
+            // QR Code Logik beim Start
             const qrOverlay = document.getElementById('qr-overlay');
-
-            // 1. QR Code generieren (wichtig: nur hier nach Spielauswahl)
             generateQrCode(); 
-            qrCodeVisible = true; // Setze den Status auf "generiert und sichtbar"
-
-            // 2. Overlay anzeigen (da der Host-Button standardmäßig auf 'Ein' steht)
+            qrCodeVisible = true; 
             qrOverlay.style.display = 'flex'; 
         });
 
-        function renderGrid() {
-            const grid = document.getElementById('game-grid');
-            grid.innerHTML = "";
-            
-            // Setzt die Spaltenanzahl (z.B. repeat(5, 1fr))
-            grid.style.gridTemplateColumns = `repeat(${currentGame.categories.length}, 1fr)`;
-            grid.style.display = "grid"; 
-            
-            // NEU: Setzt die Reihenanzahl explizit
-            const numQuestions = currentGame.categories[0]?.questions?.length || 5; 
-            // Header-Reihe bekommt nur so viel Platz, wie sie braucht (auto), oder ein Bruchteil (0.5fr)
-            grid.style.gridTemplateRows = `0.5fr repeat(${numQuestions}, 1fr)`;
-
-            currentGame.categories.forEach((cat, catIndex) => {
-                // Header (wird von CSS auf grid-row: 1 gesetzt)
-                const head = document.createElement('div');
-                head.className = 'cat-header';
-                head.innerText = cat.name;
-                grid.appendChild(head);
-
-                // Fragen
-                cat.questions.forEach((q, qIndex) => {
-                    const card = document.createElement('div');
-                    card.className = 'q-card';
-                    card.innerText = q.points;
-                    card.id = `card-${catIndex}-${qIndex}`; 
-                    
-                    // WICHTIG: Setze die Grid-Position explizit
-                    // grid-column: catIndex + 1 (1-basiert)
-                    // grid-row: qIndex + 2 (1 für Header, also 2-basiert)
-                    card.style.gridColumn = catIndex + 1;
-                    card.style.gridRow = qIndex + 2; 
-                    
-                    grid.appendChild(card);
-                });
-            });
-            
-            // Entferne die nicht mehr benötigte Styling-Anpassung
-            // const cards = document.querySelectorAll('.q-card');
-            // cards.forEach(card => card.style.flex = ''); // Diese Zeilen werden nicht mehr benötigt.
-        }
-        
-        
-        // --- FRAGE ANZEIGEN (Kommando vom Host) ---
-        socket.on('board_show_question', (data) => {
-            const { catIndex, qIndex, question } = data;
-            
-            document.getElementById('q-text').innerText = question.questionText;
-            const mediaCont = document.getElementById('media-container');
-            mediaCont.innerHTML = ""; 
-
-            if(question.mediaPath) {
-                const ext = question.mediaPath.split('.').pop().toLowerCase();
-                if(['mp4', 'webm', 'mov'].includes(ext)) {
-                    const vid = document.createElement('video');
-                    vid.src = question.mediaPath;
-                    vid.autoplay = true; 
-                    vid.controls = true; // Steuerung für Board anzeigen
-                    mediaCont.appendChild(vid);
-                } else {
-                    const img = document.createElement('img');
-                    img.src = question.mediaPath;
-                    mediaCont.appendChild(img);
-                }
+        socket.on('board_toggle_qr', () => {
+            const qrOverlay = document.getElementById('qr-overlay');
+            if (qrOverlay.style.display === 'none' || qrOverlay.style.display === '') {
+                if (!qrCodeVisible) { generateQrCode(); qrCodeVisible = true; }
+                qrOverlay.style.display = 'flex';
+            } else {
+                qrOverlay.style.display = 'none';
             }
-
-            document.getElementById('question-overlay').style.display = 'flex';
-            
-            const card = document.getElementById(`card-${catIndex}-${qIndex}`);
-            if(card) card.classList.add('played');
         });
-
-        // --- ZURÜCK ZUM BOARD ---
-        socket.on('board_hide_question', () => {
-            document.getElementById('question-overlay').style.display = 'none';
-            document.getElementById('media-container').innerHTML = "";
-        });
-
-        // --- BUZZER LOGIK (Visualisierung) ---
-        socket.on('update_player_list', (players) => {
-             // Wird jetzt von update_scores übernommen, dient als Fallback
-             renderPlayerBar(players);
-        });
-
+        
+        socket.on('update_scores', renderPlayerBar);
+        socket.on('update_player_list', renderPlayerBar); // Fallback
+        
         socket.on('player_won_buzz', (data) => {
             document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
             const winner = document.getElementById('p-' + data.id);
@@ -314,7 +278,6 @@
         socket.on('buzzers_unlocked', () => {
              document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
         });
-
     </script>
 </body>
 </html>

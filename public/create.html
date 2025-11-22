@@ -25,8 +25,11 @@
             padding: 20px;
             overflow-y: auto;
             max-width: 1000px;
+            
+            /* NEU: Flex-Container für H1 und Buttons */
+            display: flex;
+            flex-direction: column; 
         }
-
         .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         h2 { margin-top: 0; }
         label { display: block; margin-top: 10px; font-weight: bold; }
@@ -84,6 +87,146 @@
         
         .media-preview { max-width: 100px; max-height: 100px; display: block; margin-top: 5px; border: 1px solid #ccc; }
         .upload-status { font-size: 0.8rem; color: #666; }
+        /* --- NEU: KACHEL-ANSICHT STYLES --- */
+        
+        /* Container-Layout im Grid-Modus */
+        .view-mode-grid #categories-container {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+            align-items: flex-start;
+        }
+
+        /* Kategorie im Grid-Modus */
+        .view-mode-grid .category {
+            min-width: 180px;
+            width: 180px;
+            flex: 0 0 auto;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+            border: none;
+        }
+        
+        /* Verstecke Detail-Elemente im Grid-Modus */
+        .view-mode-grid .category label,
+        .view-mode-grid .category input.cat-name,
+        .view-mode-grid .category button,
+        .view-mode-grid .remove-q-btn,
+        .view-mode-grid .question-block > * {
+            display: none !important;
+        }
+
+        /* Zeige den Kategorienamen als Header */
+        .view-mode-grid .category::before {
+            content: attr(data-cat-name); /* Zieht den Namen aus einem Attribut */
+            display: block;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        /* Die Frage als Kachel */
+        .view-mode-grid .question-block {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 80px;
+            background: #00008b; /* Jeopardy Blau */
+            color: #ffcc00; /* Jeopardy Gelb */
+            border: 2px solid white;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            font-family: 'Impact', sans-serif;
+            font-size: 1.5rem;
+            position: relative;
+            transition: transform 0.1s;
+        }
+        
+        .view-mode-grid .question-block:hover {
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        /* Zeige Punkte in der Kachel (via CSS Content) */
+        .view-mode-grid .question-block::after {
+            content: attr(data-points);
+            display: block;
+        }
+
+        /* GRÜNE MARKIERUNG für ausgefüllte Fragen */
+        .question-block.is-filled {
+            background: #28a745 !important; /* Grün */
+            color: white !important;
+            border-color: #1e7e34;
+        }
+        
+        /* View-Switcher Buttons */
+
+        .view-switcher {
+            display: flex;
+            gap: 0;
+            /* margin-bottom: 20px; */ /* Behalten Sie diesen Abstand bei, falls er gesetzt ist */
+            
+            /* DIESE WERTE ENTFERNEN ODER AUSKOMMENTIEREN: */
+            background: none; 
+            border-radius: 0;
+            overflow: hidden;
+            border: none;
+            
+            width: fit-content;
+        }
+        .view-btn {
+            padding: 10px 20px;
+            border: 1px solid #ccc; /* Jeder Button erhält seinen eigenen Rahmen */
+            background: white;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1.2;
+            position: relative;
+        }
+        /* Runde Ecken für den linken Button */
+        .view-btn:first-child {
+            border-top-left-radius: 5px;
+            border-bottom-left-radius: 5px;
+            margin-right: -1px; /* Wichtig: Lässt den Rahmen zum Nachbarn überlappen */
+        }
+        
+        /* Runde Ecken für den rechten Button */
+        .view-btn:last-child {
+            border-top-right-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }
+        .view-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff; /* Rahmenfarbe auf aktive Farbe setzen */
+            z-index: 1; /* Wichtig: Bringt den aktiven Button über den Rahmen des Nachbarn */
+        }
+        /* Basis-Styling für den Speichern-Button */
+       button.primary {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px; /* Gleiche vertikale Polsterung wie .view-btn */
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1.2; /* Wichtig: Sorgt für perfekte vertikale Zentrierung */
+        }
+        
+        /* Optional: Hover-Effekt */
+        button.primary:hover {
+            background-color: #218838;
+        }
+
     </style>
 </head>
 <body>
@@ -97,8 +240,21 @@
     </div>
 
     <div id="main-content">
-        <h1><span id="form-mode">Neues</span> Quiz</h1>
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+            
+            <h1><span id="form-mode">Neues</span> Quiz</h1>
 
+            <div style="display: flex; gap: 10px; align-items: center;"> 
+                
+                <button class="primary" onclick="saveGame()">💾 Speichern</button>
+                
+                <div class="view-switcher">
+                    <button class="view-btn active" onclick="switchView('list')" id="btn-view-list">☰ Liste</button>
+                    <button class="view-btn" onclick="switchView('grid')" id="btn-view-grid">⊞ Kacheln</button>
+                </div>
+            </div>
+        </div>
+        
         <div class="card">
             <label>Name des Quiz</label>
             <input type="text" id="gameTitle" placeholder="Titel eingeben...">
@@ -138,11 +294,8 @@
 
         <div id="categories-container">
             </div>
-
-        <button class="add-cat-btn" onclick="addCategory()">+ Neue Kategorie hinzufügen</button>
         
         <hr>
-        <button class="save" onclick="saveGame()">💾 SPIEL SPEICHERN/AKTUALISIEREN</button>
     </div>
 
 <script>
@@ -190,37 +343,6 @@
                 statusEl.innerText = "Upload fehlgeschlagen.";
             }
         }
-        
-        function removeQuestion(btn) {
-            const qBlock = btn.closest('.question-block');
-            
-            // 1. Frage-Medienpfad prüfen
-            const mediaPathEl = qBlock.querySelector('.q-media-path');
-            if (mediaPathEl && mediaPathEl.value) {
-                filesToDeleteOnSave.push(mediaPathEl.value);
-                console.log(`Vorgemerkt zum Löschen (Frage-Medien): ${mediaPathEl.value}`);
-            }
-            
-            // 2. Antwort-Medienpfad prüfen (NEU)
-            const answerMediaPathEl = qBlock.querySelector('.q-answer-media-path');
-            if (answerMediaPathEl && answerMediaPathEl.value) {
-                filesToDeleteOnSave.push(answerMediaPathEl.value);
-                console.log(`Vorgemerkt zum Löschen (Antwort-Medien): ${answerMediaPathEl.value}`);
-            }
-            
-            qBlock.remove();
-        }
-
-       function removeCategory(catDiv) {
-            // Alle Fragen in dieser Kategorie durchlaufen und Medienpfade sammeln
-            catDiv.querySelectorAll('.q-media-path').forEach(mediaPathEl => {
-                if (mediaPathEl.value) {
-                     filesToDeleteOnSave.push(mediaPathEl.value);
-                     console.log(`Vorgemerkt zum Löschen (durch Kat. entfernt): ${mediaPathEl.value}`);
-                }
-            });
-            catDiv.remove();
-        }
 
         function removeBackground() {
             const pathInput = document.getElementById('background-path');
@@ -259,37 +381,36 @@
             const qContainer = document.getElementById(`q-cont-${catId}`);
             const qId = Date.now() + Math.random();
             
-            // Daten laden (mit NEUEN Feldern)
             const points = questionData.points || 100;
-            const negativePoints = questionData.negativePoints || 0; // NEU: Negativpunkte
+            const negativePoints = questionData.negativePoints || 0;
             const qText = questionData.questionText || '';
             const answerText = questionData.answerText || '';
-            const mediaPath = questionData.mediaPath || ''; // Frage-Medien
-            const answerMediaPath = questionData.answerMediaPath || ''; // NEU: Antwort-Medien
+            const mediaPath = questionData.mediaPath || '';
+            const answerMediaPath = questionData.answerMediaPath || '';
 
+            // Der Button zum Löschen der Frage (removeQuestion) wird hier entfernt.
             const html = `
-            <div class="question-block">
-                <button class="remove-q-btn" onclick="removeQuestion(this)">🗑️</button>
-
+            <div class="question-block" data-points="${points}" onclick="if(document.getElementById('main-content').classList.contains('view-mode-grid')) switchView('list');">
+                
                 <label>Punkte (Richtig):</label>
-                <input type="number" class="q-points" value="${points}" step="100">
+                <input type="number" class="q-points" value="${points}" step="100" oninput="checkQuestionFilled(this)">
                 
                 <label>Punkte (Falsch abziehen):</label>
                 <input type="number" class="q-negative-points" value="${negativePoints}" step="100" placeholder="0 für keine Abzüge">
                 
                 <label>Frage-Text:</label>
-                <input type="text" class="q-text" placeholder="Die Frage..." value="${qText}">
+                <input type="text" class="q-text" placeholder="Die Frage..." value="${qText}" oninput="checkQuestionFilled(this)">
                 
                 <label>Medien (Bild/Video) zur Frage (optional):</label>
-                <input type="file" onchange="uploadFile(this, 'preview-question-${qId}', 'media-${qId}')">
+                <input type="file" onchange="uploadFile(this, 'preview-question-${qId}', 'media-${qId}'); checkQuestionFilled(this);">
                 
                 <div id="preview-question-${qId}" style="margin-top: 5px;">
                     ${generateMediaPreviewHtml(mediaPath)}
                 </div>
-                <input type="hidden" class="q-media-path" id="media-${qId}" value="${mediaPath}">
+                <input type="hidden" class="q-media-path" id="media-${qId}" value="${mediaPath}" onchange="checkQuestionFilled(this)">
                 
                 <label>Antwort-Text (für Moderator):</label>
-                <input type="text" class="q-answer" placeholder="Die Lösung..." value="${answerText}">
+                <input type="text" class="q-answer" placeholder="Die Lösung..." value="${answerText}" oninput="checkQuestionFilled(this)">
                 
                 <label>Medien (Bild/Video) zur Antwort (optional):</label>
                 <input type="file" onchange="uploadFile(this, 'preview-answer-${qId}', 'answer-media-${qId}')">
@@ -302,6 +423,12 @@
             </div>`;
             
             qContainer.insertAdjacentHTML('beforeend', html);
+            
+            // Initial-Prüfung beibehalten
+            setTimeout(() => {
+                const newBlock = qContainer.lastElementChild;
+                checkQuestionFilled(newBlock.querySelector('.q-points'));
+            }, 0);
         }
         
         function addCategory(categoryData = {}) {
@@ -310,36 +437,29 @@
             const catId = `cat-${Date.now()}-${currentCategoriesCount}`; 
             
             const catName = categoryData.name || '';
-            
-            // NEU: Anzahl der Fragen, die hinzugefügt werden sollen
             const questionsToAdd = categoryData.forceQuestionCount || 1;
 
             const html = `
-            <div class="card category" id="${catId}">
-                <button class="remove-q-btn" onclick="removeCategory(document.getElementById('${catId}'))" style="right:10px;">🗑️ Kategorie</button>
+            <div class="card category" id="${catId}" data-cat-name="${catName || 'Kategorie'}">
+                
                 <h2>Kategorie</h2>
                 <label>Name der Kategorie:</label>
-                <input type="text" class="cat-name" placeholder="z.B. Geografie" value="${catName}">
+                <input type="text" class="cat-name" placeholder="z.B. Geografie" value="${catName}" oninput="updateCatNameAttr(this)">
                 
                 <div class="questions-container" id="q-cont-${catId}"></div>
                 
-                <button class="secondary" onclick="addQuestion('${catId}')">+ Frage hinzufügen</button>
-            </div>`;
+                </div>`;
             
             container.insertAdjacentHTML('beforeend', html);
 
-            // 1. Gespeicherte Fragen laden (bevorzugt)
+            // Die Logik zum Laden oder Hinzufügen von Fragen bleibt hier
             if (categoryData.questions && Array.isArray(categoryData.questions) && categoryData.questions.length > 0) {
                 categoryData.questions.forEach(q => addQuestion(catId, q));
-            } 
-            // 2. Ansonsten: Neue Fragen basierend auf der gewünschten Anzahl hinzufügen
-            else if (categoryData.forceQuestionCount) {
+            } else if (categoryData.forceQuestionCount) {
                 for (let i = 0; i < questionsToAdd; i++) {
                     addQuestion(catId);
                 }
-            }
-            // 3. Fallback: Eine leere Frage, wenn nichts übergeben wurde
-            else {
+            } else {
                  addQuestion(catId); 
             }
         }
@@ -577,7 +697,53 @@
             return previewHtml;
         }
         // --- ENDE HILFSFUNKTION ---
+        
+        function switchView(mode) {
+            const container = document.getElementById('main-content');
+            const btnList = document.getElementById('btn-view-list');
+            const btnGrid = document.getElementById('btn-view-grid');
 
+            if (mode === 'grid') {
+                container.classList.add('view-mode-grid');
+                btnList.classList.remove('active');
+                btnGrid.classList.add('active');
+            } else {
+                container.classList.remove('view-mode-grid');
+                btnList.classList.add('active');
+                btnGrid.classList.remove('active');
+            }
+        }
+
+        // --- STATUS PRÜFUNG (GRÜN/ROT) ---
+        function checkQuestionFilled(inputElement) {
+            // Finde den zugehörigen Fragenblock
+            const qBlock = inputElement ? inputElement.closest('.question-block') : null;
+            if (!qBlock) return;
+
+            // Werte auslesen
+            const qText = qBlock.querySelector('.q-text').value.trim();
+            const qAnswer = qBlock.querySelector('.q-answer').value.trim();
+            const qMedia = qBlock.querySelector('.q-media-path').value;
+            const qPoints = qBlock.querySelector('.q-points').value;
+
+            // Attribut für CSS (Kachel-Anzeige der Punkte) aktualisieren
+            qBlock.setAttribute('data-points', qPoints);
+
+            // Prüfung: Ist die Frage "ausgefüllt"? (Frage ODER Medien vorhanden + Antwort)
+            // Definition kann angepasst werden. Hier: Frage-Text + Antwort nötig.
+            if ((qText || qMedia) && qAnswer) {
+                qBlock.classList.add('is-filled');
+            } else {
+                qBlock.classList.remove('is-filled');
+            }
+        }
+        
+        // Aktualisiert den Namen der Kategorie für die Kachelansicht
+        function updateCatNameAttr(inputElement) {
+            const catDiv = inputElement.closest('.category');
+            catDiv.setAttribute('data-cat-name', inputElement.value || 'Unbenannt');
+        }
+        
         // Starten mit einer leeren Kategorie und der Ladeliste
         clearForm();
         loadGameList();
