@@ -110,24 +110,42 @@ app.get('/api/games/:id', async (req, res) => {
 app.post('/api/create-game', async (req, res) => {
     try {
         const gameData = req.body;
+        let savedGame;
 
         if (gameData._id) {
             // UPDATEN: Wenn eine ID vorhanden ist
-            const updatedGame = await Game.findByIdAndUpdate(
+            savedGame = await Game.findByIdAndUpdate(
                 gameData._id,
                 gameData,
-                { new: true } // Gibt das aktualisierte Dokument zurück
+                { new: true, runValidators: true } // runValidators stellt sicher, dass 'title' geprüft wird
             );
-            return res.json({ success: true, gameId: updatedGame._id });
         } else {
             // ERSTELLEN: Wenn keine ID vorhanden ist
             const newGame = new Game(gameData);
-            await newGame.save();
-            return res.json({ success: true, gameId: newGame._id });
+            savedGame = await newGame.save();
         }
+        
+        return res.json({ success: true, gameId: savedGame._id });
+        
     } catch (err) {
         console.error(err);
-        res.status(500).json({ success: false, error: err.message });
+        
+        // NEU: Bessere Fehlerbehandlung für Validierungsfehler (nur Titel)
+        if (err.name === 'ValidationError') {
+            const messages = [];
+            for (const field in err.errors) {
+                // Wir suchen nur nach dem 'title' Fehler, da die anderen entfernt wurden
+                if (field === 'title') {
+                    messages.push("Der Titel des Quiz ist erforderlich.");
+                }
+            }
+            // Wenn der Titel fehlt, senden wir eine spezifische Meldung zurück
+            if (messages.length > 0) {
+                 return res.status(400).json({ success: false, error: messages.join(' ') });
+            }
+        }
+        
+        res.status(500).json({ success: false, error: "Unbekannter Fehler beim Speichern." });
     }
 });
 
@@ -142,6 +160,11 @@ app.delete('/api/games/:id', async (req, res) => {
         if (gameToDelete) {
             // 2. Alle Mediendateien sammeln und löschen
             const mediaFiles = [];
+
+            if (gameToDelete.boardBackgroundPath) {
+                mediaFiles.push(gameToDelete.boardBackgroundPath);
+            }       
+
             gameToDelete.categories.forEach(cat => {
                 cat.questions.forEach(q => {
                     // Prüfe Question Media

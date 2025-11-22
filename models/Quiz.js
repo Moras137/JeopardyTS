@@ -1,24 +1,38 @@
 const mongoose = require('mongoose');
 
-const QuestionSchema = new mongoose.Schema({
-  points: Number,
-  questionText: String,
-  answerText: String,
-  hasMedia: Boolean,
-  mediaType: String,
-  mediaPath: String,
-  isAnswered: { type: Boolean, default: false }
+// --- 1. Question Schema (Frage) ---
+const questionSchema = new mongoose.Schema({
+    points: { type: Number, default: 100 },
+    negativePoints: { type: Number, default: 0 }, 
+    
+    // required: true ENTFERNT
+    questionText: { type: String, default: '' }, 
+    answerText: { type: String, default: '' }, 
+
+    answerMediaPath: { type: String, default: '' },
+    hasAnswerMedia: { type: Boolean, default: false },
+    answerMediaType: { type: String, default: 'none' },
+
+    mediaPath: { type: String, default: '' },
+    hasMedia: { type: Boolean, default: false },
+    mediaType: { type: String, default: 'none' },
 });
 
-const CategorySchema = new mongoose.Schema({
-  name: String,
-  questions: [QuestionSchema]
+// --- 2. Category Schema (Kategorie) ---
+const categorySchema = new mongoose.Schema({
+    // required: true ENTFERNT
+    name: { type: String, default: '' },
+    questions: [questionSchema]
 });
 
-const GameSchema = new mongoose.Schema({
-  title: String,
-  categories: [CategorySchema]
+// --- 3. Game Schema (Hauptquiz) ---
+const gameSchema = new mongoose.Schema({
+    // Dies ist das einzige Feld, das wirklich erforderlich sein sollte
+    title: { type: String, required: true }, 
+    
+    boardBackgroundPath: { type: String, default: '' },
+    
+    categories: [categorySchema]
 });
 
-// WICHTIG: Hier wird das Modell direkt exportiert!
-module.exports = mongoose.model('Game', GameSchema);
+module.exports = mongoose.model('Game', gameSchema);

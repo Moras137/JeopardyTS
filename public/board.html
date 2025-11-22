@@ -49,6 +49,25 @@
             border-radius: 5px;
             z-index: 1000;
         }
+
+        body {
+            background-size: cover; /* Stellt sicher, dass das Bild den gesamten Viewport bedeckt */
+            background-position: center center; /* Zentriert das Bild */
+            background-repeat: no-repeat; /* Verhindert Kachelung */
+            transition: background-image 0.5s ease-in-out; /* Optional: Schönerer Übergang beim Laden */
+        }
+
+        /* Optional: Füge einen dunklen Overlay-Effekt hinzu, um den Text besser lesbar zu machen */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); /* Dunkler, leicht transparenter Filter */
+            z-index: -1;
+        }
     </style>
 </head>
 <body>
@@ -110,7 +129,18 @@
 
         // --- SPIEL LADEN ---
         socket.on('load_game_on_board', (game) => {
+            console.log('Quiz-Daten empfangen:', game);
             currentGame = game;
+            
+            // NEU: Hintergrundbild setzen
+            if (currentGame.boardBackgroundPath) {
+                document.body.style.backgroundImage = `url(${currentGame.boardBackgroundPath})`;
+            } else {
+                // Setzt einen Standardhintergrund (z.B. eine einheitliche Farbe)
+                document.body.style.backgroundImage = 'none'; 
+                document.body.style.backgroundColor = '#1a1a1a'; 
+            }
+
             renderGrid();
         });
 

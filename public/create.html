@@ -104,6 +104,23 @@
             <input type="text" id="gameTitle" placeholder="Titel eingeben...">
         </div>
 
+        <div class="card" style="margin-bottom: 20px;">
+            <h2>Hintergrundbild (optional)</h2>
+            <label>Wähle ein Bild für den Board-Hintergrund:</label>
+            <input type="file" id="boardBackgroundUpload" 
+                onchange="uploadFile(this, 'preview-background', 'background-path')">
+            <span class="upload-status" id="background-status"></span>
+            
+            <div id="preview-background" style="margin-top: 5px;">
+                <img src="" id="background-preview-img" class="media-preview" style="display:none; max-height: 150px;">
+                <input type="hidden" id="background-path" value="">
+            </div>
+            
+            <button class="secondary" onclick="removeBackground()" type="button" style="margin-top: 10px;">
+                Hintergrundbild entfernen
+            </button>
+        </div>
+
         <div id="categories-container">
             </div>
 
@@ -147,7 +164,7 @@
                 const data = await res.json();
 
                 hiddenInput.value = data.filePath;
-                statusEl.innerText = "Upload fertig! (Pfad: " + data.filePath + ")";
+                statusEl.innerText = "Upload fertig!";
                 
                 if(file.type.startsWith('image')) {
                     img.src = data.filePath;
@@ -190,6 +207,22 @@
             catDiv.remove();
         }
 
+        function removeBackground() {
+            const pathInput = document.getElementById('background-path');
+            const previewImg = document.getElementById('background-preview-img');
+
+            if (pathInput.value) {
+                // Den Pfad zum Löschen vormerken, falls er gespeichert war
+                filesToDeleteOnSave.push(pathInput.value);
+                console.log(`Vorgemerkt zum Löschen (Hintergrund): ${pathInput.value}`);
+            }
+
+            pathInput.value = '';
+            previewImg.src = '';
+            previewImg.style.display = 'none';
+            document.getElementById('background-status').innerText = 'Keine Datei ausgewählt.';
+        }
+
         // --- FORMULAR-MANAGEMENT ---
         
         function clearForm() {
@@ -201,9 +234,13 @@
             addCategory(); 
             
             document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
+            
+            // NEU: Hintergrundbild beim Neuladen leeren
+            removeBackground(); 
         }
 
         // Globale Helper-Funktion für die Medien-Vorschau (kann außerhalb der Hauptfunktionen stehen)
+        // Globale Helper-Funktion für die Medien-Vorschau
         function generateMediaPreviewHtml(path) {
             let previewHtml = '';
             
@@ -214,12 +251,12 @@
                 if (mediaIsVideo) {
                     previewHtml = `
                         <video src="${path}" controls class="media-preview" style="display:block; max-height: 100px;"></video>
-                        <span style="color: #28a745;">Video geladen: ${path.split('/').pop()}</span>
+                        <span style="color: #28a745;">Video geladen</span> 
                     `;
                 } else {
                     previewHtml = `
                         <img src="${path}" class="media-preview" style="display:block;">
-                        <span style="color: #28a745;">Bild geladen: ${path.split('/').pop()}</span>
+                        <span style="color: #28a745;">Bild geladen</span>
                     `;
                 }
             } else {
@@ -230,7 +267,7 @@
             }
             return previewHtml;
         }
-
+        
         function addQuestion(catId, questionData = {}) {
             const qContainer = document.getElementById(`q-cont-${catId}`);
             const qId = Date.now() + Math.random();
@@ -309,10 +346,13 @@
             }
         }
 
-        // --- SPEICHERN (MIT DATEI-CLEANUP) ---
+        // --- KORRIGIERTE SPEICHERFUNKTION ---
         async function saveGame() {
             const title = document.getElementById('gameTitle').value;
             const categories = [];
+
+            // 1. NEU: Hintergrundpfad nur einmal hier sammeln (KORREKTUR)
+            const boardBackgroundPath = document.getElementById('background-path').value; 
 
             document.querySelectorAll('.category').forEach(catDiv => {
                 const catName = catDiv.querySelector('.cat-name').value;
@@ -320,19 +360,20 @@
 
                 catDiv.querySelectorAll('.question-block').forEach(qDiv => {
                     
-                    // Medienpfade und Negativpunkte sammeln (NEU)
+                    // Medienpfade und Negativpunkte sammeln
                     const mediaPath = qDiv.querySelector('.q-media-path').value;
                     const answerMediaPath = qDiv.querySelector('.q-answer-media-path').value; 
+                    // Die Zeile "const boardBackgroundPath = ..." wurde hier entfernt
 
                     questions.push({
                         points: parseInt(qDiv.querySelector('.q-points').value) || 0,
-                        negativePoints: parseInt(qDiv.querySelector('.q-negative-points').value) || 0, // NEU: Punkteabzug
+                        negativePoints: parseInt(qDiv.querySelector('.q-negative-points').value) || 0,
                         questionText: qDiv.querySelector('.q-text').value,
                         answerText: qDiv.querySelector('.q-answer').value,
                         mediaPath: mediaPath,
-                        answerMediaPath: answerMediaPath, // NEU: Antwort-Medienpfad
+                        answerMediaPath: answerMediaPath,
                         hasMedia: !!mediaPath, 
-                        hasAnswerMedia: !!answerMediaPath, // NEU: Flag für Antwort-Medien
+                        hasAnswerMedia: !!answerMediaPath,
                         mediaType: mediaPath ? mediaPath.split('.').pop().toLowerCase() : 'none',
                         answerMediaType: answerMediaPath ? answerMediaPath.split('.').pop().toLowerCase() : 'none' 
                     });
@@ -341,12 +382,13 @@
                 categories.push({ name: catName, questions: questions });
             });
 
-            const gameData = { title, categories };
+            // 2. gameData greift auf die oben definierte Variable zu (KORREKTUR)
+            const gameData = { title, categories, boardBackgroundPath }; 
             if (editingGameId) {
                 gameData._id = editingGameId;
             }
             
-            // 2. Rufe zuerst den Dateilösch-Endpunkt auf (unverändert)
+            // 3. Rufe zuerst den Dateilösch-Endpunkt auf (bleibt)
             if (filesToDeleteOnSave.length > 0) {
                 console.log(`Starte Löschvorgang für ${filesToDeleteOnSave.length} Dateien.`);
                 await fetch('/api/delete-files', {
@@ -358,7 +400,7 @@
             }
 
 
-            // 3. Speichere das Quiz in der Datenbank
+            // 4. Speichere das Quiz in der Datenbank (bleibt)
             const res = await fetch('/api/create-game', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -372,7 +414,7 @@
                 loadGameList(); 
                 document.getElementById('form-mode').innerText = 'Bearbeitetes';
             } else {
-                alert("Fehler: " + (result.error || "Unbekannter Fehler beim Speichern."));
+                alert("Fehler beim Speichern:\n\n" + (result.error || "Unbekannter Fehler."));
             }
         }
 
@@ -436,33 +478,49 @@
         }
 
         async function loadGameForEdit(gameId) {
-            document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
-            document.querySelector(`[data-id="${gameId}"]`).classList.add('active');
-
             try {
+                // 1. Daten abrufen
                 const res = await fetch(`/api/games/${gameId}`);
                 const gameData = await res.json();
-                
-                // NEU: WICHTIGE DIAGNOSE
-                console.log("--- Quizdaten zum Bearbeiten empfangen ---", gameData);
 
+                // 2. Formular zurücksetzen/initialisieren
+                // Wir müssen den Container leeren, bevor wir die gespeicherten Kategorien hinzufügen
                 document.getElementById('categories-container').innerHTML = '';
-                currentCategoriesCount = 0;
-                editingGameId = gameData._id;
-                document.getElementById('form-mode').innerText = 'Bearbeitetes';
+                currentCategoriesCount = 0; // Wichtig: Zähler für IDs zurücksetzen
+                removeBackground(); // Hintergrund-Vorschau leeren
 
+                // 3. Status setzen
+                editingGameId = gameId;
+                document.getElementById('form-mode').innerText = 'Bearbeitetes';
                 document.getElementById('gameTitle').value = gameData.title;
 
-                // Robustheit: Überprüfen, ob Kategorien existieren und ein Array sind
+                // Markiere den aktiven Eintrag in der Sidebar
+                document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
+                const activeItem = document.querySelector(`.load-item[data-id="${gameId}"]`);
+                if(activeItem) activeItem.classList.add('active');
+                
+                // 4. Hintergrundbild laden (wie zuvor implementiert)
+                const bgPath = gameData.boardBackgroundPath || '';
+                if (bgPath) {
+                    document.getElementById('background-path').value = bgPath;
+                    document.getElementById('background-preview-img').src = bgPath;
+                    document.getElementById('background-preview-img').style.display = 'block';
+                    document.getElementById('background-status').innerText = `Bild geladen.`; 
+                } else {
+                    removeBackground(); 
+                }
+
+                // 5. Kategorien und Fragen laden (DER FEHLENDE TEIL WURDE HINZUGEFÜGT)
                 if (gameData.categories && Array.isArray(gameData.categories)) {
                     gameData.categories.forEach(cat => addCategory(cat));
                 } else {
-                     console.error("Fehler: 'categories' ist kein Array in den Quizdaten.", gameData);
+                    // Falls keine Kategorien vorhanden sind, starte mit einer neuen
+                    addCategory();
                 }
-
-
+                
             } catch (e) {
-                alert("Fehler beim Laden des Spiels: " + (e.message || ""));
+                console.error("Fehler beim Laden des Quiz:", e);
+                alert("Fehler beim Laden des Quiz. Details in der Konsole.");
             }
         }
 
