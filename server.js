@@ -312,6 +312,14 @@ io.on('connection', socket => {
             io.emit('update_scores', players);
         }
     });
+    
+
+    // Host schaltet den QR-Code auf dem Board um
+    socket.on('host_toggle_qr', () => {
+        // Sendet das Signal an alle Clients (einschließlich des Boards)
+        io.emit('board_toggle_qr');
+        console.log('Server sendet Signal zum Umschalten des QR-Codes.');
+    });
 
     // Host entsperrt Buzzer manuell
     socket.on('host_unlock_buzzers', () => {

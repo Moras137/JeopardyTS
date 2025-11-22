@@ -13,13 +13,46 @@
             gap: 10px; padding: 20px; height: 80vh; text-align: center;
         }
         
-        .cat-header { color: white; font-size: 1.5rem; text-transform: uppercase; padding-bottom: 20px; text-shadow: 2px 2px 0 #000; }
+        .cat-header { 
+            color: white; 
+            font-size: 1.5rem; 
+            text-transform: uppercase; 
+            text-shadow: 2px 2px 0 #000; 
+            
+            /* NEU: Hintergrundfarbe und Rahmen, um das Element sichtbar zu machen */
+            background: #00008b; /* Dunkles Blau, wie der Body */
+            border: 3px solid #fff; /* Weißer Rahmen */
+            
+            /* Feste Höhe und Ausrichtung in der Zelle */
+            display: flex;
+            align-items: center; /* Text vertikal zentrieren */
+            justify-content: center; /* Text horizontal zentrieren */
+            padding: 10px;
+            text-align: center; /* Fallback */
+            word-break: break-word; /* Lange Wörtern umbrechen */
+        }
         
-        .q-card {
+        /* Wichtig: Stellt sicher, dass die Header in der ersten Zeile bleiben */
+        #game-grid .cat-header {
+            grid-row: 1; 
+        }
+        
+       .q-card {
+            /* Wichtig: grid-row wird jetzt dynamisch im JS gesetzt */
             background: #0000cc; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
             font-size: 3rem; color: #ffcc00; cursor: pointer; text-shadow: 3px 3px 0 #000;
         }
-        .q-card.played { opacity: 0; visibility: hidden; } 
+        .q-card.played { opacity: 0; visibility: hidden; }
+
+        /* NEU: Wichtig, damit Header und Fragen im Grid richtig ausgerichtet werden */
+        #game-grid .cat-header {
+            /* Stellt sicher, dass die Header in der ersten Zeile bleiben */
+            grid-row: 1; 
+            /* Setzt die Header auf die korrekte Textausrichtung */
+            display: flex; 
+            align-items: flex-end; /* Text unten platzieren */
+            justify-content: center;
+        }
 
         /* Die Frage (Vollbild Overlay) */
         #question-overlay {
@@ -71,12 +104,6 @@
     </style>
 </head>
 <body>
-
-    <div id="qr-container">
-        <p style="color:black; font-family:sans-serif; font-size:12px; margin:0 0 5px 0;">Mit Handy scannen:</p>
-        <div id="qrcode"></div>
-    </div>
-
     <div id="game-grid">
         <h1 style="width:100%; text-align:center; margin-top: 200px;">WARTE AUF SPIEL...</h1>
     </div>
@@ -87,25 +114,28 @@
     </div>
 
     <div id="player-bar"></div>
+    
+    <div id="qr-overlay" style="
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background-color: rgba(0, 0, 0, 0.95); 
+        z-index: 1000; 
+        display: none; /* WICHTIG: Standardmäßig ausgeblendet */
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center;
+    ">
+        <h1 style="color: white; font-size: 4rem; margin-bottom: 40px;">Zum Spiel beitreten</h1>
+        <div id="qrcode-container" style="
+            background: white; padding: 20px; border-radius: 10px;
+        ">
+            </div>
+        <p style="color: white; font-size: 2rem; margin-top: 40px;">Gehe zu: <span id="join-url"></span></p>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         let currentGame = null;
-        
-        // QR Code Logik
-        (function generateQrCode() {
-            const playerUrl = window.location.protocol + "//" + "LAPTOP-4E3BVSIR:3000/player.html";
-            
-            new QRCode(document.getElementById("qrcode"), {
-                text: playerUrl,
-                width: 128,
-                height: 128,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-        })();
 
         // Funktion zum Rendern der Spieler und Scores
         function renderPlayerBar(playersData) {
@@ -121,6 +151,45 @@
                 bar.appendChild(div);
             }
         }
+
+        let qrCodeVisible = false; // Hält fest, ob der Code bereits generiert wurde
+
+        function generateQrCode() {
+            // Ersetze 'board.html' durch 'player.html', um den Join-Link zu erhalten
+            const url = window.location.href.replace('board.html', 'player.html');
+            
+            document.getElementById('join-url').innerText = url;
+
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = ''; 
+            
+            // Generiert den QR-Code
+            new QRCode(container, {
+                text: url,
+                width: 400,
+                height: 400,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+
+        // --- LISTENER VOM SERVER ---
+        socket.on('board_toggle_qr', () => {
+            const qrOverlay = document.getElementById('qr-overlay');
+            
+            if (qrOverlay.style.display === 'none' || qrOverlay.style.display === '') {
+                // Bei der ersten Anzeige den QR-Code generieren
+                if (!qrCodeVisible) {
+                    generateQrCode();
+                    qrCodeVisible = true;
+                }
+                qrOverlay.style.display = 'flex'; // Einblenden
+            } else {
+                qrOverlay.style.display = 'none'; // Ausblenden
+            }
+        });
         
         // NEU: Scores werden aktualisiert
         socket.on('update_scores', (players) => {
@@ -148,29 +217,42 @@
             const grid = document.getElementById('game-grid');
             grid.innerHTML = "";
             
+            // Setzt die Spaltenanzahl (z.B. repeat(5, 1fr))
             grid.style.gridTemplateColumns = `repeat(${currentGame.categories.length}, 1fr)`;
             grid.style.display = "grid"; 
             
+            // NEU: Setzt die Reihenanzahl explizit
+            const numQuestions = currentGame.categories[0]?.questions?.length || 5; 
+            // Header-Reihe bekommt nur so viel Platz, wie sie braucht (auto), oder ein Bruchteil (0.5fr)
+            grid.style.gridTemplateRows = `0.5fr repeat(${numQuestions}, 1fr)`;
+
             currentGame.categories.forEach((cat, catIndex) => {
-                // Header (ist jetzt Teil des Grids)
+                // Header (wird von CSS auf grid-row: 1 gesetzt)
                 const head = document.createElement('div');
                 head.className = 'cat-header';
                 head.innerText = cat.name;
                 grid.appendChild(head);
 
-                // Fragen (als eigene Spalte/Reihe im CSS behandelt)
+                // Fragen
                 cat.questions.forEach((q, qIndex) => {
                     const card = document.createElement('div');
                     card.className = 'q-card';
                     card.innerText = q.points;
                     card.id = `card-${catIndex}-${qIndex}`; 
+                    
+                    // WICHTIG: Setze die Grid-Position explizit
+                    // grid-column: catIndex + 1 (1-basiert)
+                    // grid-row: qIndex + 2 (1 für Header, also 2-basiert)
+                    card.style.gridColumn = catIndex + 1;
+                    card.style.gridRow = qIndex + 2; 
+                    
                     grid.appendChild(card);
                 });
             });
             
-            // Setzt die Platzierung der Cards zurück, um im Grid zu funktionieren
-            const cards = document.querySelectorAll('.q-card');
-            cards.forEach(card => card.style.flex = '');
+            // Entferne die nicht mehr benötigte Styling-Anpassung
+            // const cards = document.querySelectorAll('.q-card');
+            // cards.forEach(card => card.style.flex = ''); // Diese Zeilen werden nicht mehr benötigt.
         }
 
         // --- FRAGE ANZEIGEN (Kommando vom Host) ---

@@ -102,6 +102,21 @@
         <div class="card">
             <label>Name des Quiz</label>
             <input type="text" id="gameTitle" placeholder="Titel eingeben...">
+            
+            <hr style="margin: 15px 0;">
+
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <label>Anzahl Kategorien (Spalten)</label>
+                    <input type="number" id="numCategories" value="5" min="1" max="8" 
+                        onchange="updateQuizStructure()">
+                </div>
+                <div style="flex: 1;">
+                    <label>Anzahl Fragen pro Kategorie (Zeilen)</label>
+                    <input type="number" id="numQuestions" value="5" min="1" max="10" 
+                        onchange="updateQuizStructure()">
+                </div>
+            </div>
         </div>
 
         <div class="card" style="margin-bottom: 20px;">
@@ -228,46 +243,18 @@
         function clearForm() {
             editingGameId = null;
             document.getElementById('gameTitle').value = '';
-            document.getElementById('categories-container').innerHTML = '';
             document.getElementById('form-mode').innerText = 'Neues';
-            currentCategoriesCount = 0;
-            addCategory(); 
+            // currentCategoriesCount und categories-container werden in updateQuizStructure() behandelt
             
             document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
             
-            // NEU: Hintergrundbild beim Neuladen leeren
+            // NEU: Standardstruktur von 5x5 erzeugen
+            updateQuizStructure(); 
+
+            // Hintergrundbild beim Neuladen leeren
             removeBackground(); 
         }
 
-        // Globale Helper-Funktion für die Medien-Vorschau (kann außerhalb der Hauptfunktionen stehen)
-        // Globale Helper-Funktion für die Medien-Vorschau
-        function generateMediaPreviewHtml(path) {
-            let previewHtml = '';
-            
-            if (path) {
-                const ext = path.split('.').pop().toLowerCase();
-                const mediaIsVideo = ['mp4', 'webm', 'mov'].includes(ext);
-
-                if (mediaIsVideo) {
-                    previewHtml = `
-                        <video src="${path}" controls class="media-preview" style="display:block; max-height: 100px;"></video>
-                        <span style="color: #28a745;">Video geladen</span> 
-                    `;
-                } else {
-                    previewHtml = `
-                        <img src="${path}" class="media-preview" style="display:block;">
-                        <span style="color: #28a745;">Bild geladen</span>
-                    `;
-                }
-            } else {
-                previewHtml = `
-                    <img src="" class="media-preview" style="display:none;">
-                    <span class="upload-status">Keine Datei ausgewählt.</span>
-                `;
-            }
-            return previewHtml;
-        }
-        
         function addQuestion(catId, questionData = {}) {
             const qContainer = document.getElementById(`q-cont-${catId}`);
             const qId = Date.now() + Math.random();
@@ -323,6 +310,9 @@
             const catId = `cat-${Date.now()}-${currentCategoriesCount}`; 
             
             const catName = categoryData.name || '';
+            
+            // NEU: Anzahl der Fragen, die hinzugefügt werden sollen
+            const questionsToAdd = categoryData.forceQuestionCount || 1;
 
             const html = `
             <div class="card category" id="${catId}">
@@ -338,10 +328,18 @@
             
             container.insertAdjacentHTML('beforeend', html);
 
-            // Robustheit: Überprüfen, ob Fragen existieren und ein Array sind
+            // 1. Gespeicherte Fragen laden (bevorzugt)
             if (categoryData.questions && Array.isArray(categoryData.questions) && categoryData.questions.length > 0) {
                 categoryData.questions.forEach(q => addQuestion(catId, q));
-            } else {
+            } 
+            // 2. Ansonsten: Neue Fragen basierend auf der gewünschten Anzahl hinzufügen
+            else if (categoryData.forceQuestionCount) {
+                for (let i = 0; i < questionsToAdd; i++) {
+                    addQuestion(catId);
+                }
+            }
+            // 3. Fallback: Eine leere Frage, wenn nichts übergeben wurde
+            else {
                  addQuestion(catId); 
             }
         }
@@ -511,10 +509,21 @@
                 }
 
                 // 5. Kategorien und Fragen laden (DER FEHLENDE TEIL WURDE HINZUGEFÜGT)
-                if (gameData.categories && Array.isArray(gameData.categories)) {
+               if (gameData.categories && Array.isArray(gameData.categories)) {                  
+                    // NEU: Eingabefelder auf die tatsächliche Struktur setzen
+                    const numCategories = gameData.categories.length;
+                    // Annahme: Die erste Kategorie definiert die Fragenanzahl (typisch für Jeopardy)
+                    const numQuestions = gameData.categories[0]?.questions?.length || 5; 
+                    
+                    document.getElementById('numCategories').value = numCategories;
+                    document.getElementById('numQuestions').value = numQuestions;
+
+                    // Kategorien und Fragen laden
+                    document.getElementById('categories-container').innerHTML = ''; // Vorherige löschen
+                    currentCategoriesCount = 0; 
                     gameData.categories.forEach(cat => addCategory(cat));
                 } else {
-                    // Falls keine Kategorien vorhanden sind, starte mit einer neuen
+                    // Fallback, wenn das gespeicherte Quiz keine Kategorien hat
                     addCategory();
                 }
                 
@@ -523,6 +532,51 @@
                 alert("Fehler beim Laden des Quiz. Details in der Konsole.");
             }
         }
+
+        // --- QUIZ-STRUKTUR NEU BILDEN ---
+        function updateQuizStructure() {
+            const numCat = parseInt(document.getElementById('numCategories').value);
+            const numQ = parseInt(document.getElementById('numQuestions').value);
+            
+            // Container leeren und Zähler zurücksetzen
+            document.getElementById('categories-container').innerHTML = '';
+            currentCategoriesCount = 0; 
+
+            // Kategorien (Spalten) hinzufügen
+            for (let i = 0; i < numCat; i++) {
+                // Wir übergeben die gewünschte Fragenanzahl an addCategory
+                addCategory({ forceQuestionCount: numQ }); 
+            }
+        }
+
+        // --- HILFSFUNKTION FÜR MEDIEN-VORSCHAU ---
+        function generateMediaPreviewHtml(path) {
+            let previewHtml = '';
+            
+            if (path) {
+                const ext = path.split('.').pop().toLowerCase();
+                const mediaIsVideo = ['mp4', 'webm', 'mov'].includes(ext);
+
+                if (mediaIsVideo) {
+                    previewHtml = `
+                        <video src="${path}" controls class="media-preview" style="display:block; max-height: 100px;"></video>
+                        <span style="color: #28a745;">Video geladen</span> 
+                    `;
+                } else {
+                    previewHtml = `
+                        <img src="${path}" class="media-preview" style="display:block;">
+                        <span style="color: #28a745;">Bild geladen</span>
+                    `;
+                }
+            } else {
+                previewHtml = `
+                    <img src="" class="media-preview" style="display:none;">
+                    <span class="upload-status">Keine Datei ausgewählt.</span>
+                `;
+            }
+            return previewHtml;
+        }
+        // --- ENDE HILFSFUNKTION ---
 
         // Starten mit einer leeren Kategorie und der Ladeliste
         clearForm();
