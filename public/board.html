@@ -94,6 +94,36 @@
             background: #ccc;
             z-index: 100; /* Sicherstellen, dass sie oben liegt */
         }
+        /* Wrapper für den Marker auf der Karte */
+        .marker-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Zentriert Punkt und Text horizontal */
+            width: max-content;  /* WICHTIG: Passt Breite an den Text an */
+            transform: translate(-50%, -50%); /* Zentriert den gesamten Wrapper exakt auf der Koordinate */
+        }
+
+        /* Der farbige Punkt */
+        .marker-dot {
+            width: 16px;
+            height: 16px;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            margin-bottom: 5px; /* Abstand zum Text */
+        }
+
+        /* Der schwarze Hintergrund für den Text */
+        .marker-label {
+            background: rgba(0, 0, 0, 0.85); /* 85% Schwarz */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            text-align: center;
+            white-space: nowrap; /* Verhindert Umbruch */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
@@ -389,6 +419,18 @@
             });
         }
 
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            var R = 6371; // Radius der Erde in km
+            var dLat = deg2rad(lat2-lat1);
+            var dLon = deg2rad(lon2-lon1); 
+            var a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            var d = R * c; // Distanz in km
+            return d.toFixed(1); // 1 Nachkommastelle
+        }
+
         // --- LISTENERS ---
         socket.on('load_game_on_board', (game) => {
             console.log('Quiz geladen:', game.title);
@@ -430,6 +472,95 @@
         
         socket.on('buzzers_unlocked', () => {
              document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
+        });
+
+        socket.on('board_reveal_map_results', (data) => {
+            const { results, players, target } = data;
+            
+            if (!mapInstance) return;
+
+            // 1. Ziel-Marker (Lösung) anzeigen (Grün)
+            const targetIcon = L.divIcon({
+                className: 'target-icon',
+                html: `<div style="background:#00ff00; border:3px solid black; width:24px; height:24px; border-radius:50%; box-shadow: 0 0 15px #00ff00;"></div>
+                    <div style="position:absolute; top:-25px; left:-50px; width:120px; text-align:center; background:black; color:#00ff00; padding:2px; border-radius:4px; font-weight:bold;">LÖSUNG</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            L.marker([target.lat, target.lng], {icon: targetIcon, zIndexOffset: 1000}).addTo(mapInstance);
+
+            // Bounds Array für Zoom
+            const bounds = [[target.lat, target.lng]];
+
+            // 2. Spieler-Marker anzeigen
+            Object.keys(results).forEach(playerId => {
+                const res = results[playerId];
+                const player = players[playerId];
+                const color = player ? player.color : '#ff0000'; // Fallback Farbe
+                const name = player ? player.name : '???';
+                
+                // Distanz Text formatieren
+                let distText = "";
+                if (target.isCustomMap) {
+                    distText = Math.round(res.distance) + " px";
+                } else {
+                    // Schöne Formatierung für km/m
+                    if (res.distance < 1) {
+                        distText = Math.round(res.distance * 1000) + " m";
+                    } else {
+                        distText = res.distance.toFixed(1) + " km";
+                    }
+                }
+
+                // War es ein Gewinner?
+                let winnerStyle = "";
+                let winnerLabel = "";
+                if (res.isWinner) {
+                    winnerStyle = "border: 4px solid gold; transform: scale(1.2); z-index:999;";
+                    winnerLabel = `<div style="color:gold; font-weight:bold; font-size:1.2em;">🏆 +${res.scoreChange}</div>`;
+                } else {
+                    winnerStyle = "border: 2px solid white;";
+                }
+
+                const pIcon = L.divIcon({
+                    className: 'custom-map-marker', // Klasse für Leaflet-Container (wird durch iconSize: null ignoriert)
+                    html: `
+                        <div class="marker-wrapper">
+                            <div class="marker-dot" style="background:${color}; ${winnerStyle}"></div>
+                            <div class="marker-label">
+                                <span style="color:${color}; font-weight:bold;">${name}</span><br>
+                                ${distText}
+                                ${winnerLabel}
+                            </div>
+                        </div>
+                    `,
+                    // WICHTIG: iconSize auf null setzen, damit CSS (.marker-wrapper) die Größe bestimmt!
+                    iconSize: null, 
+                    // iconAnchor brauchen wir hier nicht zwingend, da wir im CSS translate(-50%, -50%) nutzen
+                    iconAnchor: [0, 0] 
+                });
+
+                // Marker setzen
+                L.marker([res.lat, res.lng], {icon: pIcon}).addTo(mapInstance);
+
+                // Linie zur Lösung ziehen
+                L.polyline([[target.lat, target.lng], [res.lat, res.lng]], {
+                    color: color,
+                    weight: res.isWinner ? 4 : 2, // Gewinner-Linie dicker
+                    opacity: 0.8,
+                    dashArray: '5, 10'
+                }).addTo(mapInstance);
+
+                bounds.push([res.lat, res.lng]);
+            });
+
+            // 3. Karte zoomen, damit alle drauf passen
+            if (bounds.length > 0) {
+                mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+            }
+            
+            // Schriftgröße des Fragetexts anpassen, falls er sich ändert
+            setTimeout(() => adjustFontSize('question-text'), 50);
         });
     </script>
 </body>

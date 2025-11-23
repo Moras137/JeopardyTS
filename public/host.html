@@ -87,6 +87,13 @@
             <button class="big-btn btn-buzz" onclick="unlockBuzzers()">🚨 BUZZER FREIGEBEN</button>
             <button class="big-btn btn-close" onclick="closeQuestion()">❌ FRAGE BEENDEN (Zurück)</button>
         </div>
+        <div id="map-controls" style="display:none; background:#eef; padding:10px; border-radius:5px; margin-top:10px;">
+            <h4>Karten-Frage läuft...</h4>
+            <p>Abgegeben: <span id="map-submitted-count">0</span> / <span id="map-total-count">?</span></p>
+            <button onclick="resolveMap()" style="background:#007bff; color:white; padding:10px; width:100%;">
+                🌍 AUFLÖSEN & ANZEIGEN
+            </button>
+        </div>
     </div>
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -166,7 +173,26 @@
                 // KEINE FRAGE AKTIV
                 answerDisplay.innerText = "Wähle oben eine Frage aus";
             }
+
+            if (data.mapMode) {
+                document.getElementById('map-controls').style.display = 'block';
+                document.getElementById('map-submitted-count').innerText = data.submittedCount || 0;
+                // Verstecke normale Scoring Buttons
+                document.querySelectorAll('.scoring-btn').forEach(b => b.style.display = 'none');
+            } else {
+                document.getElementById('map-controls').style.display = 'none';
+            }
         });
+
+        socket.on('host_update_map_status', (data) => {
+            document.getElementById('map-submitted-count').innerText = data.submittedCount;
+            document.getElementById('map-total-count').innerText = data.totalPlayers;
+        });
+
+        function resolveMap() {
+            socket.emit('host_resolve_map');
+            // Optional: Button deaktivieren oder Text ändern
+        }
         
         // Buzzer Gewinner anzeigen und Scoring-Buttons bereitstellen
         function updateAnswerBar(data) {

@@ -49,6 +49,24 @@ async function deleteMediaFile(filePath) {
     }
 }
 
+function calculateDistance(lat1, lng1, lat2, lng2, isCustom) {
+    // Bei Custom Maps (Bildern) nutzen wir einfache Pythagoras-Distanz auf Pixeln
+    if (isCustom) {
+        const dx = lat1 - lat2;
+        const dy = lng1 - lng2;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    // Bei echten Karten: Haversine-Formel für km
+    const R = 6371; // Erdradius km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLng = (lng2 - lng1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
 // --- GLOBALE SPIELVARIABLEN ---
 let players = {}; // { socketId: { name: 'PlayerName', score: 0 } }
 let buzzersActive = false;
@@ -56,6 +74,9 @@ let buzzWinnerId = null;
 let activeQuestionPoints = 0; // Neu: Speichert die Punkte der aktuell gespielten Frage
 let currentBuzzWinnerId = null; // Neu: Speichert die Socket ID des Spielers, der gebuzzt hat
 let currentLoadedGameId = null; // Neu: Speichert die aktuell geladene Spiel-ID
+let currentMapGuesses = {}; 
+let hostSocketId = null;
+let activeQuestion = null; 
 
 // --- DATEI-UPLOAD (Multer) ---
 const storage = multer.diskStorage({
@@ -263,6 +284,7 @@ io.on('connection', socket => {
 
     // Host wählt Spiel aus
     socket.on('host_start_game', async (gameid) => {
+        hostSocketId = socket.id;
         try {
             const game = await Game.findById(gameid);
             if (game) {
@@ -272,18 +294,6 @@ io.on('connection', socket => {
         } catch (error) {
             console.error('Fehler beim Laden des Spiels:', error);
         }
-    });
-
-    // Host wählt Frage
-    socket.on('host_pick_question', (data) => {
-        buzzersActive = true;
-        buzzWinnerId = null;
-        activeQuestionPoints = data.question.points;
-        currentBuzzWinnerId = null;
-        
-        io.emit('buzzers_unlocked');
-        io.emit('board_show_question', data);
-        io.emit('update_host_controls', { buzzWinnerId: null }); // Host-Buttons zurücksetzen
     });
 
     // Spieler buzzt
@@ -377,6 +387,105 @@ io.on('connection', socket => {
         delete players[socket.id];
         io.emit('update_player_list', players);
         io.emit('update_scores', players);
+    });
+
+    //  host_pick_question
+    socket.on('host_pick_question', (data) => {
+        const { question } = data;
+        activeQuestion = question; // <--- WICHTIG: Frage speichern für spätere Auswertung!
+        activeQuestionPoints = question.points || 100;
+        activeQuestionPicked = true;
+        currentMapGuesses = {};
+        
+        // ... (Rest Ihrer host_pick_question Logik bleibt gleich) ...
+        // (Map Mode Code, Buzzer Code, etc.)
+         if (question.type === 'map') {
+            buzzersActive = false; 
+            io.emit('update_host_controls', { mapMode: true, submittedCount: 0 });
+            io.emit('player_start_map_guess', {
+                questionText: question.questionText,
+                location: question.location, 
+                points: question.points
+            });
+            io.emit('board_show_question', data);
+        } else {
+            // ... Standard Frage Logik ...
+             buzzersActive = true;
+             io.emit('update_host_controls', { buzzWinnerId: null, mapMode: false });
+             io.emit('player_new_question', { text: question.questionText, points: question.points });
+             io.emit('buzzers_unlocked');
+             io.emit('board_show_question', data);
+        }
+    });
+
+    // 2. NEU: Spieler sendet seinen Tipp
+    socket.on('player_submit_map_guess', (coords) => {
+        currentMapGuesses[socket.id] = coords; // { lat: ..., lng: ... }
+        console.log(`Spieler ${socket.id} hat getippt.`);
+        
+        // Host informieren, wie viele abgegeben haben
+        const count = Object.keys(currentMapGuesses).length;
+        io.to(hostSocketId).emit('host_update_map_status', { 
+            submittedCount: count, 
+            totalPlayers: Object.keys(players).length 
+        });
+    });
+
+    // 3. NEU: Host löst die Kartenfrage auf
+    socket.on('host_resolve_map', () => {
+        if (!activeQuestion || !activeQuestion.location) return;
+
+        const targetLat = activeQuestion.location.lat;
+        const targetLng = activeQuestion.location.lng;
+        const isCustom = activeQuestion.location.isCustomMap;
+
+        let bestDistance = Infinity;
+        let results = {};
+
+        // A) Abstände berechnen und Bestwert finden
+        Object.keys(currentMapGuesses).forEach(playerId => {
+            const guess = currentMapGuesses[playerId];
+            const dist = calculateDistance(targetLat, targetLng, guess.lat, guess.lng, isCustom);
+            
+            results[playerId] = {
+                lat: guess.lat,
+                lng: guess.lng,
+                distance: dist,
+                scoreChange: 0 // Vorerst 0
+            };
+
+            if (dist < bestDistance) {
+                bestDistance = dist;
+            }
+        });
+
+        // B) Punkte an den/die Gewinner vergeben (Closest Guess)
+        // Man könnte hier auch eine Toleranz einbauen, aber "Winner takes all" ist am spannendsten.
+        Object.keys(results).forEach(playerId => {
+            // Wer den besten Abstand hat (oder extrem nah dran ist) bekommt Punkte
+            if (results[playerId].distance === bestDistance && bestDistance !== Infinity) {
+                if (players[playerId]) {
+                    players[playerId].score += activeQuestionPoints;
+                    results[playerId].scoreChange = activeQuestionPoints;
+                    results[playerId].isWinner = true;
+                }
+            }
+        });
+
+        // C) Daten an Clients senden
+        
+        // 1. Board: Zeige Karte mit allen Markern und Ergebnissen
+        io.emit('board_reveal_map_results', {
+            results: results, // Enthält Koordinaten + Distanz + ob gewonnen
+            players: players,
+            target: activeQuestion.location
+        });
+
+        // 2. Alle: Neue Punktestände sofort aktualisieren
+        io.emit('update_scores', players);
+        
+        // 3. Host: Modus beenden
+        // (Der Host kann dann manuell auf "Frage schließen" klicken)
     });
 });
 

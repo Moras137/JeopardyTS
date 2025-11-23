@@ -2,132 +2,302 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Jeopardy Buzzer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeopardy Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; margin: 0; background: #222; color: white; display: flex; flex-direction: column; height: 100vh; justify-content: center; align-items: center; }
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            margin: 0; 
+            background: #222; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden; /* Verhindert Scrollen während Map-Modus */
+        }
         
-        #join-section, #game-section { padding: 20px; }
+        #join-section, #game-section { 
+            padding: 20px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+        }
         
         #game-section { display: none; }
 
+        /* --- BUZZER STYLES --- */
         #buzzer-button {
-            width: 300px;
-            height: 300px;
+            width: 250px;
+            height: 250px;
             border-radius: 50%;
             background-color: #dc3545; /* Rot (Gesperrt) */
             color: white;
             font-size: 2rem;
             border: none;
             cursor: pointer;
-            transition: background-color 0.1s ease;
+            transition: transform 0.1s ease, background-color 0.2s;
+            box-shadow: 0 6px 0 #888;
+            -webkit-tap-highlight-color: transparent;
         }
-
         #buzzer-button:active {
-            transform: scale(0.95);
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #888;
         }
 
-        #status-message {
-            margin-top: 20px;
+        #status-message { margin-top: 20px; font-size: 1.5rem; color: #ffc107; }
+        #player-info { position: absolute; top: 10px; left: 10px; font-size: 1rem; color: #aaa; }
+
+        /* --- NEU: MAP INTERFACE STYLES --- */
+        #map-interface {
+            display: none; /* Standardmäßig versteckt */
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            background: #333;
+        }
+
+        #map-header {
+            padding: 10px;
+            background: #444;
+            font-size: 1.1rem;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #player-map {
+            flex-grow: 1;
+            width: 100%;
+            background: #ccc; /* Placeholder Farbe */
+        }
+
+        #confirm-guess-btn {
+            display: none; /* Erst sichtbar wenn Marker gesetzt */
+            padding: 20px;
             font-size: 1.5rem;
-            color: #ffc107;
+            background: #28a745;
+            color: white;
+            border: none;
+            width: 100%;
+            text-transform: uppercase;
+            font-weight: bold;
+            cursor: pointer;
         }
-        
-        #player-name {
-            font-size: 2.5rem;
-            color: #007bff;
-        }
-        
-        #player-score { /* NEU */
-            color: #ffc107;
-            font-size: 1.8rem;
-            margin-bottom: 10px;
-        }
+        #confirm-guess-btn:active { background: #1e7e34; }
+
     </style>
 </head>
 <body>
 
+    <div id="player-info">Nicht verbunden</div>
+
     <div id="join-section">
-        <h1>Spiel beitreten</h1>
-        <input type="text" id="name-input" placeholder="Dein Name" style="padding: 10px; font-size: 1.2rem; margin-bottom: 15px;">
-        <button onclick="joinGame()" style="padding: 10px 20px; font-size: 1.2rem; background: #28a745; color: white; border: none; border-radius: 5px;">Beitreten</button>
+        <h1>Quiz Beitreten</h1>
+        <input type="text" id="player-name" placeholder="Dein Name" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; border-radius: 5px; border: none;">
+        <button onclick="joinGame()" style="padding: 15px 30px; font-size: 1.2rem; background: #007bff; color: white; border: none; border-radius: 5px;">Starten</button>
     </div>
 
     <div id="game-section">
-        <h1 id="player-name"></h1>
-        <h2 id="player-score">Score: 0</h2> <button id="buzzer-button" onclick="buzz()">BUZZ</button>
-        <div id="status-message">Warte auf Freigabe...</div>
+        <button id="buzzer-button" onclick="buzz()">GESPERRT</button>
+        <div id="status-message">Warte auf Host...</div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <div id="map-interface">
+        <div id="map-header">
+            <span id="map-q-text">Frage wird geladen...</span>
+        </div>
+        <div id="player-map"></div>
+        <button id="confirm-guess-btn" onclick="submitGuess()">TIPP ABSENDEN</button>
+    </div>
+
     <script>
         const socket = io();
-        let playerName = '';
-        let playerBuzzed = false;
         let myId = null;
+        let playerName = "";
+        let playerBuzzed = true; // Am Anfang gesperrt
+        
+        // Variablen für die Karte
+        let playerMap = null;
+        let playerMarker = null;
 
-        const joinSection = document.getElementById('join-section');
-        const gameSection = document.getElementById('game-section');
-        const buzzerButton = document.getElementById('buzzer-button');
-        const statusMessage = document.getElementById('status-message');
-        const playerNameEl = document.getElementById('player-name');
-        const playerScoreEl = document.getElementById('player-score'); 
-
+        // --- LOGIN LOGIK ---
         function joinGame() {
-            playerName = document.getElementById('name-input').value.trim();
+            const nameInput = document.getElementById('player-name');
+            playerName = nameInput.value.trim();
             if (playerName) {
                 socket.emit('player_join', playerName);
+                document.getElementById('join-section').style.display = 'none';
+                document.getElementById('game-section').style.display = 'flex';
+                
+                document.getElementById('player-info').innerText = playerName;
+                
+                // Versuche Fullscreen auf mobilen Geräten
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(e => {});
+                }
+            } else {
+                alert("Bitte Namen eingeben!");
             }
         }
 
-        socket.on('name_taken', () => {
-            alert('Dieser Name wird bereits verwendet. Bitte wähle einen anderen.');
+        socket.on('connect', () => {
+            myId = socket.id;
+        });
+
+        // --- BUZZER EVENTS ---
+        socket.on('buzzers_unlocked', () => {
+            playerBuzzed = false;
+            const btn = document.getElementById('buzzer-button');
+            btn.style.backgroundColor = '#28a745'; // Grün
+            btn.innerText = "DRÜCKEN!";
+            document.getElementById('status-message').innerText = 'LOS!';
+        });
+
+        socket.on('buzzers_locked', () => {
+            playerBuzzed = true;
+            const btn = document.getElementById('buzzer-button');
+            btn.style.backgroundColor = '#dc3545'; // Rot
+            btn.innerText = "GESPERRT";
+            document.getElementById('status-message').innerText = 'Gesperrt';
+        });
+
+        socket.on('player_won_buzz', (data) => {
+            const btn = document.getElementById('buzzer-button');
+            btn.style.backgroundColor = '#dc3545'; // Rot
+            btn.innerText = "GESPERRT";
+            
+            if (data.id === myId) {
+                document.getElementById('status-message').innerText = 'DU BIST DRAN!';
+                document.body.style.backgroundColor = '#155724'; // Dunkelgrüner Hintergrund zur Bestätigung
+            } else {
+                document.getElementById('status-message').innerText = `${data.name} ist dran!`;
+                document.body.style.backgroundColor = '#222';
+            }
         });
         
-        socket.on('joined', (id) => {
-            myId = id; 
-            joinSection.style.display = 'none';
-            gameSection.style.display = 'block';
-            playerNameEl.innerText = playerName;
-            playerScoreEl.innerText = 'Score: 0';
+        socket.on('buzzers_unlocked_reset', () => {
+             document.body.style.backgroundColor = '#222';
         });
 
         function buzz() {
             if (!playerBuzzed) {
+                // Lokales Feedback sofort geben
                 playerBuzzed = true;
-                buzzerButton.style.backgroundColor = '#6c757d'; 
-                statusMessage.innerText = 'Warte auf Freigabe...';
+                document.getElementById('buzzer-button').style.backgroundColor = '#ffc107'; // Gelb (Warten)
+                document.getElementById('buzzer-button').innerText = "...";
                 
-                socket.emit('player_buzz', { id: myId }); 
+                socket.emit('player_buzz', { id: myId, name: playerName });
             }
         }
 
-        socket.on('buzzers_unlocked', () => {
-            playerBuzzed = false;
-            buzzerButton.style.backgroundColor = '#28a745'; 
-            statusMessage.innerText = 'Drücken!';
+        // --- NEU: MAP EVENTS & LOGIK ---
+
+        // 1. Startet den Map-Modus
+        socket.on('player_start_map_guess', (data) => {
+            console.log("Map Modus gestartet", data);
+            
+            // UI Umschalten: Buzzer weg, Map her
+            document.getElementById('game-section').style.display = 'none';
+            document.getElementById('map-interface').style.display = 'flex';
+            document.getElementById('map-q-text').innerText = data.questionText || "Wo liegt das?";
+            document.getElementById('confirm-guess-btn').style.display = 'none';
+            document.body.style.backgroundColor = '#222'; // Reset Farbe
+
+            // Karte initialisieren (kurze Verzögerung damit Div sichtbar ist)
+            setTimeout(() => {
+                if (playerMap) {
+                    playerMap.remove(); // Alte Karte löschen
+                    playerMap = null;
+                    playerMarker = null;
+                }
+
+                // Startposition: Weltansicht (0,0)
+                playerMap = L.map('player-map', {
+                    center: [0, 0],
+                    zoom: 1,
+                    zoomControl: false, // Platz sparen auf Mobile
+                    attributionControl: false
+                });
+
+                // Prüfen ob Custom Map (Bild) oder Weltkarte
+                if (data.location && data.location.isCustomMap && data.location.customMapPath) {
+                    const bounds = [[-500, -500], [500, 500]];
+                    L.imageOverlay(data.location.customMapPath, bounds).addTo(playerMap);
+                    playerMap.fitBounds(bounds);
+                } else {
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19
+                    }).addTo(playerMap);
+                }
+                
+                // Layout fixen
+                playerMap.invalidateSize();
+
+                // Klick-Event: Marker setzen
+                playerMap.on('click', (e) => {
+                    if (playerMarker) {
+                        playerMarker.setLatLng(e.latlng);
+                    } else {
+                        playerMarker = L.marker(e.latlng).addTo(playerMap);
+                    }
+                    // Button zum Absenden anzeigen
+                    document.getElementById('confirm-guess-btn').style.display = 'block';
+                });
+
+            }, 200);
         });
 
-        socket.on('buzzers_locked', () => {
-            playerBuzzed = true; 
-            buzzerButton.style.backgroundColor = '#dc3545'; 
-            statusMessage.innerText = 'Gesperrt';
-        });
+        // 2. Tipp absenden
+        function submitGuess() {
+            if (!playerMarker) return;
+            
+            const lat = playerMarker.getLatLng().lat;
+            const lng = playerMarker.getLatLng().lng;
 
-        socket.on('player_won_buzz', (data) => {
-            buzzerButton.style.backgroundColor = '#dc3545'; 
-            statusMessage.innerText = (data.name === playerName) 
-                ? 'Du bist dran!' 
-                : `${data.name} ist dran!`;
-        });
-        
-        // NEU: Scores von anderen Spielern erhalten
-        socket.on('update_scores', (players) => {
-            const myPlayer = players[myId];
-            if (myPlayer) {
-                playerScoreEl.innerText = `Score: ${myPlayer.score}`;
+            // An Server senden
+            socket.emit('player_submit_map_guess', { lat, lng });
+
+            // UI Feedback
+            document.getElementById('map-q-text').innerText = "Tipp gesendet! Warte auf Auflösung...";
+            document.getElementById('confirm-guess-btn').style.display = 'none';
+            
+            // Interaktion auf Karte deaktivieren
+            playerMap.off('click');
+            if(playerMap.dragging) playerMap.dragging.disable();
+            if(playerMap.touchZoom) playerMap.touchZoom.disable();
+            if(playerMap.scrollWheelZoom) playerMap.scrollWheelZoom.disable();
+        }
+
+        // 3. Zurücksetzen wenn Frage vorbei ist (z.B. Host klickt "Zurück")
+        socket.on('board_hide_question', () => {
+            // Map Interface verstecken
+            document.getElementById('map-interface').style.display = 'none';
+            // Buzzer Interface zeigen
+            if (playerName) {
+                document.getElementById('game-section').style.display = 'flex';
+                // Status resetten
+                document.getElementById('buzzer-button').style.backgroundColor = '#dc3545';
+                document.getElementById('buzzer-button').innerText = "GESPERRT";
+                document.getElementById('status-message').innerText = "Warte...";
+            }
+            
+            // Aufräumen
+            if (playerMap) {
+                playerMap.remove();
+                playerMap = null;
             }
         });
+
     </script>
 </body>
 </html>
