@@ -152,7 +152,7 @@
 
         socket.on('board_show_question', (data) => {
             const { catIndex, qIndex, question } = data;
-            currentQuestion = question; // <--- WICHTIG: Frage für später speichern
+            currentQuestion = question; 
 
             // Reset
             const mediaCont = document.getElementById('media-container');
@@ -160,20 +160,17 @@
             mediaCont.style.display = 'none';
             
             const mapDiv = document.getElementById('q-map');
-            if(mapDiv) mapDiv.style.display = 'none';
+            mapDiv.style.display = 'none'; 
 
             // Text anzeigen
             document.getElementById('question-text').innerText = question.questionText;
 
-            // --- ENTSCHEIDUNG: KARTE ODER NORMALES MEDIUM? ---
-            
+            // --- KARTEN-FRAGE ---
             if (question.type === 'map' && question.location) {
-                // === FALL A: KARTEN-FRAGE ===
                 mapDiv.style.display = 'block';
 
-                // WICHTIG: Leaflet braucht einen Moment, um die Größe des Divs zu erkennen
                 setTimeout(() => {
-                    // Alte Karte löschen, falls vorhanden (Cleanup)
+                    // Alte Karte säubern
                     if (mapInstance) {
                         mapInstance.remove();
                         mapInstance = null;
@@ -184,81 +181,105 @@
 
                     // Karte initialisieren
                     mapInstance = L.map('q-map', {
-                        center: [lat, lng],
-                        zoom: 13,
-                        zoomControl: false, // Optional: Steuerelemente ausblenden für cleanen Look
-                        attributionControl: false 
+                        center: [0, 0], // Zentrum auf Ziel setzen (oder leicht versetzt, wenn man es schwerer machen will)
+                        zoom: 2, // Zoomstufe anpassen je nach Schwierigkeit
+                        zoomControl: false,
+                        attributionControl: false
                     });
 
-                    // Prüfen: Custom Map (eigenes Bild) oder Standard (OpenStreetMap)?
+                    // Bild-Karte oder Standard-Karte laden
                     if (question.location.isCustomMap && question.location.customMapPath) {
-                        // -> CUSTOM MAP (Bild als Karte)
                         const imageUrl = question.location.customMapPath;
-                        // Wir definieren feste Grenzen für das Bild, damit der Marker passt
-                        // (Das muss zur Logik in create.html passen)
-                        const imageBounds = [[-500, -500], [500, 500]]; 
-                        
+                        const imageBounds = [[-500, -500], [500, 500]];
                         L.imageOverlay(imageUrl, imageBounds).addTo(mapInstance);
                         mapInstance.fitBounds(imageBounds);
-                        
-                        // Marker setzen (Koordinaten müssen im Bild-System sein)
-                        L.marker([lat, lng]).addTo(mapInstance);
-
                     } else {
-                        // -> STANDARD MAP (OpenStreetMap)
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                             maxZoom: 19
                         }).addTo(mapInstance);
-
-                        // Marker setzen
-                        L.marker([lat, lng]).addTo(mapInstance);
                     }
                     
-                    // Layout aktualisieren erzwingen (verhindert graue Kacheln)
-                    mapInstance.invalidateSize();
+                    // WICHTIG: HIER WURDE DER MARKER-CODE ENTFERNT!
+                    // Der Marker wird jetzt erst bei "reveal_answer" gesetzt.
 
-                }, 100); // 100ms Verzögerung reicht meistens
+                    mapInstance.invalidateSize();
+                }, 100);
 
             } else {
-                // === FALL B: NORMALE MEDIEN (Bilder/Videos) ===
+                // --- NORMALE MEDIEN ---
                 if (question.mediaPath) {
-                renderMedia(question.mediaPath, mediaCont);
-            }
+                    renderMedia(question.mediaPath, mediaCont);
+                }
             }
 
-            // Overlay anzeigen
             document.getElementById('question-overlay').style.display = 'flex';
-            adjustFontSize('question-text'); 
             
+            // Als gespielt markieren
             const card = document.getElementById(`card-${catIndex}-${qIndex}`);
             if(card) card.classList.add('played');
+            
+            adjustFontSize('question-text');
         });
 
         socket.on('board_reveal_answer', () => {
             if (!currentQuestion) return;
 
-            // A. Text ändern
             const textBox = document.getElementById('question-text');
             textBox.innerHTML = `<span style="color: #4CAF50; font-size: 0.6em; display:block; margin-bottom:10px;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
 
-            // B. Medien-Container leeren (altes Frage-Bild weg)
-            const mediaCont = document.getElementById('media-container');
-            mediaCont.innerHTML = ''; 
-            mediaCont.style.display = 'none';
-
-            // Map weg
-            const mapDiv = document.getElementById('q-map');
-            if(mapDiv) mapDiv.style.display = 'none';
-
-            // C. Antwort-Medien anzeigen (Audio/Bild/Video)
-            const path = currentQuestion.answerMediaPath;
+            // --- ENTSCHEIDUNG: MAP ODER STANDARD? ---
             
-            if (path) {
-                mediaCont.style.display = 'block';
-                renderMedia(path, mediaCont, true); // true = Autoplay für Antwort
+            if (currentQuestion.type === 'map' && currentQuestion.location) {
+                // === FALL A: KARTEN-ANTWORT ===
+                
+                // Karte muss sichtbar bleiben
+                const mapDiv = document.getElementById('q-map');
+                if (mapDiv) mapDiv.style.display = 'block';
+                
+                // Andere Medien verstecken
+                document.getElementById('media-container').style.display = 'none';
+
+                // MARKER JETZT HINZUFÜGEN
+                if (mapInstance) {
+                    const { lat, lng } = currentQuestion.location;
+                    
+                    // Marker erstellen
+                    const marker = L.marker([lat, lng]).addTo(mapInstance);
+                    
+                    // Optional: Karte sanft zum Marker bewegen (falls der Spieler sie verschoben hat)
+                    mapInstance.flyTo([lat, lng], 13, {
+                        duration: 2.0 // Dauer des Fluges in Sekunden
+                    });
+                    
+                    // Optional: Popup öffnen
+                    // marker.bindPopup("Hier ist es!").openPopup();
+                }
+
+            } else {
+                // === FALL B: NORMALE ANTWORT (Bilder/Musik) ===
+                
+                // Karte verstecken & aufräumen
+                const mapDiv = document.getElementById('q-map');
+                if(mapDiv) mapDiv.style.display = 'none';
+                
+                if (mapInstance) {
+                    mapInstance.remove();
+                    mapInstance = null;
+                }
+
+                // Medien anzeigen
+                const mediaCont = document.getElementById('media-container');
+                mediaCont.innerHTML = ''; 
+                
+                const path = currentQuestion.answerMediaPath;
+                if (path) {
+                    mediaCont.style.display = 'block';
+                    renderMedia(path, mediaCont, true); // true = Autoplay
+                } else {
+                    mediaCont.style.display = 'none';
+                }
             }
 
-            // Schriftgröße anpassen
             setTimeout(() => adjustFontSize('question-text'), 10);
         });
 
