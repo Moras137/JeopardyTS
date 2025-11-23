@@ -124,27 +124,46 @@
         
         // NEU: Host-Steuerung aktualisieren (z.B. Buzzer-Gewinner)
         socket.on('update_host_controls', (data) => {
-            const answerDisplay = document.getElementById('current-answer');
-            const controlsDiv = document.getElementById('controls-div'); // Ihr Kontroll-Container
+            console.log("Host Controls Update erhalten:", data); 
             
-            // ... (Hier Ihre Logik zum Entfernen alter Scoring-Buttons, falls vorhanden) ...
+            const answerDisplay = document.getElementById('current-answer');
+            const controlsDiv = document.getElementById('controls-div'); 
+            
+            // Alte Scoring-Buttons sicherheitshalber entfernen
+            document.querySelectorAll('.scoring-btn').forEach(btn => btn.remove());
 
             if (data.buzzWinnerId) {
-                // BUZZER GEWINNER VORHANDEN: Zeige Gewinner & Antwort
-                const winnerName = currentGame.players[data.buzzWinnerId]?.name || 'Unbekannt';
+                // KORREKTUR: Name direkt aus den Daten oder aus currentPlayers holen
+                const winnerName = data.buzzWinnerName || currentPlayers[data.buzzWinnerId]?.name || 'Unbekannt';
                 
                 // Wichtig: Verwende den gespeicherten Text
                 answerDisplay.innerHTML = `Lösung: <span style="color: #333; border-bottom: 2px solid #d63384;">${currentAnswerText}</span> <br><br>
                                 <span style="color:red; font-size:2rem; display:block; margin-top:10px;">${winnerName} WILL ANTWORTEN!</span>`;
                 
-                // ... (Logik zum Hinzufügen der Scoring-Buttons) ...
+                // --- SCORING BUTTONS HINZUFÜGEN ---
+                // (Dieser Teil fehlte oder war unvollständig in Ihrem Snippet im Socket-Handler)
+                const actionBar = document.getElementById('action-bar');
+                
+                const correctBtn = document.createElement('button');
+                correctBtn.className = 'big-btn scoring-btn';
+                correctBtn.innerText = `✅ Richtig (+${activeQuestionPoints || 0})`; // Fallback für Points
+                correctBtn.style.background = '#28a745';
+                correctBtn.onclick = () => scoreAnswer('correct', data.buzzWinnerId);
+                actionBar.insertBefore(correctBtn, actionBar.firstChild);
+
+                const incorrectBtn = document.createElement('button');
+                incorrectBtn.className = 'big-btn scoring-btn';
+                incorrectBtn.innerText = `❌ Falsch (-${activeQuestionPoints || 0})`;
+                incorrectBtn.style.background = '#dc3545';
+                incorrectBtn.onclick = () => scoreAnswer('incorrect', data.buzzWinnerId);
+                actionBar.insertBefore(incorrectBtn, actionBar.firstChild);
 
             } else if (activeQuestionPicked) {
-                // FRAGE AKTIV, ABER KEIN GEWINNER: Zeige nur die Antwort an
+                // FRAGE AKTIV, ABER KEIN GEWINNER
                 answerDisplay.innerText = "Lösung: " + currentAnswerText;
                 
             } else {
-                // KEINE FRAGE AKTIV: Initial- oder Reset-Zustand
+                // KEINE FRAGE AKTIV
                 answerDisplay.innerText = "Wähle oben eine Frage aus";
             }
         });
