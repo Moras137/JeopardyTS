@@ -2,10 +2,18 @@ const mongoose = require('mongoose');
 
 // --- 1. Question Schema (Frage) ---
 const questionSchema = new mongoose.Schema({
+    type: { type: String, default: 'standard', enum: ['standard', 'map'] },
+
+    location: {
+        lat: { type: Number }, // Breitengrad
+        lng: { type: Number }, // Längengrad
+        isCustomMap: { type: Boolean, default: false }, 
+        customMapPath: { type: String, default: '' }
+    },
+
     points: { type: Number, default: 100 },
     negativePoints: { type: Number, default: 0 }, 
     
-    // required: true ENTFERNT
     questionText: { type: String, default: '' }, 
     answerText: { type: String, default: '' }, 
 
@@ -20,14 +28,12 @@ const questionSchema = new mongoose.Schema({
 
 // --- 2. Category Schema (Kategorie) ---
 const categorySchema = new mongoose.Schema({
-    // required: true ENTFERNT
     name: { type: String, default: '' },
     questions: [questionSchema]
 });
 
 // --- 3. Game Schema (Hauptquiz) ---
 const gameSchema = new mongoose.Schema({
-    // Dies ist das einzige Feld, das wirklich erforderlich sein sollte
     title: { type: String, required: true }, 
     
     boardBackgroundPath: { type: String, default: '' },
