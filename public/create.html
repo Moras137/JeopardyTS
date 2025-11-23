@@ -359,14 +359,14 @@
     </div>
 
 <script>
-        let editingGameId = null; 
+        let editingGameId = null;
         let currentCategoriesCount = 0;
         // Globaler Speicher für Pfade, die gelöscht werden müssen
         let filesToDeleteOnSave = [];
-        let mapInstances = {}; // Speichert die Leaflet-Karten pro Frage-ID
-
+        let mapInstances = {}; // Speichert die Leaflet-Karten pro Frage-ID 
+        
         // --- HILFSFUNKTIONEN ---
-
+        
         async function uploadFile(inputElement, previewId, hiddenInputId, path = null) {
             const statusEl = inputElement.nextElementSibling;
             const img = document.getElementById(previewId);
@@ -683,6 +683,7 @@
         // --- LADEN ZUM BEARBEITEN ---
 
         async function loadGameList() {
+
             const res = await fetch('/api/games'); 
             const games = await res.json();
             
@@ -693,7 +694,6 @@
                 list.innerHTML = "<p style='color:#666;'>Noch keine Spiele vorhanden.</p>";
                 return;
             }
-            
             games.forEach(game => {
                 const row = document.createElement('div');
                 row.className = 'load-item load-item-row';
@@ -715,9 +715,26 @@
                     deleteGame(game._id, game.title);
                 };
 
+                const startButton = document.createElement('button');
+                startButton.textContent = '▶️ Starten';
+                startButton.className = 'start-game-btn'; // Optional für CSS
+                // Kleinere, unauffälligere Buttons
+  
+                startButton.style.padding = '10px';
+                startButton.style.fontSize = '0.8em'; 
+                startButton.style.border = 'none';
+                startButton.style.backgroundColor = '#28a745'; // Grüne Farbe
+                startButton.style.color = 'white';
+                startButton.style.cursor = 'pointer';
+
+                startButton.onclick = (e) => {
+                    e.stopPropagation(); // Verhindert, dass der Klick die Bearbeitung startet
+                    startGame(game._id);
+                };
 
                 row.appendChild(titleSpan);
                 row.appendChild(delBtn);
+                row.appendChild(startButton);
                 list.appendChild(row);
             });
         }
@@ -1066,6 +1083,27 @@
             });
         }
         
+        function startGame(gameId) {
+            fetch(`/start-game/${gameId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('Start-Fehler');
+            })
+            .then(data => {
+                // Leitet zum Host-Bildschirm weiter
+                window.location.href = data.redirectUrl; 
+            })
+            .catch(error => {
+                console.error("Fehler beim Starten des Quiz:", error);
+                alert("Das Quiz konnte nicht gestartet werden.");
+            });
+        }
+
         // Starten mit einer leeren Kategorie und der Ladeliste
         clearForm();
         loadGameList();

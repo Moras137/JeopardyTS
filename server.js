@@ -55,7 +55,7 @@ let buzzersActive = false;
 let buzzWinnerId = null;
 let activeQuestionPoints = 0; // Neu: Speichert die Punkte der aktuell gespielten Frage
 let currentBuzzWinnerId = null; // Neu: Speichert die Socket ID des Spielers, der gebuzzt hat
-
+let currentLoadedGameId = null; // Neu: Speichert die aktuell geladene Spiel-ID
 
 // --- DATEI-UPLOAD (Multer) ---
 const storage = multer.diskStorage({
@@ -149,6 +149,34 @@ app.post('/api/create-game', async (req, res) => {
     }
 });
 
+app.post('/start-game/:gameId', async (req, res) => {
+    const { gameId } = req.params;
+    
+    // Einfache Validierung, ob die GameId vorhanden ist
+    if (!gameId) {
+        return res.status(400).send("Fehlende Game ID.");
+    }
+    
+    try {
+        const game = await Game.findById(gameId).lean();
+        if (!game) {
+            return res.status(404).send("Quiz nicht gefunden.");
+        }
+        // Setze die aktuell geladene Spiel-ID (falls auf Serverseite benötigt)
+        currentLoadedGameId = gameId; 
+        console.log(`Quiz mit ID ${gameId} gestartet.`);
+
+        // Leitet zum Host-Bildschirm weiter. 
+        // WICHTIG: Die gameId und der Titel werden als Query-Parameter übergeben, damit host.html weiß, welches Spiel geladen werden soll.
+        const titleParam = encodeURIComponent(game.title || "");       
+        res.status(200).json({ redirectUrl: `/host.html?gameId=${gameId}&title=${titleParam}` });
+
+    } catch (error) {
+        console.error("Fehler beim Starten des Quiz:", error);
+        res.status(500).send("Interner Serverfehler beim Laden des Quiz.");
+    }
+});
+
 // API: Ein Spiel löschen (MIT ERWEITERTEM DATEI-CLEANUP)
 app.delete('/api/games/:id', async (req, res) => {
     try {
@@ -234,9 +262,9 @@ io.on('connection', socket => {
     });
 
     // Host wählt Spiel aus
-    socket.on('host_start_game', async (gameShort) => {
+    socket.on('host_start_game', async (gameid) => {
         try {
-            const game = await Game.findById(gameShort._id);
+            const game = await Game.findById(gameid);
             if (game) {
                 // Sende das volle Game-Objekt an alle Boards und den Host
                 io.emit('load_game_on_board', game); 
