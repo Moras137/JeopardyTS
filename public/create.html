@@ -24,9 +24,7 @@
             flex-grow: 1;
             padding: 20px;
             overflow-y: auto;
-            max-width: 1000px;
-            
-            /* NEU: Flex-Container für H1 und Buttons */
+            max-width: 100%;
             display: flex;
             flex-direction: column; 
         }
@@ -89,24 +87,45 @@
         .upload-status { font-size: 0.8rem; color: #666; }
         /* --- NEU: KACHEL-ANSICHT STYLES --- */
         
-        /* Container-Layout im Grid-Modus */
+        /* Spezialregel für die Kachelansicht */
         .view-mode-grid #categories-container {
-            display: flex;
-            gap: 10px;
-            overflow-x: auto;
-            padding-bottom: 20px;
-            align-items: flex-start;
+            display: flex !important;
+            flex-direction: column !important;
+            
+            /* NEU: Erlaubt den Spalten, in eine neue Zeile umzubrechen */
+            flex-wrap: wrap !important; 
+            
+            gap: 1px;
+            
+            overflow-x: auto; 
+            overflow-y: auto; /* Vertikales Scrollen im Container wieder aktivieren */
+            
+            align-items: stretch; 
+            padding-bottom: 3px;
+            min-height: 100%;
+            width: 100%;
         }
 
         /* Kategorie im Grid-Modus */
         .view-mode-grid .category {
-            min-width: 180px;
-            width: 180px;
-            flex: 0 0 auto;
+            display: flex !important;
+            flex-direction: column !important;
+            flex-grow: 1; 
+            flex-basis: calc(25% - 15px);             
+            width: 100px;  
+            flex-shrink: 1; 
+            margin: 0;
             background: transparent;
-            box-shadow: none;
-            padding: 0;
             border: none;
+            box-shadow: none;
+        }
+        .view-mode-grid .questions-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            /* max-height: 50px; */
+            flex-grow: 1; 
         }
         
         /* Verstecke Detail-Elemente im Grid-Modus */
@@ -117,37 +136,38 @@
         .view-mode-grid .question-block > * {
             display: none !important;
         }
-
+        
         /* Zeige den Kategorienamen als Header */
         .view-mode-grid .category::before {
-            content: attr(data-cat-name); /* Zieht den Namen aus einem Attribut */
+            content: attr(data-cat-name);
             display: block;
             text-align: center;
             font-weight: bold;
             color: #333;
-            margin-bottom: 10px;
+            margin-bottom: 15px; /* Abstand zur ersten Frage */
             background: #fff;
             padding: 10px;
             border-radius: 5px;
             border: 1px solid #ccc;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         /* Die Frage als Kachel */
         .view-mode-grid .question-block {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 80px;
-            background: #00008b; /* Jeopardy Blau */
-            color: #ffcc00; /* Jeopardy Gelb */
-            border: 2px solid white;
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            text-align: center;
             border-radius: 5px;
-            margin-bottom: 10px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            flex-grow: 1; 
+            height: auto; /* Entfernt eine feste Höhe */
+            
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             cursor: pointer;
-            font-family: 'Impact', sans-serif;
-            font-size: 1.5rem;
-            position: relative;
-            transition: transform 0.1s;
         }
         
         .view-mode-grid .question-block:hover {
@@ -169,7 +189,6 @@
         }
         
         /* View-Switcher Buttons */
-
         .view-switcher {
             display: flex;
             gap: 0;
@@ -227,6 +246,33 @@
             background-color: #218838;
         }
 
+        #right-function-row {
+            width: 250px;
+            display: flex;
+            align-items: center; /* Zentriert die Elemente vertikal in der Reihe */
+            margin-bottom: 20px; /* Abstand zum Inhalt darunter */
+            flex-direction: column;
+        }
+        
+        /* NEUE REGEL: Container für die Buttons */
+        #right-controls {
+            display: flex;
+            gap: 15px; /* Abstand zwischen dem View Switcher und den Speichern-Buttons */
+            align-items: center;
+            /* flex-direction: column; */
+        }
+
+        /* Stellen Sie sicher, dass H1 keinen unnötigen Außenabstand hat */
+        #right-function-row h1 {
+            margin: 0;
+            padding: 0;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
     </style>
 </head>
 <body>
@@ -240,21 +286,6 @@
     </div>
 
     <div id="main-content">
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
-            
-            <h1><span id="form-mode">Neues</span> Quiz</h1>
-
-            <div style="display: flex; gap: 10px; align-items: center;"> 
-                
-                <button class="primary" onclick="saveGame()">💾 Speichern</button>
-                
-                <div class="view-switcher">
-                    <button class="view-btn active" onclick="switchView('list')" id="btn-view-list">☰ Liste</button>
-                    <button class="view-btn" onclick="switchView('grid')" id="btn-view-grid">⊞ Kacheln</button>
-                </div>
-            </div>
-        </div>
-        
         <div class="card">
             <label>Name des Quiz</label>
             <input type="text" id="gameTitle" placeholder="Titel eingeben...">
@@ -296,6 +327,17 @@
             </div>
         
         <hr>
+    </div>
+
+    <div id="right-function-row">
+        <div id="right-controls"></div>       
+            <button class="primary" onclick="saveGame()">💾 Speichern</button>
+            
+            <div class="view-switcher">
+                <button class="view-btn active" onclick="switchView('list')" id="btn-view-list">☰ Liste</button>
+                <button class="view-btn" onclick="switchView('grid')" id="btn-view-grid">⊞ Kacheln</button>
+            </div>
+        </div>
     </div>
 
 <script>
@@ -365,7 +407,6 @@
         function clearForm() {
             editingGameId = null;
             document.getElementById('gameTitle').value = '';
-            document.getElementById('form-mode').innerText = 'Neues';
             // currentCategoriesCount und categories-container werden in updateQuizStructure() behandelt
             
             document.querySelectorAll('.load-item').forEach(el => el.classList.remove('active'));
@@ -442,7 +483,6 @@
             const html = `
             <div class="card category" id="${catId}" data-cat-name="${catName || 'Kategorie'}">
                 
-                <h2>Kategorie</h2>
                 <label>Name der Kategorie:</label>
                 <input type="text" class="cat-name" placeholder="z.B. Geografie" value="${catName}" oninput="updateCatNameAttr(this)">
                 
@@ -530,7 +570,6 @@
                 alert(`Spiel erfolgreich ${editingGameId ? 'aktualisiert' : 'gespeichert'}!`);
                 editingGameId = result.gameId;
                 loadGameList(); 
-                document.getElementById('form-mode').innerText = 'Bearbeitetes';
             } else {
                 alert("Fehler beim Speichern:\n\n" + (result.error || "Unbekannter Fehler."));
             }
@@ -609,7 +648,6 @@
 
                 // 3. Status setzen
                 editingGameId = gameId;
-                document.getElementById('form-mode').innerText = 'Bearbeitetes';
                 document.getElementById('gameTitle').value = gameData.title;
 
                 // Markiere den aktiven Eintrag in der Sidebar
