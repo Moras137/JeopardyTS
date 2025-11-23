@@ -479,7 +479,7 @@
                 <label>Frage-Text:</label>
                 <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)">
                 
-                <label>Medien (Bild/Video) zur Frage (optional):</label>
+                <label>Medien (Bild/Video/Musik) zur Frage (optional):</label>
                 <input type="file" onchange="uploadFile(this, 'preview-question-${qId}', 'media-${qId}'); checkQuestionFilled(this);">
                 <div id="preview-question-${qId}" style="margin-top: 5px;">${generateMediaPreviewHtml(mediaPath)}</div>
                 <input type="hidden" class="q-media-path" id="media-${qId}" value="${mediaPath}" onchange="checkQuestionFilled(this)">
@@ -819,23 +819,31 @@
             if (path) {
                 const ext = path.split('.').pop().toLowerCase();
                 const mediaIsVideo = ['mp4', 'webm', 'mov'].includes(ext);
+                const mediaIsImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(ext);
+                const mediaIsAudio = ['mp3', 'wav', 'ogg'].includes(ext);
 
                 if (mediaIsVideo) {
                     previewHtml = `
                         <video src="${path}" controls class="media-preview" style="display:block; max-height: 100px;"></video>
                         <span style="color: #28a745;">Video geladen</span> 
                     `;
-                } else {
+                } else if (mediaIsImage) {
                     previewHtml = `
                         <img src="${path}" class="media-preview" style="display:block;">
                         <span style="color: #28a745;">Bild geladen</span>
                     `;
+                } else if (mediaIsAudio) {
+                    previewHtml = `
+                        <audio src="${path}" class="media-preview" controls></audio>
+                        <span class="upload-status">Musik geladen.</span>
+                    `;
                 }
-            } else {
-                previewHtml = `
-                    <img src="" class="media-preview" style="display:none;">
-                    <span class="upload-status">Keine Datei ausgewählt.</span>
-                `;
+                else {
+                    previewHtml = `
+                        <img src="" class="media-preview" style="display:none;">
+                        <span class="upload-status">Keine Datei ausgewählt.</span>
+                    `;
+                }
             }
             return previewHtml;
         }
