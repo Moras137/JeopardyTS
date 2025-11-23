@@ -320,23 +320,28 @@ io.on('connection', socket => {
         if (player) {
             if (action === 'correct') {
                 player.score += activeQuestionPoints;
-                // Nach richtiger Antwort: Runde beenden
-                io.emit('board_hide_question');
                 
-                // Host-Buttons zurücksetzen
+                // WICHTIG: Hier senden wir jetzt das Signal zum AUFDECKEN, 
+                // anstatt die Frage zu schließen.
+                // Das "board_hide_question" wurde entfernt.
+                io.emit('board_reveal_answer'); 
+                
+                // Host-Buttons zurücksetzen (damit man nicht doppelt Punkte vergibt)
                 currentBuzzWinnerId = null;
+                // Sagt dem Host, dass der Buzzer-Kampf vorbei ist, aber die Frage noch offen (activeQuestionPicked bleibt im Host true)
                 io.emit('update_host_controls', { buzzWinnerId: null });
                 
             } else if (action === 'incorrect') {
                 player.score -= activeQuestionPoints;
-                // Nach falscher Antwort: Buzzers für die anderen entsperren
+                
+                // Bei falsch: Buzzer wieder freigeben
                 currentBuzzWinnerId = null; 
-                buzzersActive = true; // explizit wieder aktivieren
+                buzzersActive = true; 
                 io.emit('buzzers_unlocked');
                 io.emit('update_host_controls', { buzzWinnerId: null });
             }
             
-            // Scores an alle Clients senden
+            // Scores an alle senden
             io.emit('update_scores', players);
         }
     });

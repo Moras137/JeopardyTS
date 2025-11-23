@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Jeopardy Board</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { background: #00008b; color: #fff; font-family: 'Impact', sans-serif; margin: 0; overflow: hidden; }
         
@@ -82,6 +84,16 @@
         }
         .player-card { border: 2px solid white; padding: 10px 20px; font-size: 1.5rem; background: #00008b; }
         .player-card.buzzing { background: #fff; color: #00008b; border-color: #ffcc00; transform: scale(1.2); }
+        #q-map {
+            height: 60vh; /* 60% der Bildschirmhöhe */
+            width: 80%;   /* 80% der Breite */
+            margin: 20px auto;
+            border: 5px solid white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: none; /* Standardmäßig versteckt */
+            background: #ccc;
+            z-index: 100; /* Sicherstellen, dass sie oben liegt */
+        }
     </style>
 </head>
 <body>
@@ -92,6 +104,7 @@
 
     <div id="question-overlay">
         <div id="media-container"></div>
+        <div id="q-map"></div>
         <div id="question-text">Die Frage steht hier...</div>
         <div id="answer-text">Die Antwort steht hier...</div>
     </div>
@@ -113,6 +126,7 @@
         const socket = io();
         let currentGame = null;
         let qrCodeVisible = false;
+        let currentQuestion = null;
 
         // --- HELFER: Schriftgröße anpassen ---
         function adjustFontSize(elementId) {
@@ -134,59 +148,172 @@
         }
 
         // --- FRAGE ANZEIGEN (KORRIGIERT) ---
+        let mapInstance = null; // Globale Variable zum Speichern der Karten-Instanz
+
         socket.on('board_show_question', (data) => {
             const { catIndex, qIndex, question } = data;
-            
-            // KORREKTUR: Elemente sicher abrufen
-            const mediaCont = document.getElementById('media-container');
-            const qTextEl = document.getElementById('question-text');
-            const aTextEl = document.getElementById('answer-text');
+            currentQuestion = question; // <--- WICHTIG: Frage für später speichern
 
-            // KORREKTUR: Richtige Feldnamen benutzen (.questionText statt .question)
-            qTextEl.innerText = question.questionText || "Fehler: Keine Frage";
-            aTextEl.innerText = question.answerText || "";
-            aTextEl.style.display = 'none'; 
-            
-            // Medien setzen
+            // Reset
+            const mediaCont = document.getElementById('media-container');
             mediaCont.innerHTML = "";
-            if (question.mediaPath) {
-                const ext = question.mediaPath.split('.').pop().toLowerCase();
-                if (['mp4', 'webm', 'mov'].includes(ext)) {
-                    const vid = document.createElement('video');
-                    vid.src = question.mediaPath;
-                    vid.controls = true;
-                    // Autoplay mit Ton ist in Chrome oft blockiert, daher muted oder manuell
-                    // vid.autoplay = true; 
-                    mediaCont.appendChild(vid);
-                } else  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(ext)) {
-                    const img = document.createElement('img');
-                    img.src = question.mediaPath;
-                    mediaCont.appendChild(img);
-                } else if (['mp3', 'wav', 'ogg'].includes(ext)) {
-                    const audio = document.createElement('audio');
-                    audio.src = question.mediaPath;
-                    audio.controls = true;
-                    mediaCont.appendChild(audio);
-                }
-            }
+            mediaCont.style.display = 'none';
             
+            const mapDiv = document.getElementById('q-map');
+            if(mapDiv) mapDiv.style.display = 'none';
+
+            // Text anzeigen
+            document.getElementById('question-text').innerText = question.questionText;
+
+            // --- ENTSCHEIDUNG: KARTE ODER NORMALES MEDIUM? ---
+            
+            if (question.type === 'map' && question.location) {
+                // === FALL A: KARTEN-FRAGE ===
+                mapDiv.style.display = 'block';
+
+                // WICHTIG: Leaflet braucht einen Moment, um die Größe des Divs zu erkennen
+                setTimeout(() => {
+                    // Alte Karte löschen, falls vorhanden (Cleanup)
+                    if (mapInstance) {
+                        mapInstance.remove();
+                        mapInstance = null;
+                    }
+
+                    const lat = question.location.lat;
+                    const lng = question.location.lng;
+
+                    // Karte initialisieren
+                    mapInstance = L.map('q-map', {
+                        center: [lat, lng],
+                        zoom: 13,
+                        zoomControl: false, // Optional: Steuerelemente ausblenden für cleanen Look
+                        attributionControl: false 
+                    });
+
+                    // Prüfen: Custom Map (eigenes Bild) oder Standard (OpenStreetMap)?
+                    if (question.location.isCustomMap && question.location.customMapPath) {
+                        // -> CUSTOM MAP (Bild als Karte)
+                        const imageUrl = question.location.customMapPath;
+                        // Wir definieren feste Grenzen für das Bild, damit der Marker passt
+                        // (Das muss zur Logik in create.html passen)
+                        const imageBounds = [[-500, -500], [500, 500]]; 
+                        
+                        L.imageOverlay(imageUrl, imageBounds).addTo(mapInstance);
+                        mapInstance.fitBounds(imageBounds);
+                        
+                        // Marker setzen (Koordinaten müssen im Bild-System sein)
+                        L.marker([lat, lng]).addTo(mapInstance);
+
+                    } else {
+                        // -> STANDARD MAP (OpenStreetMap)
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19
+                        }).addTo(mapInstance);
+
+                        // Marker setzen
+                        L.marker([lat, lng]).addTo(mapInstance);
+                    }
+                    
+                    // Layout aktualisieren erzwingen (verhindert graue Kacheln)
+                    mapInstance.invalidateSize();
+
+                }, 100); // 100ms Verzögerung reicht meistens
+
+            } else {
+                // === FALL B: NORMALE MEDIEN (Bilder/Videos) ===
+                if (question.mediaPath) {
+                renderMedia(question.mediaPath, mediaCont);
+            }
+            }
+
             // Overlay anzeigen
             document.getElementById('question-overlay').style.display = 'flex';
+            adjustFontSize('question-text'); 
             
-            // Schriftgröße anpassen (kurze Verzögerung für Rendering)
-            setTimeout(() => {
-                adjustFontSize('question-text'); 
-            }, 10);
-            
-            // Karte als gespielt markieren
             const card = document.getElementById(`card-${catIndex}-${qIndex}`);
             if(card) card.classList.add('played');
         });
+
+        socket.on('board_reveal_answer', () => {
+            if (!currentQuestion) return;
+
+            // A. Text ändern
+            const textBox = document.getElementById('question-text');
+            textBox.innerHTML = `<span style="color: #4CAF50; font-size: 0.6em; display:block; margin-bottom:10px;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
+
+            // B. Medien-Container leeren (altes Frage-Bild weg)
+            const mediaCont = document.getElementById('media-container');
+            mediaCont.innerHTML = ''; 
+            mediaCont.style.display = 'none';
+
+            // Map weg
+            const mapDiv = document.getElementById('q-map');
+            if(mapDiv) mapDiv.style.display = 'none';
+
+            // C. Antwort-Medien anzeigen (Audio/Bild/Video)
+            const path = currentQuestion.answerMediaPath;
+            
+            if (path) {
+                mediaCont.style.display = 'block';
+                renderMedia(path, mediaCont, true); // true = Autoplay für Antwort
+            }
+
+            // Schriftgröße anpassen
+            setTimeout(() => adjustFontSize('question-text'), 10);
+        });
+
+        function renderMedia(path, container, autoPlay = false) {
+            container.style.display = 'block';
+            
+            // Dateiendung prüfen
+            const ext = path.split('.').pop().toLowerCase();
+
+            if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+                // VIDEO
+                const vid = document.createElement('video');
+                vid.src = path;
+                if(autoPlay) vid.autoplay = true;
+                vid.controls = true;
+                vid.style.maxWidth = '100%';
+                vid.style.maxHeight = '50vh';
+                container.appendChild(vid);
+
+            } else if (['mp3', 'wav', 'mpeg'].includes(ext)) {
+                // AUDIO (Musik)
+                const audio = document.createElement('audio');
+                audio.src = path;
+                if(autoPlay) {
+                    audio.autoplay = true;
+                    // Versuch, Audio abzuspielen (kann vom Browser blockiert werden, wenn keine Interaktion stattfand)
+                    audio.play().catch(e => console.log("Autoplay blockiert:", e));
+                }
+                audio.controls = true; // Steuerelemente anzeigen
+                container.appendChild(audio);
+                
+                // Icon für Audio anzeigen
+                const icon = document.createElement('div');
+                icon.innerHTML = '🎵'; 
+                icon.style.fontSize = '5rem';
+                container.appendChild(icon);
+
+            } else {
+                // BILD
+                const img = document.createElement('img');
+                img.src = path;
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '50vh';
+                container.appendChild(img);
+            }
+        }
 
         // --- ZURÜCK ZUM BOARD ---
         socket.on('board_hide_question', () => {
             document.getElementById('question-overlay').style.display = 'none';
             document.getElementById('media-container').innerHTML = "";
+            
+            // Audio stoppen (falls noch läuft)
+            const audios = document.querySelectorAll('audio, video');
+            audios.forEach(a => a.pause());
         });
 
         // --- STANDARD FUNKTIONEN ---
