@@ -420,7 +420,7 @@
         document.getElementById('exit-quiz-btn').addEventListener('click', () => {
             if (confirm("Möchten Sie das Quiz wirklich beenden?")) {
                 // Optionale: Hier könnten Sie Socket.io-Events senden, um das Spiel auf allen Clients zu beenden.
-                // socket.emit('host_end_game'); 
+                socket.emit('host_end_session'); 
                 
                 // Zurück zur Startseite (create.html)
                 window.location.href = '/create.html'; 
