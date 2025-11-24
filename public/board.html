@@ -157,6 +157,23 @@
         let currentGame = null;
         let qrCodeVisible = false;
         let currentQuestion = null;
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+
+        if (roomCode) {
+        socket.emit('board_join_session', roomCode);
+        
+            // QR Code URL anpassen, damit Spieler direkt mit Raum joinen können (optional)
+            // new QRCode(..., `http://DEINE-IP:3000/player.html?room=${roomCode}`);
+        } else {
+            alert("Fehler: Kein Raum-Code in der URL!");
+        }
+
+        // Falls Session beendet wird
+        socket.on('session_ended', () => {
+            alert("Der Host hat die Sitzung beendet.");
+            window.close();
+        });
 
         // --- HELFER: Schriftgröße anpassen ---
         function adjustFontSize(elementId) {
@@ -176,6 +193,22 @@
                 if (currentSize <= 2) break; 
             }
         }
+
+        socket.on('board_init_game', (game) => {
+            console.log("Spieldaten empfangen:", game);
+            currentGame = game;
+            
+            // Titel setzen (optional)
+            document.title = game.title || "Jeopardy Board";
+            
+            // Hintergrundbild setzen (falls im Spiel definiert)
+            if (game.boardBackgroundPath) {
+                document.body.style.backgroundImage = `url('${game.boardBackgroundPath}')`;
+            }
+
+            // Das Raster aufbauen
+            renderGrid();
+        });
 
         // --- FRAGE ANZEIGEN (KORRIGIERT) ---
         let mapInstance = null; // Globale Variable zum Speichern der Karten-Instanz
@@ -477,90 +510,75 @@
         socket.on('board_reveal_map_results', (data) => {
             const { results, players, target } = data;
             
-            if (!mapInstance) return;
-
-            // 1. Ziel-Marker (Lösung) anzeigen (Grün)
+            // --- 1. LÖSUNGS-MARKER (ZIEL) ---
             const targetIcon = L.divIcon({
                 className: 'target-icon',
-                html: `<div style="background:#00ff00; border:3px solid black; width:24px; height:24px; border-radius:50%; box-shadow: 0 0 15px #00ff00;"></div>
-                    <div style="position:absolute; top:-25px; left:-50px; width:120px; text-align:center; background:black; color:#00ff00; padding:2px; border-radius:4px; font-weight:bold;">LÖSUNG</div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
+                html: `<div style="width:20px; height:20px; background:#00ff00; border:2px solid black; border-radius:50%; box-shadow:0 0 10px #00ff00;"></div>
+                       <div style="position:absolute; top:-25px; left:-20px; background:black; color:#00ff00; padding:2px 5px; font-weight:bold; border:1px solid #00ff00;">LÖSUNG</div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
             });
+            
             L.marker([target.lat, target.lng], {icon: targetIcon, zIndexOffset: 1000}).addTo(mapInstance);
-
-            // Bounds Array für Zoom
+            
+            // Bounds initialisieren (um später zu zoomen)
             const bounds = [[target.lat, target.lng]];
 
-            // 2. Spieler-Marker anzeigen
+            // --- 2. SPIELER-MARKER (SCHLEIFE) ---
             Object.keys(results).forEach(playerId => {
-                const res = results[playerId];
-                const player = players[playerId];
-                const color = player ? player.color : '#ff0000'; // Fallback Farbe
-                const name = player ? player.name : '???';
+                const res = results[playerId];     // Das Ergebnis (Lat, Lng, Distanz)
+                const player = players[playerId];  // Die Spieler-Info (Name, Farbe)
+
+                if (!player) return; // Falls Spieler nicht mehr da ist
+
+                // Text formatieren
+                let distText = target.isCustomMap 
+                    ? Math.round(res.distance) + " px" 
+                    : res.distance.toFixed(1) + " km";
                 
-                // Distanz Text formatieren
-                let distText = "";
-                if (target.isCustomMap) {
-                    distText = Math.round(res.distance) + " px";
-                } else {
-                    // Schöne Formatierung für km/m
-                    if (res.distance < 1) {
-                        distText = Math.round(res.distance * 1000) + " m";
-                    } else {
-                        distText = res.distance.toFixed(1) + " km";
-                    }
-                }
+                let winnerLabel = res.isWinner 
+                    ? '<br><span style="color:#00ff00; font-weight:900;">★ GEWINNER ★</span>' 
+                    : '';
+                
+                let winnerStyle = res.isWinner ? 'border: 3px solid #00ff00; width: 18px; height: 18px;' : '';
 
-                // War es ein Gewinner?
-                let winnerStyle = "";
-                let winnerLabel = "";
-                if (res.isWinner) {
-                    winnerStyle = "border: 4px solid gold; transform: scale(1.2); z-index:999;";
-                    winnerLabel = `<div style="color:gold; font-weight:bold; font-size:1.2em;">🏆 +${res.scoreChange}</div>`;
-                } else {
-                    winnerStyle = "border: 2px solid white;";
-                }
-
+                // HTML für den Marker erstellen
                 const pIcon = L.divIcon({
-                    className: 'custom-map-marker', // Klasse für Leaflet-Container (wird durch iconSize: null ignoriert)
+                    className: 'custom-map-marker', 
                     html: `
                         <div class="marker-wrapper">
-                            <div class="marker-dot" style="background:${color}; ${winnerStyle}"></div>
+                            <div class="marker-dot" style="background:${player.color}; ${winnerStyle}"></div>
                             <div class="marker-label">
-                                <span style="color:${color}; font-weight:bold;">${name}</span><br>
+                                <span style="color:${player.color}; font-weight:bold;">${player.name}</span><br>
                                 ${distText}
                                 ${winnerLabel}
                             </div>
                         </div>
                     `,
-                    // WICHTIG: iconSize auf null setzen, damit CSS (.marker-wrapper) die Größe bestimmt!
-                    iconSize: null, 
-                    // iconAnchor brauchen wir hier nicht zwingend, da wir im CSS translate(-50%, -50%) nutzen
-                    iconAnchor: [0, 0] 
+                    iconSize: null, // Wichtig für CSS-Größe
+                    iconAnchor: [0, 0] // Wichtig für CSS-Zentrierung
                 });
 
-                // Marker setzen
+                // Marker auf Karte setzen
                 L.marker([res.lat, res.lng], {icon: pIcon}).addTo(mapInstance);
 
-                // Linie zur Lösung ziehen
+                // Linie zur Lösung zeichnen
                 L.polyline([[target.lat, target.lng], [res.lat, res.lng]], {
-                    color: color,
-                    weight: res.isWinner ? 4 : 2, // Gewinner-Linie dicker
+                    color: player.color,
+                    weight: res.isWinner ? 4 : 2,
                     opacity: 0.8,
                     dashArray: '5, 10'
                 }).addTo(mapInstance);
 
+                // Koordinate zu Bounds hinzufügen
                 bounds.push([res.lat, res.lng]);
             });
 
-            // 3. Karte zoomen, damit alle drauf passen
+            // --- 3. ZOOM ANPASSEN ---
             if (bounds.length > 0) {
-                mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+                // Etwas Padding, damit Marker nicht am Rand kleben
+                mapInstance.fitBounds(bounds, { padding: [100, 100], maxZoom: 15 });
             }
-            
-            // Schriftgröße des Fragetexts anpassen, falls er sich ändert
-            setTimeout(() => adjustFontSize('question-text'), 50);
         });
     </script>
 </body>

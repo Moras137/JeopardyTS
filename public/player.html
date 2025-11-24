@@ -103,8 +103,10 @@
 
     <div id="join-section">
         <h1>Quiz Beitreten</h1>
-        <input type="text" id="player-name" placeholder="Dein Name" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; border-radius: 5px; border: none;">
-        <button onclick="joinGame()" style="padding: 15px 30px; font-size: 1.2rem; background: #007bff; color: white; border: none; border-radius: 5px;">Starten</button>
+        <input type="text" id="room-code" placeholder="Raum Code (z.B. 1234)" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; text-align:center;">
+        <input type="text" id="player-name" placeholder="Dein Name" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; text-align:center;">
+        <button onclick="joinGame()" style="padding: 15px 30px; font-size: 1.2rem; background: #007bff; color: white; border: none; border-radius: 5px;">Beitreten</button>
+        <p id="rejoin-msg" style="display:none; color: yellow;">Alte Sitzung gefunden...</p>
     </div>
 
     <div id="game-section">
@@ -130,23 +132,41 @@
         let playerMap = null;
         let playerMarker = null;
 
+        let myPlayerId = null;
+        let currentRoom = null;
+
+        window.onload = () => {
+            const savedSession = localStorage.getItem('jeopardy_session');
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlRoom = urlParams.get('room'); // Falls per QR Code
+
+            if (urlRoom) {
+                document.getElementById('room-code').value = urlRoom;
+            }
+
+            if (savedSession) {
+                const data = JSON.parse(savedSession);
+                // Versuche automatischen Rejoin
+                document.getElementById('rejoin-msg').style.display = 'block';
+                console.log("Versuche Rejoin...", data);
+                
+                socket.emit('player_join_session', {
+                    roomCode: data.roomCode,
+                    name: data.name, // Name nur zur Anzeige, ID ist wichtiger
+                    existingPlayerId: data.playerId
+                });
+            }
+        };
+
         // --- LOGIN LOGIK ---
         function joinGame() {
-            const nameInput = document.getElementById('player-name');
-            playerName = nameInput.value.trim();
-            if (playerName) {
-                socket.emit('player_join', playerName);
-                document.getElementById('join-section').style.display = 'none';
-                document.getElementById('game-section').style.display = 'flex';
-                
-                document.getElementById('player-info').innerText = playerName;
-                
-                // Versuche Fullscreen auf mobilen Geräten
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(e => {});
-                }
+            const name = document.getElementById('player-name').value.trim();
+            const code = document.getElementById('room-code').value.trim();
+
+            if (name && code) {
+                socket.emit('player_join_session', { roomCode: code, name: name });
             } else {
-                alert("Bitte Namen eingeben!");
+                alert("Bitte Name und Raum-Code eingeben!");
             }
         }
 
@@ -199,8 +219,6 @@
                 socket.emit('player_buzz', { id: myId, name: playerName });
             }
         }
-
-        // --- NEU: MAP EVENTS & LOGIK ---
 
         // 1. Startet den Map-Modus
         socket.on('player_start_map_guess', (data) => {
@@ -296,6 +314,36 @@
                 playerMap.remove();
                 playerMap = null;
             }
+        });
+
+        socket.on('join_success', (data) => {
+            // Daten speichern für späteren Rejoin
+            myPlayerId = data.playerId;
+            currentRoom = data.roomCode;
+            
+            localStorage.setItem('jeopardy_session', JSON.stringify({
+                playerId: myPlayerId,
+                roomCode: currentRoom,
+                name: data.name
+            }));
+
+            // UI Wechsel
+            document.getElementById('join-section').style.display = 'none';
+            document.getElementById('game-section').style.display = 'flex';
+            document.getElementById('player-info').innerText = `${data.name} (Raum: ${currentRoom})`;
+        });
+
+        socket.on('join_error', (msg) => {
+            alert("Fehler: " + msg);
+            // Falls Rejoin fehlgeschlagen (z.B. Host hat Session beendet), Storage löschen
+            localStorage.removeItem('jeopardy_session');
+            document.getElementById('rejoin-msg').style.display = 'none';
+        });
+
+        socket.on('session_ended', () => {
+            alert("Der Host hat das Spiel beendet.");
+            localStorage.removeItem('jeopardy_session');
+            location.reload();
         });
 
     </script>

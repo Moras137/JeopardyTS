@@ -1092,24 +1092,12 @@
         }
         
         function startGame(gameId) {
-            fetch(`/start-game/${gameId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                }
-                throw new Error('Start-Fehler');
-            })
-            .then(data => {
-                // Leitet zum Host-Bildschirm weiter
-                window.location.href = data.redirectUrl; 
-            })
-            .catch(error => {
-                console.error("Fehler beim Starten des Quiz:", error);
-                alert("Das Quiz konnte nicht gestartet werden.");
-            });
+            if(!gameId) {
+                alert("Keine Spiel-ID gefunden.");
+                return;
+            }
+            // Einfache Weiterleitung zum Host mit der ID in der URL
+            window.location.href = `/host.html?gameId=${gameId}`;
         }
 
         // Starten mit einer leeren Kategorie und der Ladeliste
