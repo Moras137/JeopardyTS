@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <title>Jeopardy Board</title>
@@ -7,8 +8,14 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { background: #00008b; color: #fff; font-family: 'Impact', sans-serif; margin: 0; overflow: hidden; }
-        
+        body {
+            background: #00008b;
+            color: #fff;
+            font-family: 'Impact', sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+
         /* Hintergrundbild-Handling */
         body {
             background-size: cover;
@@ -16,91 +23,178 @@
             background-repeat: no-repeat;
             transition: background-image 0.5s ease-in-out;
         }
+
         body::before {
-            content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.4); z-index: -1;
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: -1;
         }
 
         /* Das Raster für die Fragen */
         #game-grid {
             display: grid;
-            gap: 10px; padding: 20px; height: 80vh; text-align: center;
+            gap: 10px;
+            padding: 20px;
+            height: 80vh;
+            text-align: center;
         }
-        
-        .cat-header { 
-            color: white; font-size: 1.5rem; text-transform: uppercase; 
-            text-shadow: 2px 2px 0 #000; 
-            background: #00008b; border: 3px solid #fff; 
-            display: flex; align-items: center; justify-content: center; 
-            padding: 10px; text-align: center; word-break: break-word;
+
+        .cat-header {
+            color: white;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 0 #000;
+            background: #00008b;
+            border: 3px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            text-align: center;
+            word-break: break-word;
         }
-        
+
         /* Karten */
         .q-card {
-            background: #0000cc; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
-            font-size: 3rem; color: #ffcc00; cursor: pointer; text-shadow: 3px 3px 0 #000;
+            background: #0000cc;
+            border: 3px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: #ffcc00;
+            cursor: pointer;
+            text-shadow: 3px 3px 0 #000;
         }
-        .q-card.played { opacity: 0; visibility: hidden; }
+
+        .q-card.played {
+            opacity: 0;
+            visibility: hidden;
+        }
 
         /* Wichtig: Header in Zeile 1 zwingen */
-        #game-grid .cat-header { grid-row: 1; }
+        #game-grid .cat-header {
+            grid-row: 1;
+        }
 
         /* --- OVERLAY STYLES (Korrigiert) --- */
         #question-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #00008b; z-index: 50;
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 5vh 5vw; box-sizing: border-box;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #00008b;
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 5vh 5vw;
+            box-sizing: border-box;
         }
 
-        #question-text, #answer-text {
-            color: white; text-align: center;
-            word-wrap: break-word; word-break: break-word;
-            max-width: 90%; padding: 20px; margin: 20px 0; border-radius: 10px;
+        #question-text,
+        #answer-text {
+            color: white;
+            text-align: center;
+            word-wrap: break-word;
+            word-break: break-word;
+            max-width: 90%;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
         }
-        
+
         #question-text {
-            font-size: 8vh; line-height: 1.2; min-height: 10vh;
+            font-size: 8vh;
+            line-height: 1.2;
+            min-height: 10vh;
             background: rgba(255, 255, 255, 0.1);
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #answer-text {
-            font-size: 6vh; background: #000066; display: none;
+            font-size: 6vh;
+            background: #000066;
+            display: none;
         }
 
         #media-container {
-            max-width: 80%; max-height: 50vh; margin-bottom: 20px;
+            max-width: 80%;
+            max-height: 50vh;
+            margin-bottom: 20px;
         }
-        #media-container img, #media-container video {
-            max-width: 100%; max-height: 100%; display: block; object-fit: contain;
+
+        #media-container img,
+        #media-container video {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+            object-fit: contain;
             border: 5px solid white;
         }
-        
+
         /* Spieler Leiste */
         #player-bar {
-            position: fixed; bottom: 0; width: 100%; height: 15vh; background: #111; 
-            display: flex; justify-content: center; gap: 20px; align-items: center; border-top: 3px solid white;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 15vh;
+            background: #111;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+            border-top: 3px solid white;
         }
-        .player-card { border: 2px solid white; padding: 10px 20px; font-size: 1.5rem; background: #00008b; }
-        .player-card.buzzing { background: #fff; color: #00008b; border-color: #ffcc00; transform: scale(1.2); }
+
+        .player-card {
+            border: 2px solid white;
+            padding: 10px 20px;
+            font-size: 1.5rem;
+            background: #00008b;
+        }
+
+        .player-card.buzzing {
+            background: #fff;
+            color: #00008b;
+            border-color: #ffcc00;
+            transform: scale(1.2);
+        }
+
         #q-map {
-            height: 60vh; /* 60% der Bildschirmhöhe */
-            width: 80%;   /* 80% der Breite */
+            height: 60vh;
+            /* 60% der Bildschirmhöhe */
+            width: 80%;
+            /* 80% der Breite */
             margin: 20px auto;
             border: 5px solid white;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            display: none; /* Standardmäßig versteckt */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            display: none;
+            /* Standardmäßig versteckt */
             background: #ccc;
-            z-index: 100; /* Sicherstellen, dass sie oben liegt */
+            z-index: 100;
+            /* Sicherstellen, dass sie oben liegt */
         }
+
         /* Wrapper für den Marker auf der Karte */
         .marker-wrapper {
             display: flex;
             flex-direction: column;
-            align-items: center; /* Zentriert Punkt und Text horizontal */
-            width: max-content;  /* WICHTIG: Passt Breite an den Text an */
-            transform: translate(-50%, -50%); /* Zentriert den gesamten Wrapper exakt auf der Koordinate */
+            align-items: center;
+            /* Zentriert Punkt und Text horizontal */
+            width: max-content;
+            /* WICHTIG: Passt Breite an den Text an */
+            transform: translate(-50%, -50%);
+            /* Zentriert den gesamten Wrapper exakt auf der Koordinate */
         }
 
         /* Der farbige Punkt */
@@ -109,23 +203,27 @@
             height: 16px;
             border: 2px solid white;
             border-radius: 50%;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-            margin-bottom: 5px; /* Abstand zum Text */
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+            margin-bottom: 5px;
+            /* Abstand zum Text */
         }
 
         /* Der schwarze Hintergrund für den Text */
         .marker-label {
-            background: rgba(0, 0, 0, 0.85); /* 85% Schwarz */
+            background: rgba(0, 0, 0, 0.85);
+            /* 85% Schwarz */
             color: white;
             padding: 5px 10px;
             border-radius: 5px;
             font-size: 14px;
             text-align: center;
-            white-space: nowrap; /* Verhindert Umbruch */
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            white-space: nowrap;
+            /* Verhindert Umbruch */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
+
 <body>
 
     <div id="game-grid">
@@ -140,7 +238,7 @@
     </div>
 
     <div id="player-bar"></div>
-    
+
     <div id="qr-overlay" style="
         position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
         background-color: rgba(0, 0, 0, 0.95); z-index: 1000; 
@@ -157,98 +255,183 @@
         let currentGame = null;
         let qrCodeVisible = false;
         let currentQuestion = null;
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+
+        if (roomCode) {
+            socket.emit('board_join_session', roomCode);
+
+            // QR Code URL anpassen, damit Spieler direkt mit Raum joinen können (optional)
+            // new QRCode(..., `http://DEINE-IP:3000/player.html?room=${roomCode}`);
+        } else {
+            alert("Fehler: Kein Raum-Code in der URL!");
+        }
+
+        // Falls Session beendet wird
+        socket.on('session_ended', () => {
+            alert("Der Host hat die Sitzung beendet.");
+            window.close();
+        });
 
         // --- HELFER: Schriftgröße anpassen ---
         function adjustFontSize(elementId) {
-            const element = document.getElementById(elementId);
-            if (!element) return;
-            
-            element.style.fontSize = '8vh'; 
-            let currentSize = 8; 
-            
-            for (let i = 0; i < 10; i++) {
-                if (element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight) {
-                    currentSize -= 0.5;
-                    element.style.fontSize = `${currentSize}vh`;
-                } else {
-                    break; 
-                }
-                if (currentSize <= 2) break; 
+            const el = document.getElementById(elementId);
+            if (!el || !el.innerText) return;
+
+            let size = 8; // Startgröße in vh
+            el.style.fontSize = size + 'vh';
+
+            // Verkleinern, solange der Text überläuft
+            while ((el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) && size > 2) {
+                size -= 0.5;
+                el.style.fontSize = size + 'vh';
             }
         }
+
+        socket.on('board_init_game', (game) => {
+            console.log("Spieldaten empfangen:", game);
+            currentGame = game;
+
+            // Titel setzen (optional)
+            document.title = game.title || "Jeopardy Board";
+
+            // Hintergrundbild setzen (falls im Spiel definiert)
+            if (game.boardBackgroundPath) {
+                document.body.style.backgroundImage = `url('${game.boardBackgroundPath}')`;
+            }
+
+            // Das Raster aufbauen
+            renderGrid();
+        });
 
         // --- FRAGE ANZEIGEN (KORRIGIERT) ---
         let mapInstance = null; // Globale Variable zum Speichern der Karten-Instanz
 
-        socket.on('board_show_question', (data) => {
-            const { catIndex, qIndex, question } = data;
-            currentQuestion = question; 
+        socket.on('board_show_question', (question) => {
+            console.log("hier31");
+            console.log("BOARD: Empfange Frage...", question); // Debugging
+            console.log("hier32");
+            try {
+                // 1. Alle Elemente holen
+                const overlay = document.getElementById('question-overlay');
+                const mediaCont = document.getElementById('media-container');
+                const mapDiv = document.getElementById('q-map');
+                const qText = document.getElementById('question-text');
+                const aText = document.getElementById('answer-text');
 
-            // Reset
-            const mediaCont = document.getElementById('media-container');
-            mediaCont.innerHTML = "";
-            mediaCont.style.display = 'none';
-            
-            const mapDiv = document.getElementById('q-map');
-            mapDiv.style.display = 'none'; 
-
-            // Text anzeigen
-            document.getElementById('question-text').innerText = question.questionText;
-
-            // --- KARTEN-FRAGE ---
-            if (question.type === 'map' && question.location) {
-                mapDiv.style.display = 'block';
-
-                setTimeout(() => {
-                    // Alte Karte säubern
-                    if (mapInstance) {
-                        mapInstance.remove();
-                        mapInstance = null;
-                    }
-
-                    const lat = question.location.lat;
-                    const lng = question.location.lng;
-
-                    // Karte initialisieren
-                    mapInstance = L.map('q-map', {
-                        center: [0, 0], // Zentrum auf Ziel setzen (oder leicht versetzt, wenn man es schwerer machen will)
-                        zoom: 2, // Zoomstufe anpassen je nach Schwierigkeit
-                        zoomControl: false,
-                        attributionControl: false
-                    });
-
-                    // Bild-Karte oder Standard-Karte laden
-                    if (question.location.isCustomMap && question.location.customMapPath) {
-                        const imageUrl = question.location.customMapPath;
-                        const imageBounds = [[-500, -500], [500, 500]];
-                        L.imageOverlay(imageUrl, imageBounds).addTo(mapInstance);
-                        mapInstance.fitBounds(imageBounds);
-                    } else {
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            maxZoom: 19
-                        }).addTo(mapInstance);
-                    }
-                    
-                    // WICHTIG: HIER WURDE DER MARKER-CODE ENTFERNT!
-                    // Der Marker wird jetzt erst bei "reveal_answer" gesetzt.
-
-                    mapInstance.invalidateSize();
-                }, 100);
-
-            } else {
-                // --- NORMALE MEDIEN ---
-                if (question.mediaPath) {
-                    renderMedia(question.mediaPath, mediaCont);
+                // 2. Overlay sofort einschalten (damit Inhalte gerendert werden können)
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                    overlay.style.opacity = '1';
                 }
-            }
 
-            document.getElementById('question-overlay').style.display = 'flex';
-            
-            // Als gespielt markieren
-            const card = document.getElementById(`card-${catIndex}-${qIndex}`);
-            if(card) card.classList.add('played');
-            
-            adjustFontSize('question-text');
+                // 3. Alte Inhalte verstecken/leeren
+                if (aText) aText.style.display = 'none';
+                if (mediaCont) {
+                    mediaCont.innerHTML = '';
+                    mediaCont.style.display = 'none';
+                }
+                if (mapDiv) {
+                    mapDiv.style.display = 'none';
+                }
+
+                // Karte resetten falls nötig
+                if (mapInstance) {
+                    mapInstance.remove();
+                    mapInstance = null;
+                }
+
+                // 4. TEXT SETZEN (Fallback, falls Text leer ist)
+                if (qText) {
+                    qText.style.display = 'block'; // Sicherstellen, dass er sichtbar ist
+                    qText.innerText = question.text ? question.text : "";
+                    // Wenn gar kein Text und kein Bild da ist, Platzhalter anzeigen (optional)
+                    if (!question.text && question.type === 'standard' && !question.mediaPath) {
+                        qText.innerText = "(Kein Text)";
+                    }
+                }
+
+                // 5. ENTSCHEIDUNG: MAP oder STANDARD
+                if (question.type === 'map') {
+                    // === MAP MODUS ===
+                    console.log("BOARD: Map Modus aktiviert");
+                    if (mapDiv) {
+                        mapDiv.style.display = 'block';
+
+                        // Minimale Verzögerung, damit Container sichtbar ist bevor Leaflet lädt
+                        setTimeout(() => {
+                            const isCustom = question.location && question.location.isCustomMap;
+                            const customPath = question.location && question.location.customMapPath;
+
+                            if (isCustom && customPath) {
+                                // Custom Map
+                                var img = new Image();
+                                img.onload = function () {
+                                    mapInstance = L.map('q-map', {
+                                        crs: L.CRS.Simple,
+                                        minZoom: -2, maxZoom: 2, zoomSnap: 0.1,
+                                        zoomControl: false, attributionControl: false
+                                    });
+                                    var bounds = [[0, 0], [this.height, this.width]];
+                                    L.imageOverlay(customPath, bounds).addTo(mapInstance);
+                                    mapInstance.fitBounds(bounds);
+                                };
+                                img.src = customPath;
+                            } else {
+                                // Weltkarte
+                                mapInstance = L.map('q-map', {
+                                    zoomControl: false,
+                                    attributionControl: false
+                                }).setView([51.16, 10.45], 5);
+                                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
+                            }
+                        }, 100);
+                    }
+                } else {
+                    // === STANDARD MODUS (Medien) ===
+                    console.log("BOARD: Standard Modus (Medien: " + question.mediaPath + ")");
+
+                    if (question.mediaPath && mediaCont) {
+                        mediaCont.style.display = 'block';
+                        const ext = question.mediaPath.split('.').pop().toLowerCase();
+
+                        if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+                            const vid = document.createElement('video');
+                            vid.src = question.mediaPath;
+                            vid.controls = true;
+                            vid.autoplay = true;
+                            vid.style.maxWidth = '100%'; vid.style.maxHeight = '50vh';
+                            mediaCont.appendChild(vid);
+                        } else if (['mp3', 'wav'].includes(ext)) {
+                            const aud = document.createElement('audio');
+                            aud.src = question.mediaPath;
+                            aud.controls = true;
+                            aud.autoplay = true;
+                            mediaCont.appendChild(aud);
+                            // Visueller Platzhalter für Audio
+                            qText.innerHTML += "<br>🎵 <i>Audio wird abgespielt...</i>";
+                        } else {
+                            const img = document.createElement('img');
+                            img.src = question.mediaPath;
+                            img.style.maxWidth = '100%'; img.style.maxHeight = '50vh';
+                            mediaCont.appendChild(img);
+                        }
+                    }
+                }
+
+                // 6. Schriftgröße erst kurz danach anpassen (Browser braucht Zeit zum Rendern)
+                setTimeout(() => {
+                    if (qText) adjustFontSize('question-text');
+                }, 50);
+
+                // 7. Karte im Grid als "gespielt" markieren
+                const card = document.getElementById(`card-${question.catIndex}-${question.qIndex}`);
+                if (card) card.classList.add('played');
+
+            } catch (err) {
+                console.error("BOARD ERROR:", err);
+                alert("Fehler beim Anzeigen der Frage: " + err.message);
+            }
         });
 
         socket.on('board_reveal_answer', () => {
@@ -258,40 +441,40 @@
             textBox.innerHTML = `<span style="color: #4CAF50; font-size: 0.6em; display:block; margin-bottom:10px;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
 
             // --- ENTSCHEIDUNG: MAP ODER STANDARD? ---
-            
+
             if (currentQuestion.type === 'map' && currentQuestion.location) {
                 // === FALL A: KARTEN-ANTWORT ===
-                
+
                 // Karte muss sichtbar bleiben
                 const mapDiv = document.getElementById('q-map');
                 if (mapDiv) mapDiv.style.display = 'block';
-                
+
                 // Andere Medien verstecken
                 document.getElementById('media-container').style.display = 'none';
 
                 // MARKER JETZT HINZUFÜGEN
                 if (mapInstance) {
                     const { lat, lng } = currentQuestion.location;
-                    
+
                     // Marker erstellen
                     const marker = L.marker([lat, lng]).addTo(mapInstance);
-                    
+
                     // Optional: Karte sanft zum Marker bewegen (falls der Spieler sie verschoben hat)
                     mapInstance.flyTo([lat, lng], 13, {
                         duration: 2.0 // Dauer des Fluges in Sekunden
                     });
-                    
+
                     // Optional: Popup öffnen
                     // marker.bindPopup("Hier ist es!").openPopup();
                 }
 
             } else {
                 // === FALL B: NORMALE ANTWORT (Bilder/Musik) ===
-                
+
                 // Karte verstecken & aufräumen
                 const mapDiv = document.getElementById('q-map');
-                if(mapDiv) mapDiv.style.display = 'none';
-                
+                if (mapDiv) mapDiv.style.display = 'none';
+
                 if (mapInstance) {
                     mapInstance.remove();
                     mapInstance = null;
@@ -299,8 +482,8 @@
 
                 // Medien anzeigen
                 const mediaCont = document.getElementById('media-container');
-                mediaCont.innerHTML = ''; 
-                
+                mediaCont.innerHTML = '';
+
                 const path = currentQuestion.answerMediaPath;
                 if (path) {
                     mediaCont.style.display = 'block';
@@ -315,7 +498,7 @@
 
         function renderMedia(path, container, autoPlay = false) {
             container.style.display = 'block';
-            
+
             // Dateiendung prüfen
             const ext = path.split('.').pop().toLowerCase();
 
@@ -323,7 +506,7 @@
                 // VIDEO
                 const vid = document.createElement('video');
                 vid.src = path;
-                if(autoPlay) vid.autoplay = true;
+                if (autoPlay) vid.autoplay = true;
                 vid.controls = true;
                 vid.style.maxWidth = '100%';
                 vid.style.maxHeight = '50vh';
@@ -333,17 +516,17 @@
                 // AUDIO (Musik)
                 const audio = document.createElement('audio');
                 audio.src = path;
-                if(autoPlay) {
+                if (autoPlay) {
                     audio.autoplay = true;
                     // Versuch, Audio abzuspielen (kann vom Browser blockiert werden, wenn keine Interaktion stattfand)
                     audio.play().catch(e => console.log("Autoplay blockiert:", e));
                 }
                 audio.controls = true; // Steuerelemente anzeigen
                 container.appendChild(audio);
-                
+
                 // Icon für Audio anzeigen
                 const icon = document.createElement('div');
-                icon.innerHTML = '🎵'; 
+                icon.innerHTML = '🎵';
                 icon.style.fontSize = '5rem';
                 container.appendChild(icon);
 
@@ -361,7 +544,7 @@
         socket.on('board_hide_question', () => {
             document.getElementById('question-overlay').style.display = 'none';
             document.getElementById('media-container').innerHTML = "";
-            
+
             // Audio stoppen (falls noch läuft)
             const audios = document.querySelectorAll('audio, video');
             audios.forEach(a => a.pause());
@@ -375,8 +558,8 @@
                 const p = playersData[id];
                 const div = document.createElement('div');
                 div.className = 'player-card';
-                div.id = 'p-' + id; 
-                div.innerText = `${p.name} (${p.score})`; 
+                div.id = 'p-' + id;
+                div.innerText = `${p.name} (${p.score})`;
                 bar.appendChild(div);
             }
         }
@@ -385,48 +568,57 @@
             const url = window.location.href.replace('board.html', 'player.html');
             document.getElementById('join-url').innerText = url;
             const container = document.getElementById('qrcode-container');
-            container.innerHTML = ''; 
+            container.innerHTML = '';
             new QRCode(container, { text: url, width: 400, height: 400, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
         }
 
         function renderGrid() {
             const grid = document.getElementById('game-grid');
-            grid.innerHTML = "";
-            
-            if(!currentGame || !currentGame.categories) return;
+            grid.innerHTML = ''; // Alte Inhalte löschen
 
-            grid.style.gridTemplateColumns = `repeat(${currentGame.categories.length}, 1fr)`;
-            grid.style.display = "grid"; 
-            
-            const numQuestions = currentGame.categories[0]?.questions?.length || 5; 
-            grid.style.gridTemplateRows = `0.5fr repeat(${numQuestions}, 1fr)`;
+            if (!currentGame || !currentGame.categories) return;
 
-            currentGame.categories.forEach((cat, catIndex) => {
-                const head = document.createElement('div');
-                head.className = 'cat-header';
-                head.innerText = cat.name;
-                grid.appendChild(head);
+            // CSS Grid Spaltenanzahl anpassen
+            const catCount = currentGame.categories.length;
+            grid.style.gridTemplateColumns = `repeat(${catCount}, 1fr)`;
 
-                cat.questions.forEach((q, qIndex) => {
+            // 1. Kopfzeile (Kategorien)
+            currentGame.categories.forEach(cat => {
+                const header = document.createElement('div');
+                header.className = 'cat-header';
+                header.innerText = cat.name;
+                grid.appendChild(header);
+            });
+
+            // 2. Fragen-Kacheln (vertikal iterieren: Zeile für Zeile)
+            // Wir gehen davon aus, dass alle Kategorien gleich viele Fragen haben (z.B. 5)
+            const maxQuestions = Math.max(...currentGame.categories.map(c => c.questions.length));
+
+            for (let i = 0; i < maxQuestions; i++) {
+                currentGame.categories.forEach((cat, catIndex) => {
+                    const q = cat.questions[i];
                     const card = document.createElement('div');
                     card.className = 'q-card';
-                    card.innerText = q.points;
-                    card.id = `card-${catIndex}-${qIndex}`; 
-                    card.style.gridColumn = catIndex + 1;
-                    card.style.gridRow = qIndex + 2; 
+                    card.id = `card-${catIndex}-${i}`; // ID zum Ausblenden später
+
+                    if (q) {
+                        card.innerText = q.points;
+                    } else {
+                        card.style.visibility = 'hidden'; // Leere Kachel
+                    }
                     grid.appendChild(card);
                 });
-            });
+            }
         }
 
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
             var R = 6371; // Radius der Erde in km
-            var dLat = deg2rad(lat2-lat1);
-            var dLon = deg2rad(lon2-lon1); 
-            var a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            var dLat = deg2rad(lat2 - lat1);
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             var d = R * c; // Distanz in km
             return d.toFixed(1); // 1 Nachkommastelle
         }
@@ -435,20 +627,20 @@
         socket.on('load_game_on_board', (game) => {
             console.log('Quiz geladen:', game.title);
             currentGame = game;
-            
+
             if (currentGame.boardBackgroundPath) {
                 document.body.style.backgroundImage = `url(${currentGame.boardBackgroundPath})`;
             } else {
-                document.body.style.backgroundImage = 'none'; 
-                document.body.style.backgroundColor = '#1a1a1a'; 
+                document.body.style.backgroundImage = 'none';
+                document.body.style.backgroundColor = '#1a1a1a';
             }
             renderGrid();
-            
+
             // QR Code Logik beim Start
             const qrOverlay = document.getElementById('qr-overlay');
-            generateQrCode(); 
-            qrCodeVisible = true; 
-            qrOverlay.style.display = 'flex'; 
+            generateQrCode();
+            qrCodeVisible = true;
+            qrOverlay.style.display = 'flex';
         });
 
         socket.on('board_toggle_qr', () => {
@@ -460,108 +652,94 @@
                 qrOverlay.style.display = 'none';
             }
         });
-        
+
         socket.on('update_scores', renderPlayerBar);
         socket.on('update_player_list', renderPlayerBar); // Fallback
-        
+
         socket.on('player_won_buzz', (data) => {
             document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
             const winner = document.getElementById('p-' + data.id);
-            if(winner) winner.classList.add('buzzing');
+            if (winner) winner.classList.add('buzzing');
         });
-        
+
         socket.on('buzzers_unlocked', () => {
-             document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
+            document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
         });
 
         socket.on('board_reveal_map_results', (data) => {
             const { results, players, target } = data;
-            
-            if (!mapInstance) return;
 
-            // 1. Ziel-Marker (Lösung) anzeigen (Grün)
+            // --- 1. LÖSUNGS-MARKER (ZIEL) ---
             const targetIcon = L.divIcon({
                 className: 'target-icon',
-                html: `<div style="background:#00ff00; border:3px solid black; width:24px; height:24px; border-radius:50%; box-shadow: 0 0 15px #00ff00;"></div>
-                    <div style="position:absolute; top:-25px; left:-50px; width:120px; text-align:center; background:black; color:#00ff00; padding:2px; border-radius:4px; font-weight:bold;">LÖSUNG</div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
+                html: `<div style="width:20px; height:20px; background:#00ff00; border:2px solid black; border-radius:50%; box-shadow:0 0 10px #00ff00;"></div>
+                       <div style="position:absolute; top:-25px; left:-20px; background:black; color:#00ff00; padding:2px 5px; font-weight:bold; border:1px solid #00ff00;">LÖSUNG</div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
             });
-            L.marker([target.lat, target.lng], {icon: targetIcon, zIndexOffset: 1000}).addTo(mapInstance);
 
-            // Bounds Array für Zoom
+            L.marker([target.lat, target.lng], { icon: targetIcon, zIndexOffset: 1000 }).addTo(mapInstance);
+
+            // Bounds initialisieren (um später zu zoomen)
             const bounds = [[target.lat, target.lng]];
 
-            // 2. Spieler-Marker anzeigen
+            // --- 2. SPIELER-MARKER (SCHLEIFE) ---
             Object.keys(results).forEach(playerId => {
-                const res = results[playerId];
-                const player = players[playerId];
-                const color = player ? player.color : '#ff0000'; // Fallback Farbe
-                const name = player ? player.name : '???';
-                
-                // Distanz Text formatieren
-                let distText = "";
-                if (target.isCustomMap) {
-                    distText = Math.round(res.distance) + " px";
-                } else {
-                    // Schöne Formatierung für km/m
-                    if (res.distance < 1) {
-                        distText = Math.round(res.distance * 1000) + " m";
-                    } else {
-                        distText = res.distance.toFixed(1) + " km";
-                    }
-                }
+                const res = results[playerId];     // Das Ergebnis (Lat, Lng, Distanz)
+                const player = players[playerId];  // Die Spieler-Info (Name, Farbe)
 
-                // War es ein Gewinner?
-                let winnerStyle = "";
-                let winnerLabel = "";
-                if (res.isWinner) {
-                    winnerStyle = "border: 4px solid gold; transform: scale(1.2); z-index:999;";
-                    winnerLabel = `<div style="color:gold; font-weight:bold; font-size:1.2em;">🏆 +${res.scoreChange}</div>`;
-                } else {
-                    winnerStyle = "border: 2px solid white;";
-                }
+                if (!player) return; // Falls Spieler nicht mehr da ist
 
+                // Text formatieren
+                let distText = target.isCustomMap
+                    ? Math.round(res.distance) + " px"
+                    : res.distance.toFixed(1) + " km";
+
+                let winnerLabel = res.isWinner
+                    ? '<br><span style="color:#00ff00; font-weight:900;">★ GEWINNER ★</span>'
+                    : '';
+
+                let winnerStyle = res.isWinner ? 'border: 3px solid #00ff00; width: 18px; height: 18px;' : '';
+
+                // HTML für den Marker erstellen
                 const pIcon = L.divIcon({
-                    className: 'custom-map-marker', // Klasse für Leaflet-Container (wird durch iconSize: null ignoriert)
+                    className: 'custom-map-marker',
                     html: `
                         <div class="marker-wrapper">
-                            <div class="marker-dot" style="background:${color}; ${winnerStyle}"></div>
+                            <div class="marker-dot" style="background:${player.color}; ${winnerStyle}"></div>
                             <div class="marker-label">
-                                <span style="color:${color}; font-weight:bold;">${name}</span><br>
+                                <span style="color:${player.color}; font-weight:bold;">${player.name}</span><br>
                                 ${distText}
                                 ${winnerLabel}
                             </div>
                         </div>
                     `,
-                    // WICHTIG: iconSize auf null setzen, damit CSS (.marker-wrapper) die Größe bestimmt!
-                    iconSize: null, 
-                    // iconAnchor brauchen wir hier nicht zwingend, da wir im CSS translate(-50%, -50%) nutzen
-                    iconAnchor: [0, 0] 
+                    iconSize: null, // Wichtig für CSS-Größe
+                    iconAnchor: [0, 0] // Wichtig für CSS-Zentrierung
                 });
 
-                // Marker setzen
-                L.marker([res.lat, res.lng], {icon: pIcon}).addTo(mapInstance);
+                // Marker auf Karte setzen
+                L.marker([res.lat, res.lng], { icon: pIcon }).addTo(mapInstance);
 
-                // Linie zur Lösung ziehen
+                // Linie zur Lösung zeichnen
                 L.polyline([[target.lat, target.lng], [res.lat, res.lng]], {
-                    color: color,
-                    weight: res.isWinner ? 4 : 2, // Gewinner-Linie dicker
+                    color: player.color,
+                    weight: res.isWinner ? 4 : 2,
                     opacity: 0.8,
                     dashArray: '5, 10'
                 }).addTo(mapInstance);
 
+                // Koordinate zu Bounds hinzufügen
                 bounds.push([res.lat, res.lng]);
             });
 
-            // 3. Karte zoomen, damit alle drauf passen
+            // --- 3. ZOOM ANPASSEN ---
             if (bounds.length > 0) {
-                mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+                // Etwas Padding, damit Marker nicht am Rand kleben
+                mapInstance.fitBounds(bounds, { padding: [100, 100], maxZoom: 15 });
             }
-            
-            // Schriftgröße des Fragetexts anpassen, falls er sich ändert
-            setTimeout(() => adjustFontSize('question-text'), 50);
         });
     </script>
 </body>
+
 </html>

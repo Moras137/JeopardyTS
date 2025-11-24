@@ -940,76 +940,73 @@
         }
 
         // --- FUNKTION: KARTE INITIALISIEREN (Leaflet) ---
-        function initMap(qId, savedLat, savedLng, isCustom, customPath) {
-            const mapId = `map-${qId}`;
+        function initMap(qId) {
+            const mapContainerId = `map-${qId}`;
             
-            // Falls Karte schon existiert, komplett zerstören (wichtig beim Wechseln des Typs)
+            // Wir finden den Fragen-Block über eines der Inputs
+            const latInput = document.getElementById(`lat-${qId}`);
+            if (!latInput) return; // Sicherheitscheck
+            const qBlock = latInput.closest('.question-block');
+
+            const isCustom = qBlock.querySelector('.q-is-custom-map').value === 'true';
+            const customPath = qBlock.querySelector('.q-custom-map-path').value;
+
+            // --- WICHTIG: ALTE KARTE LÖSCHEN ---
+            // Das ist der entscheidende Fix! Ohne .remove() bleibt das alte Koordinatensystem.
             if (mapInstances[qId]) {
-                mapInstances[qId].off();
                 mapInstances[qId].remove();
                 delete mapInstances[qId];
-                // Container HTML säubern (Leaflet hinterlässt manchmal Reste)
-                document.getElementById(mapId).innerHTML = ""; 
             }
 
+            // Container leeren (falls Reste vorhanden sind)
+            const container = document.getElementById(mapContainerId);
+            if (container) container.innerHTML = "";
+
             let map;
-            let marker;
 
             if (isCustom && customPath) {
-                // --- CUSTOM IMAGE MODE ---
-                // Wir laden das Bild erst, um die Dimensionen zu kennen
+                // --- MODUS: EIGENES BILD (PIXEL-KOORDINATEN) ---
                 const img = new Image();
-                img.src = customPath;
                 img.onload = function() {
-                    const w = this.width;
-                    const h = this.height;
-
-                    // Leaflet Simple CRS (für flache Bilder)
-                    map = L.map(mapId, {
-                        crs: L.CRS.Simple,
+                    // Karte mit Simple CRS (Pixel-System) erstellen
+                    map = L.map(mapContainerId, {
+                        crs: L.CRS.Simple, 
                         minZoom: -2,
                         maxZoom: 2,
-                        zoomSnap: 0.5
+                        zoomSnap: 0.1,
+                        center: [this.height / 2, this.width / 2],
+                        zoom: 0
                     });
 
-                    // Bildgrenzen definieren: [[0,0], [Höhe, Breite]]
-                    const bounds = [[0, 0], [h, w]];
+                    // Bild als Overlay: [0,0] bis [Höhe, Breite]
+                    const bounds = [[0, 0], [this.height, this.width]];
                     L.imageOverlay(customPath, bounds).addTo(map);
-                    
-                    // Karte auf das Bild zentrieren
                     map.fitBounds(bounds);
 
-                    // Klick-Logik
-                    setupMapClick(map, qId, true); // true = isCustom
-
-                    // Gespeicherten Marker setzen
-                    if (savedLat && savedLng) {
-                        marker = L.marker([savedLat, savedLng]).addTo(map);
-                    }
+                    // Klick-Funktion aufrufen
+                    setupMapClick(map, qId);
+                    
+                    // Instanz speichern
                     mapInstances[qId] = map;
                 };
+                // Fehlerbehandlung, falls Bild nicht lädt
+                img.onerror = function() {
+                    if(container) container.innerHTML = "<p style='color:red'>Bild nicht gefunden</p>";
+                };
+                img.src = customPath;
 
             } else {
-                // --- STANDARD OSM MODE ---
-                const defaultLat = 51.1657; 
-                const defaultLng = 10.4515;
-
-                map = L.map(mapId).setView(
-                    [savedLat || defaultLat, savedLng || defaultLng], 
-                    savedLat ? 13 : 5
-                );
-
+                // --- MODUS: WELTKARTE (GPS-KOORDINATEN) ---
+                map = L.map(mapContainerId).setView([51.16, 10.45], 5); // Mitte DE
+                
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap'
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap'
                 }).addTo(map);
 
-                // Klick-Logik
-                setupMapClick(map, qId, false); // false = not custom
-
-                // Marker setzen
-                if (savedLat && savedLng) {
-                    marker = L.marker([savedLat, savedLng]).addTo(map);
-                }
+                setupMapClick(map, qId);
+                
+                // Instanz speichern
                 mapInstances[qId] = map;
             }
         }
@@ -1063,54 +1060,75 @@
             }
         }
 
-        function setupMapClick(map, qId, isCustom) {
+        function setupMapClick(map, qId) {
             let marker;
-            
-            // Wenn Karte geladen ist, suche nach existierenden Markern (nur visuell wichtig)
-            map.eachLayer((layer) => {
-                if (layer instanceof L.Marker) marker = layer;
-            });
+            const latInput = document.getElementById(`lat-${qId}`);
+            const lngInput = document.getElementById(`lng-${qId}`);
 
+            // Prüfen, ob schon Werte gespeichert sind (z.B. beim Bearbeiten)
+            const savedLat = parseFloat(latInput.value);
+            const savedLng = parseFloat(lngInput.value);
+
+            // Wenn Werte da sind, Marker direkt setzen
+            if (!isNaN(savedLat) && !isNaN(savedLng)) {
+                marker = L.marker([savedLat, savedLng]).addTo(map);
+            }
+
+            // Klick-Event auf der Karte
             map.on('click', function(e) {
                 const lat = e.latlng.lat;
                 const lng = e.latlng.lng;
 
-                // Marker setzen/verschieben
-                // Hinweis: Bei Custom Maps sind lat/lng Pixelkoordinaten (y/x)
+                // Marker verschieben oder neu erstellen
                 if (marker) {
                     marker.setLatLng(e.latlng);
                 } else {
                     marker = L.marker(e.latlng).addTo(map);
                 }
 
-                // Werte speichern
-                document.getElementById(`lat-${qId}`).value = lat;
-                document.getElementById(`lng-${qId}`).value = lng;
+                // Werte in die Input-Felder schreiben
+                latInput.value = lat;
+                lngInput.value = lng;
                 
-                checkQuestionFilled(document.getElementById(`lat-${qId}`));
+                // Konsolen-Log zum Testen (kannst du später löschen)
+                console.log(`Gespeichert für Frage ${qId}: Lat=${lat}, Lng=${lng}`);
+
+                // Falls du eine Validierungs-Funktion hast (optional)
+                if (typeof checkQuestionFilled === 'function') {
+                    checkQuestionFilled(latInput);
+                }
             });
         }
         
         function startGame(gameId) {
-            fetch(`/start-game/${gameId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-            })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                }
-                throw new Error('Start-Fehler');
-            })
-            .then(data => {
-                // Leitet zum Host-Bildschirm weiter
-                window.location.href = data.redirectUrl; 
-            })
-            .catch(error => {
-                console.error("Fehler beim Starten des Quiz:", error);
-                alert("Das Quiz konnte nicht gestartet werden.");
-            });
+            if(!gameId) {
+                alert("Keine Spiel-ID gefunden.");
+                return;
+            }
+            // Wir leiten nur weiter. Der Host kümmert sich um Session & Board.
+            window.location.href = `/host.html?gameId=${gameId}`;
         }
+        
+        document.addEventListener('change', function(e) {
+            // Wenn "Ist Custom Map?" geändert wird
+            if (e.target.classList.contains('q-is-custom-map')) {
+                // ID aus dem Input holen (Struktur lat-X-Y erwartet)
+                const qBlock = e.target.closest('.question-block');
+                const latId = qBlock.querySelector('.q-lat').id; 
+                const qId = latId.replace('lat-', '');
+                
+                initMap(qId);
+            }
+            
+            // Wenn der Bild-Pfad geändert wird
+            if (e.target.classList.contains('q-custom-map-path')) {
+                const qBlock = e.target.closest('.question-block');
+                const latId = qBlock.querySelector('.q-lat').id; 
+                const qId = latId.replace('lat-', '');
+                
+                initMap(qId);
+            }
+        });
 
         // Starten mit einer leeren Kategorie und der Ladeliste
         clearForm();

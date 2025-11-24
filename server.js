@@ -25,7 +25,36 @@ mongoose.connect(DB_URI)
 // --- MODELL IMPORTIEREN ---
 const Game = require('./models/Quiz');
 
+// --- SESSION MANAGEMENT ---
+// Hier speichern wir alle aktiven Räume.
+// Struktur: { "1234": { players: {}, buzzersActive: false, activeQuestion: null, ... } }
+const sessions = {};
 
+// Hilfsfunktion: Zufälligen 4-stelligen Raumcode generieren
+function generateRoomCode() {
+    let code;
+    do {
+        code = Math.floor(1000 + Math.random() * 9000).toString();
+    } while (sessions[code]); // Sicherstellen, dass er einzigartig ist
+    return code;
+}
+
+// Hilfsfunktion: Session anhand der Socket-ID finden (für Disconnects etc.)
+function getSessionBySocketId(socketId) {
+    for (const [code, session] of Object.entries(sessions)) {
+        // Prüfen ob Host
+        if (session.hostSocketId === socketId) return { code, session, isHost: true };
+        // Prüfen ob Board
+        if (session.boardSocketId === socketId) return { code, session, isBoard: true };
+        // Prüfen ob Spieler
+        for (const pId in session.players) {
+            if (session.players[pId].socketId === socketId) {
+                return { code, session, playerId: pId, isPlayer: true };
+            }
+        }
+    }
+    return null;
+}
 
 // --- NEUE HILFSFUNKTION ---
 async function deleteMediaFile(filePath) {
@@ -50,21 +79,21 @@ async function deleteMediaFile(filePath) {
 }
 
 function calculateDistance(lat1, lng1, lat2, lng2, isCustom) {
-    // Bei Custom Maps (Bildern) nutzen wir einfache Pythagoras-Distanz auf Pixeln
     if (isCustom) {
+        // Einfache Distanz für Bild-Karten (Pixel)
         const dx = lat1 - lat2;
         const dy = lng1 - lng2;
         return Math.sqrt(dx * dx + dy * dy);
+    } else {
+        // Haversine-Formel für echte Erdkarten (in km)
+        const R = 6371;
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLng = (lng2 - lng1) * (Math.PI / 180);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
-    
-    // Bei echten Karten: Haversine-Formel für km
-    const R = 6371; // Erdradius km
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLng = (lng2 - lng1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
 }
 
 // --- GLOBALE SPIELVARIABLEN ---
@@ -74,9 +103,9 @@ let buzzWinnerId = null;
 let activeQuestionPoints = 0; // Neu: Speichert die Punkte der aktuell gespielten Frage
 let currentBuzzWinnerId = null; // Neu: Speichert die Socket ID des Spielers, der gebuzzt hat
 let currentLoadedGameId = null; // Neu: Speichert die aktuell geladene Spiel-ID
-let currentMapGuesses = {}; 
+let currentMapGuesses = {};
 let hostSocketId = null;
-let activeQuestion = null; 
+let activeQuestion = null;
 
 // --- DATEI-UPLOAD (Multer) ---
 const storage = multer.diskStorage({
@@ -115,16 +144,13 @@ app.get('/api/games', async (req, res) => {
 
 // API: Ein einzelnes Spiel anhand der ID laden (für Bearbeiten)
 app.get('/api/games/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const game = await Game.findById(id);
-    if (!game) {
-      return res.status(404).json({ error: 'Spiel nicht gefunden' });
+    try {
+        const game = await Game.findById(req.params.id);
+        if (!game) return res.status(404).json({ error: 'Spiel nicht gefunden' });
+        res.json(game);
+    } catch (err) {
+        res.status(500).json({ error: 'Fehler beim Laden des Spiels' });
     }
-    res.json(game); 
-  } catch (err) {
-    res.status(500).json({ error: 'Fehler beim Laden des Spiels' });
-  }
 });
 
 // API: Spiel erstellen ODER aktualisieren
@@ -145,12 +171,12 @@ app.post('/api/create-game', async (req, res) => {
             const newGame = new Game(gameData);
             savedGame = await newGame.save();
         }
-        
+
         return res.json({ success: true, gameId: savedGame._id });
-        
+
     } catch (err) {
         console.error(err);
-        
+
         // NEU: Bessere Fehlerbehandlung für Validierungsfehler (nur Titel)
         if (err.name === 'ValidationError') {
             const messages = [];
@@ -162,34 +188,34 @@ app.post('/api/create-game', async (req, res) => {
             }
             // Wenn der Titel fehlt, senden wir eine spezifische Meldung zurück
             if (messages.length > 0) {
-                 return res.status(400).json({ success: false, error: messages.join(' ') });
+                return res.status(400).json({ success: false, error: messages.join(' ') });
             }
         }
-        
+
         res.status(500).json({ success: false, error: "Unbekannter Fehler beim Speichern." });
     }
 });
 
 app.post('/start-game/:gameId', async (req, res) => {
     const { gameId } = req.params;
-    
+
     // Einfache Validierung, ob die GameId vorhanden ist
     if (!gameId) {
         return res.status(400).send("Fehlende Game ID.");
     }
-    
+
     try {
         const game = await Game.findById(gameId).lean();
         if (!game) {
             return res.status(404).send("Quiz nicht gefunden.");
         }
         // Setze die aktuell geladene Spiel-ID (falls auf Serverseite benötigt)
-        currentLoadedGameId = gameId; 
+        currentLoadedGameId = gameId;
         console.log(`Quiz mit ID ${gameId} gestartet.`);
 
         // Leitet zum Host-Bildschirm weiter. 
         // WICHTIG: Die gameId und der Titel werden als Query-Parameter übergeben, damit host.html weiß, welches Spiel geladen werden soll.
-        const titleParam = encodeURIComponent(game.title || "");       
+        const titleParam = encodeURIComponent(game.title || "");
         res.status(200).json({ redirectUrl: `/host.html?gameId=${gameId}&title=${titleParam}` });
 
     } catch (error) {
@@ -202,17 +228,17 @@ app.post('/start-game/:gameId', async (req, res) => {
 app.delete('/api/games/:id', async (req, res) => {
     try {
         const id = req.params.id;
-        
+
         // 1. Quiz laden, um Mediendateien zu finden
         const gameToDelete = await Game.findById(id);
-        
+
         if (gameToDelete) {
             // 2. Alle Mediendateien sammeln und löschen
             const mediaFiles = [];
 
             if (gameToDelete.boardBackgroundPath) {
                 mediaFiles.push(gameToDelete.boardBackgroundPath);
-            }       
+            }
 
             gameToDelete.categories.forEach(cat => {
                 cat.questions.forEach(q => {
@@ -235,7 +261,7 @@ app.delete('/api/games/:id', async (req, res) => {
 
         // 3. Quiz aus der Datenbank löschen
         await Game.findByIdAndDelete(id);
-        
+
         res.json({ success: true });
         console.log(`Quiz mit ID ${id} wurde gelöscht.`);
     } catch (err) {
@@ -246,7 +272,7 @@ app.delete('/api/games/:id', async (req, res) => {
 // API: Dateien löschen (Wird vom Frontend beim Speichern aufgerufen)
 app.post('/api/delete-files', async (req, res) => {
     const files = req.body.files || [];
-    
+
     if (files.length === 0) {
         return res.json({ success: true, message: 'Keine Dateien zum Löschen übermittelt.' });
     }
@@ -265,97 +291,84 @@ app.post('/api/delete-files', async (req, res) => {
 io.on('connection', socket => {
     console.log('Neuer Client verbunden:', socket.id);
 
-    // Spieler tritt bei
-    socket.on('player_join', (name) => {
-        // Wenn der Name schon existiert, keine Duplikate zulassen
-        for (const id in players) {
-            if (players[id].name === name) {
-                socket.emit('name_taken');
-                return;
-            }
-        }
-        
-        // Spieler mit Score 0 hinzufügen
-        players[socket.id] = { name: name, score: 0 }; 
-        socket.emit('joined', socket.id);
-        io.emit('update_player_list', players);
-        io.emit('update_scores', players); // Initial Score senden
+    // Host erstellt eine neue Session
+    socket.on('host_create_session', (gameId) => {
+        const roomCode = generateRoomCode(); // Funktion muss definiert sein (siehe vorherige Antwort)
+
+        sessions[roomCode] = {
+            gameId: gameId,
+            hostSocketId: socket.id,
+            players: {},
+            buzzersActive: false,
+            currentBuzzWinnerId: null,
+            activeQuestion: null,
+            mapGuesses: {}
+        };
+
+        socket.join(roomCode);
+        socket.emit('session_created', roomCode);
+        console.log(`Session ${roomCode} gestartet.`);
     });
 
-    // Host wählt Spiel aus
-    socket.on('host_start_game', async (gameid) => {
-        hostSocketId = socket.id;
-        try {
-            const game = await Game.findById(gameid);
-            if (game) {
-                // Sende das volle Game-Objekt an alle Boards und den Host
-                io.emit('load_game_on_board', game); 
+    // --- BOARD: BEITRETEN ---
+    socket.on('board_join_session', async (roomCode) => {
+        const session = sessions[roomCode];
+        if (session) {
+            session.boardSocketId = socket.id;
+            socket.join(roomCode);
+            socket.emit('board_connected_success');
+
+            // NEU: Das Spiel aus der DB laden und an das Board senden!
+            try {
+                const gameData = await Game.findById(session.gameId);
+                // Sende das komplette Spiel an das Board
+                socket.emit('board_init_game', gameData);
+            } catch (e) {
+                console.error("Fehler beim Laden des Spiels für Board:", e);
             }
-        } catch (error) {
-            console.error('Fehler beim Laden des Spiels:', error);
+
+            // Aktuelle Scores senden
+            io.to(session.boardSocketId).emit('update_scores', session.players);
+            console.log(`Board ist Raum ${roomCode} beigetreten.`);
+
+            session.buzzersActive = false;
+            session.currentBuzzWinnerId = null;
+            io.to(code).emit('board_hide_question');
+            io.to(code).emit('update_host_controls', { buzzWinnerId: null });
+        });
+
+    // 7. Host schaltet QR Code um
+    socket.on('host_toggle_qr', () => {
+        const sessionInfo = getSessionBySocketId(socket.id);
+        if (sessionInfo) io.to(sessionInfo.code).emit('board_toggle_qr');
+    });
+
+    // 8. SESSION BEENDEN
+    socket.on('host_end_session', () => {
+        const sessionInfo = getSessionBySocketId(socket.id);
+        if (sessionInfo) {
+            const { code } = sessionInfo;
+            // Alle kicken oder informieren
+            io.to(code).emit('session_ended');
+            // Session löschen
+            delete sessions[code];
+            console.log(`Session ${code} beendet.`);
         }
     });
 
-    // Spieler buzzt
-    socket.on('player_buzz', (data) => {
-        if (buzzersActive && !buzzWinnerId) {
-            buzzWinnerId = data.id; 
-            currentBuzzWinnerId = data.id; 
-            buzzersActive = false;
-            
-            // Sperren für alle anderen
-            io.emit('buzzers_locked'); 
-            
-            // Gewinner an alle senden, inklusive ID für den Host
-            io.emit('player_won_buzz', { 
-                name: players[data.id].name, 
-                id: data.id, 
-                points: activeQuestionPoints
-            });
-            
-            // Host-Steuerung aktualisieren, um Scoring-Buttons anzuzeigen
-            io.emit('update_host_controls', { 
-                buzzWinnerId: data.id, 
-                buzzWinnerName: players[data.id].name,
-                points: activeQuestionPoints
-            });
-        }
-    });
-
-    // HOST: Entscheidet über die Antwort (NEU: Scoring)
-    socket.on('host_score_answer', (data) => {
-        const { action, playerId } = data;
-        const player = players[playerId];
-        
-        if (player) {
-            if (action === 'correct') {
-                player.score += activeQuestionPoints;
-                
-                // WICHTIG: Hier senden wir jetzt das Signal zum AUFDECKEN, 
-                // anstatt die Frage zu schließen.
-                // Das "board_hide_question" wurde entfernt.
-                io.emit('board_reveal_answer'); 
-                
-                // Host-Buttons zurücksetzen (damit man nicht doppelt Punkte vergibt)
-                currentBuzzWinnerId = null;
-                // Sagt dem Host, dass der Buzzer-Kampf vorbei ist, aber die Frage noch offen (activeQuestionPicked bleibt im Host true)
-                io.emit('update_host_controls', { buzzWinnerId: null });
-                
-            } else if (action === 'incorrect') {
-                player.score -= activeQuestionPoints;
-                
-                // Bei falsch: Buzzer wieder freigeben
-                currentBuzzWinnerId = null; 
-                buzzersActive = true; 
-                io.emit('buzzers_unlocked');
-                io.emit('update_host_controls', { buzzWinnerId: null });
+    // DISCONNECT
+    socket.on('disconnect', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (info) {
+            const { session, code, playerId, isPlayer } = info;
+            if (isPlayer) {
+                console.log(`Spieler ${session.players[playerId].name} hat Verbindung verloren (Session ${code}).`);
+                session.players[playerId].active = false;
+                // Wir löschen ihn NICHT, damit er rejoinen kann!
+                // Optional: UI Update, dass Spieler "offline" ist
             }
-            
-            // Scores an alle senden
-            io.emit('update_scores', players);
         }
     });
-    
 
     // Host schaltet den QR-Code auf dem Board um
     socket.on('host_toggle_qr', () => {
@@ -367,7 +380,7 @@ io.on('connection', socket => {
     // Host entsperrt Buzzer manuell
     socket.on('host_unlock_buzzers', () => {
         buzzersActive = true;
-        currentBuzzWinnerId = null; 
+        currentBuzzWinnerId = null;
         io.emit('buzzers_unlocked');
         io.emit('update_host_controls', { buzzWinnerId: null });
     });
@@ -381,111 +394,17 @@ io.on('connection', socket => {
         io.emit('update_host_controls', { buzzWinnerId: null });
     });
 
-    // Trennung
-    socket.on('disconnect', () => {
-        console.log('Client getrennt:', socket.id);
-        delete players[socket.id];
-        io.emit('update_player_list', players);
-        io.emit('update_scores', players);
-    });
-
-    //  host_pick_question
-    socket.on('host_pick_question', (data) => {
-        const { question } = data;
-        activeQuestion = question; // <--- WICHTIG: Frage speichern für spätere Auswertung!
-        activeQuestionPoints = question.points || 100;
-        activeQuestionPicked = true;
-        currentMapGuesses = {};
-        
-        // ... (Rest Ihrer host_pick_question Logik bleibt gleich) ...
-        // (Map Mode Code, Buzzer Code, etc.)
-         if (question.type === 'map') {
-            buzzersActive = false; 
-            io.emit('update_host_controls', { mapMode: true, submittedCount: 0 });
-            io.emit('player_start_map_guess', {
-                questionText: question.questionText,
-                location: question.location, 
-                points: question.points
-            });
-            io.emit('board_show_question', data);
-        } else {
-            // ... Standard Frage Logik ...
-             buzzersActive = true;
-             io.emit('update_host_controls', { buzzWinnerId: null, mapMode: false });
-             io.emit('player_new_question', { text: question.questionText, points: question.points });
-             io.emit('buzzers_unlocked');
-             io.emit('board_show_question', data);
-        }
-    });
-
     // 2. NEU: Spieler sendet seinen Tipp
     socket.on('player_submit_map_guess', (coords) => {
         currentMapGuesses[socket.id] = coords; // { lat: ..., lng: ... }
         console.log(`Spieler ${socket.id} hat getippt.`);
-        
+
         // Host informieren, wie viele abgegeben haben
         const count = Object.keys(currentMapGuesses).length;
-        io.to(hostSocketId).emit('host_update_map_status', { 
-            submittedCount: count, 
-            totalPlayers: Object.keys(players).length 
+        io.to(hostSocketId).emit('host_update_map_status', {
+            submittedCount: count,
+            totalPlayers: Object.keys(players).length
         });
-    });
-
-    // 3. NEU: Host löst die Kartenfrage auf
-    socket.on('host_resolve_map', () => {
-        if (!activeQuestion || !activeQuestion.location) return;
-
-        const targetLat = activeQuestion.location.lat;
-        const targetLng = activeQuestion.location.lng;
-        const isCustom = activeQuestion.location.isCustomMap;
-
-        let bestDistance = Infinity;
-        let results = {};
-
-        // A) Abstände berechnen und Bestwert finden
-        Object.keys(currentMapGuesses).forEach(playerId => {
-            const guess = currentMapGuesses[playerId];
-            const dist = calculateDistance(targetLat, targetLng, guess.lat, guess.lng, isCustom);
-            
-            results[playerId] = {
-                lat: guess.lat,
-                lng: guess.lng,
-                distance: dist,
-                scoreChange: 0 // Vorerst 0
-            };
-
-            if (dist < bestDistance) {
-                bestDistance = dist;
-            }
-        });
-
-        // B) Punkte an den/die Gewinner vergeben (Closest Guess)
-        // Man könnte hier auch eine Toleranz einbauen, aber "Winner takes all" ist am spannendsten.
-        Object.keys(results).forEach(playerId => {
-            // Wer den besten Abstand hat (oder extrem nah dran ist) bekommt Punkte
-            if (results[playerId].distance === bestDistance && bestDistance !== Infinity) {
-                if (players[playerId]) {
-                    players[playerId].score += activeQuestionPoints;
-                    results[playerId].scoreChange = activeQuestionPoints;
-                    results[playerId].isWinner = true;
-                }
-            }
-        });
-
-        // C) Daten an Clients senden
-        
-        // 1. Board: Zeige Karte mit allen Markern und Ergebnissen
-        io.emit('board_reveal_map_results', {
-            results: results, // Enthält Koordinaten + Distanz + ob gewonnen
-            players: players,
-            target: activeQuestion.location
-        });
-
-        // 2. Alle: Neue Punktestände sofort aktualisieren
-        io.emit('update_scores', players);
-        
-        // 3. Host: Modus beenden
-        // (Der Host kann dann manuell auf "Frage schließen" klicken)
     });
 });
 
