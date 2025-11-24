@@ -105,9 +105,7 @@
         let qrCodeIsVisible = true; // Statusvariable für den QR-Code-Zustand
         let currentAnswerText = "Wähle oben eine Frage aus"; // Speichert den aktuellen Antworttext
         let activeQuestionPicked = false; // Flag, ob eine Frage geöffnet ist
-        let currentRoomCode = null;
-        let currentGameData = null; // Speichert den Code
-
+        
         // --- SCORE RENDERING ---
         
         function renderScores() {
@@ -255,59 +253,19 @@
         
         // --- QUIZ VERWALTUNG ---
         
-        async function loadGame(gameId) {
-            socket.emit('host_create_session', gameId);
+        function loadGame(gameId) {
+            document.getElementById('controls').style.display = 'flex';
+            const title = getTitleFromUrl();
+            document.getElementById('game-title').innerText = title;
+            // Sicherstellen, dass der Score-Anzeiger existiert
+            if(!document.getElementById('score-display')) {
+                const newDiv = document.createElement('div');
+                newDiv.id = 'score-display';
+                document.getElementById('controls').insertBefore(newDiv, document.getElementById('host-grid'));
+            }
+            // WICHTIG: Befehl an Server -> voller Ladevorgang
+            socket.emit('host_start_game', gameId); 
         }
-
-        socket.on('session_created', async (roomCode) => {
-            currentRoomCode = roomCode;
-            const gameId = new URLSearchParams(window.location.search).get('gameId');
-
-            // Titel updaten
-            const titleEl = document.getElementById('game-title');
-            if(titleEl) titleEl.innerText = `Raum-Code: ${roomCode}`;
-
-            // --- NEU: BOARD AUTOMATISCH ÖFFNEN ---
-            const boardUrl = `/board.html?room=${roomCode}`;
-            
-            // 1. Button konfigurieren (als Fallback)
-            const boardBtn = document.getElementById('open-board-btn');
-            if(boardBtn) {
-                boardBtn.onclick = () => window.open(boardUrl, 'jeopardy_board');
-                boardBtn.style.display = 'inline-block';
-                boardBtn.innerText = "📺 BOARD ÖFFNEN"; // Text deutlicher machen
-                // Button auffällig stylen, falls Popup geblockt wurde
-                boardBtn.style.backgroundColor = "#28a745"; 
-                boardBtn.style.transform = "scale(1.1)";
-            }
-
-            // 2. Versuch: Automatisch öffnen
-            try {
-                const newWindow = window.open(boardUrl, 'jeopardy_board');
-                // Prüfen, ob der Popup-Blocker zugeschlagen hat
-                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
-                    console.log("Popup wurde blockiert. Nutzer muss manuell klicken.");
-                    alert("Der Browser hat das Board-Fenster blockiert. Bitte klicken Sie oben auf 'BOARD ÖFFNEN'.");
-                }
-            } catch (e) {
-                console.error("Fehler beim Öffnen des Boards:", e);
-            }
-            // --------------------------------------
-
-            // Daten laden
-            try {
-                const res = await fetch(`/api/games/${gameId}`);
-                if(!res.ok) throw new Error("Fehler beim Laden");
-                
-                const game = await res.json();
-                currentGameData = game; 
-                renderHostGrid(game);
-
-            } catch (e) {
-                console.error(e);
-                alert("Konnte Spieldaten nicht laden.");
-            }
-        });
 
         // Wenn Server das volle Spiel zurückschickt, rendern wir das Host-Grid
         socket.on('load_game_on_board', (game) => {
@@ -318,16 +276,16 @@
         });
 
         // --- FUNKTION: HOST GRID RENDERN ---
-        function renderHostGrid(game) {
+        function renderHostGrid() {
             const grid = document.getElementById('host-grid');
-            grid.innerHTML = ''; // Leeren
-
-            if (!game.categories || game.categories.length === 0) {
-                grid.innerHTML = '<p style="padding:20px;">Keine Fragen in diesem Spiel.</p>';
-                return;
+            grid.innerHTML = "";
+            
+            if (!activeGame || !activeGame.categories || activeGame.categories.length === 0) {
+                 grid.innerHTML = '<p style="text-align:center;">Quiz enthält keine Kategorien.</p>';
+                 return;
             }
 
-            game.categories.forEach((cat, catIndex) => {
+            activeGame.categories.forEach((cat, catIndex) => {
                 const col = document.createElement('div');
                 col.className = 'host-col';
                 
@@ -337,24 +295,31 @@
                 col.appendChild(title);
 
                 cat.questions.forEach((q, qIndex) => {
-                    const btn = document.createElement('button');
+                    const btn = document.createElement('div');
                     btn.className = 'q-btn';
+                    btn.id = `btn-${catIndex}-${qIndex}`;
                     btn.innerText = q.points;
+                    
+                    // KLICK AUF EINE FRAGE
                     btn.onclick = () => {
-                        // Buttons deaktivieren
+                        // 1. Visuelle Markierung
                         document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
                         
-                        // Frage an Server senden
+                        // 2. Antwort speichern und Flag setzen (NEU)
+                        currentAnswerText = q.answerText || '---';
+                        activeQuestionPicked = true; 
+                        
+                        // 3. Antwort im Host-Interface sofort anzeigen
+                        document.getElementById('current-answer').innerText = "Lösung: " + currentAnswerText;
+                        
+                        // 4. Befehl an Server -> Board (Zeige Frage)
                         socket.emit('host_pick_question', { catIndex, qIndex, question: q });
                     };
                     col.appendChild(btn);
                 });
                 grid.appendChild(col);
             });
-            
-            // Controls anzeigen
-            document.getElementById('controls').style.display = 'flex';
         }
 
         // --- SPIEL-STEUERUNG (BUZZER/RUNDE) ---
@@ -406,12 +371,14 @@
         });
 
         document.getElementById('exit-quiz-btn').addEventListener('click', () => {
-            if(confirm("Session wirklich beenden?")) {
-                socket.emit('host_end_session');
-                window.location.href = '/create.html';
+            if (confirm("Möchten Sie das Quiz wirklich beenden?")) {
+                // Optionale: Hier könnten Sie Socket.io-Events senden, um das Spiel auf allen Clients zu beenden.
+                // socket.emit('host_end_game'); 
+                
+                // Zurück zur Startseite (create.html)
+                window.location.href = '/create.html'; 
             }
         });
-
         function getGameIdFromUrl() {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get('gameId');
@@ -422,16 +389,13 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const gameId = urlParams.get('gameId');
-
+            const gameId = getGameIdFromUrl();
             if (!gameId) {
-                alert("Fehler: Keine Game-ID übergeben!");
-                window.location.href = '/create.html';
+                alert("FEHLER: Keine Quiz-ID in der URL gefunden. Rückkehr zur Erstellen-Seite.");
+                window.location.href = '/'; // Zurück zur create.html
                 return;
             }
-
-            socket.emit('host_create_session', gameId);
+            loadGame(gameId); 
         });
     </script>
 </body>
