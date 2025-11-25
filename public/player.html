@@ -242,14 +242,19 @@
                 // Startposition: Weltansicht (0,0)
                 playerMap = L.map('player-map', {
                     center: [0, 0],
-                    zoom: 1,
-                    zoomControl: false, // Platz sparen auf Mobile
-                    attributionControl: false
+                    minZoom: -2,
+                    maxZoom: 2,
+                    zoomSnap: 0.5,
+                    zoomControl: true, // Platz sparen auf Mobile
+                    attributionControl: false,
+                    crs: L.CRS.Simple
                 });
-
+                
                 // Prüfen ob Custom Map (Bild) oder Weltkarte
                 if (data.location && data.location.isCustomMap && data.location.customMapPath) {
-                    const bounds = [[-500, -500], [500, 500]];
+                    const w = data.location.mapWidth || 1000; // Fallback
+                    const h = data.location.mapHeight || 1000;
+                    const bounds = [[0, 0], [h, w]];
                     L.imageOverlay(data.location.customMapPath, bounds).addTo(playerMap);
                     playerMap.fitBounds(bounds);
                 } else {

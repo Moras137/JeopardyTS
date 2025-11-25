@@ -43,14 +43,6 @@
             padding: 10px; 
             position: relative;
         }
-        .remove-q-btn {
-            position: absolute;
-            top: -10px; /* Hochgeschoben */
-            right: 5px;
-            background: none; border: none; color: #dc3545; cursor: pointer;
-            font-size: 1.2rem;
-            z-index: 1;
-        }
         
         .load-item-row {
             display: flex;
@@ -134,7 +126,6 @@
         .view-mode-grid .category label,
         .view-mode-grid .category input.cat-name,
         .view-mode-grid .category button,
-        .view-mode-grid .remove-q-btn,
         .view-mode-grid .question-block > * {
             display: none !important;
         }
@@ -452,15 +443,15 @@
             const qType = questionData.type || 'standard';
             const lat = questionData.location ? questionData.location.lat : '';
             const lng = questionData.location ? questionData.location.lng : '';
-            
+            const mapWidth = questionData.location ? questionData.location.mapWidth : '';
+            const mapHeight = questionData.location ? questionData.location.mapHeight : '';
+
             // NEU: Custom Map Daten
             const isCustomMap = questionData.location ? questionData.location.isCustomMap : false;
             const customMapPath = questionData.location ? questionData.location.customMapPath : '';
 
             const html = `
             <div class="question-block type-${qType}" id="block-${qId}" data-points="${points}" onclick="if(document.getElementById('main-content').classList.contains('view-mode-grid')) switchView('list');">
-                
-                <button class="remove-q-btn" onclick="removeQuestion(this)">🗑️</button>
 
                 <div style="margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     <label>Fragetyp:</label>
@@ -515,6 +506,8 @@
                     
                     <input type="hidden" class="q-lat" id="lat-${qId}" value="${lat}">
                     <input type="hidden" class="q-lng" id="lng-${qId}" value="${lng}">
+                    <input type="hidden" class="q-map-width" id="width-${qId}" value="${mapWidth}">
+                    <input type="hidden" class="q-map-height" id="height-${qId} value="${mapHeight}">
                     
                     <input type="hidden" class="q-is-custom-map" id="is-custom-${qId}" value="${isCustomMap}">
 
@@ -527,7 +520,7 @@
             </div>`;
             
             qContainer.insertAdjacentHTML('beforeend', html);
-            
+
             // Map initialisieren (mit Verzögerung für DOM)
             if (qType === 'map') {
                 setTimeout(() => initMap(qId, lat, lng, isCustomMap, customMapPath), 100);
@@ -601,17 +594,28 @@
                     // Koordinaten holen
                     const lat = parseFloat(qDiv.querySelector('.q-lat').value) || null;
                     const lng = parseFloat(qDiv.querySelector('.q-lng').value) || null;
-
+                    
+                    // NEU: Custom Map Daten holen
+                   
                     const isCustomMapVal = qDiv.querySelector('.q-is-custom-map').value === 'true';
                     const customMapPathVal = qDiv.querySelector('.q-custom-map-path').value;
+                    alert("isCustomMap: " + isCustomMapVal + "\ncustomMapPath: " + customMapPathVal);
+              
+                    const img = new Image();
+                    img.src = customMapPathVal;
+                    const customMapWidth = img.width || 0;
+                    const customMapHeight = img.height || 0;
 
+                    alert("customMapWidth: " + customMapWidth + "\ncustomMapHeight: " + customMapHeight);
                     questions.push({
                         type: qType,
                         location: { 
                             lat: lat, 
                             lng: lng,
                             isCustomMap: isCustomMapVal,      
-                            customMapPath: customMapPathVal   
+                            customMapPath: customMapPathVal,
+                            mapWidth: customMapWidth || 0,
+                            mapHeight: customMapHeight || 0 
                         }, 
                         points: parseInt(qDiv.querySelector('.q-points').value) || 0,
                         negativePoints: parseInt(qDiv.querySelector('.q-negative-points').value) || 0,
@@ -624,6 +628,7 @@
                         mediaType: mediaPath ? mediaPath.split('.').pop().toLowerCase() : 'none',
                         answerMediaType: answerMediaPath ? answerMediaPath.split('.').pop().toLowerCase() : 'none' 
                     });
+                    alert("Frage hinzugefügt.");
                 });
                 categories.push({ name: catName, questions: questions });
             });
@@ -959,11 +964,11 @@
                 // --- CUSTOM IMAGE MODE ---
                 // Wir laden das Bild erst, um die Dimensionen zu kennen
                 const img = new Image();
-                img.src = customPath;
+
                 img.onload = function() {
                     const w = this.width;
                     const h = this.height;
-
+                    
                     // Leaflet Simple CRS (für flache Bilder)
                     map = L.map(mapId, {
                         crs: L.CRS.Simple,
@@ -989,6 +994,12 @@
                     mapInstances[qId] = map;
                 };
 
+                img.onerror = function() {
+                    console.error("Bild konnte nicht geladen werden unter Pfad:", customPath);
+                };
+
+                // 3. Als letztes die Quelle setzen und das Laden starten
+                    img.src = customPath;
             } else {
                 // --- STANDARD OSM MODE ---
                 const defaultLat = 51.1657; 
@@ -1013,7 +1024,7 @@
                 mapInstances[qId] = map;
             }
         }
-
+        
         async function uploadCustomMap(inputElement, qId) {
             const file = inputElement.files[0];
             if (!file) return;
@@ -1090,7 +1101,7 @@
                 checkQuestionFilled(document.getElementById(`lat-${qId}`));
             });
         }
-        
+
         function startGame(gameId) {
             if(!gameId) {
                 alert("Keine Spiel-ID gefunden.");

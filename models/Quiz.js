@@ -8,7 +8,9 @@ const questionSchema = new mongoose.Schema({
         lat: { type: Number }, // Breitengrad
         lng: { type: Number }, // Längengrad
         isCustomMap: { type: Boolean, default: false }, 
-        customMapPath: { type: String, default: '' }
+        customMapPath: { type: String, default: '' },
+        mapWidth: { type: Number }, 
+        mapHeight: { type: Number }
     },
 
     points: { type: Number, default: 100 },

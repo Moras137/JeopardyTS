@@ -231,7 +231,6 @@
             // --- KARTEN-FRAGE ---
             if (question.type === 'map' && question.location) {
                 mapDiv.style.display = 'block';
-
                 setTimeout(() => {
                     // Alte Karte säubern
                     if (mapInstance) {
@@ -244,26 +243,32 @@
 
                     // Karte initialisieren
                     mapInstance = L.map('q-map', {
+                        crs: L.CRS.Simple,
                         center: [0, 0], // Zentrum auf Ziel setzen (oder leicht versetzt, wenn man es schwerer machen will)
-                        zoom: 2, // Zoomstufe anpassen je nach Schwierigkeit
-                        zoomControl: false,
+                        minZoom: -2,
+                        maxZoom: 2,
+                        zoomSnap: 0.5,
+                        zoomControl: true,
                         attributionControl: false
                     });
 
                     // Bild-Karte oder Standard-Karte laden
                     if (question.location.isCustomMap && question.location.customMapPath) {
                         const imageUrl = question.location.customMapPath;
-                        const imageBounds = [[-500, -500], [500, 500]];
-                        L.imageOverlay(imageUrl, imageBounds).addTo(mapInstance);
-                        mapInstance.fitBounds(imageBounds);
+                        const w = question.location.mapWidth || 1000;
+                        const h = question.location.mapHeight || 1000;                        const bounds = [[0, 0], [h, w]];
+                        try {
+                            L.imageOverlay(imageUrl, bounds).addTo(mapInstance);
+                        }
+                        catch(e) {
+                            alert("Fehler beim Laden der Custom Map: " + e.message);
+                        }
+                        mapInstance.fitBounds(bounds);
                     } else {
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                             maxZoom: 19
                         }).addTo(mapInstance);
                     }
-                    
-                    // WICHTIG: HIER WURDE DER MARKER-CODE ENTFERNT!
-                    // Der Marker wird jetzt erst bei "reveal_answer" gesetzt.
 
                     mapInstance.invalidateSize();
                 }, 100);
