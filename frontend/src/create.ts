@@ -15,6 +15,7 @@ declare global {
         startGame: (id: string) => void;
         deleteGame: (id: string) => void;
         loadGame: (id: string) => void;
+        toggleTheme: () => void;
     }
 }
 
@@ -46,7 +47,7 @@ document.getElementById('boardBackgroundUpload')?.addEventListener('change', fun
 
 // Start: Liste laden
 loadGameList();
-clearForm();
+//clearForm();
 
 // --- 1. GLOBALE FUNKTIONEN (für onclick="" im HTML) ---
 
@@ -541,8 +542,138 @@ function generateMediaPreviewHtml(path: string) {
     return `<img src="${path}" class="media-preview" style="max-height:100px; display:block; margin-top:5px;">`;
 }
 
+function switchView(mode: string) {
+    const editorView = document.getElementById('editor-view') as HTMLDivElement;
+    const boardView = document.getElementById('board-preview-view') as HTMLDivElement;
+    const btnList = document.getElementById('btn-view-list') as HTMLButtonElement;
+    const btnBoard = document.getElementById('btn-view-board') as HTMLButtonElement;
+
+    if (mode === 'board') {
+        // Daten aus dem Editor lesen und Grid bauen
+        renderBoardPreview();
+        
+        editorView.style.display = 'none';
+        boardView.style.display = 'block';
+        
+        // Buttons stylen
+        btnList.style.background = 'transparent';
+        btnList.style.color = '#333';
+        btnBoard.style.background = '#007bff';
+        btnBoard.style.color = 'white';
+    } else {
+        editorView.style.display = 'block';
+        boardView.style.display = 'none';
+        
+        btnList.style.background = '#007bff';
+        btnList.style.color = 'white';
+        btnBoard.style.background = 'transparent';
+        btnBoard.style.color = '#333';
+    }
+}
+window.switchView = switchView;
+
+function renderBoardPreview() {
+    const grid = document.getElementById('preview-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    // Wir lesen die Daten direkt aus dem DOM, da das Spiel evtl. noch nicht gespeichert wurde
+    const categories = document.querySelectorAll('.category');
+    if (categories.length === 0) {
+        grid.innerHTML = '<p>Keine Kategorien vorhanden.</p>';
+        return;
+    }
+
+    // Grid CSS setzen (Spaltenanzahl)
+    grid.style.gridTemplateColumns = `repeat(${categories.length}, 1fr)`;
+
+    // 1. Header Zeile (Kategorienamen)
+    categories.forEach((cat, index) => {
+        const nameInput = cat.querySelector('.cat-name') as HTMLInputElement;
+        const name = nameInput.value || `Kat. ${index + 1}`;
+        
+        const header = document.createElement('div');
+        header.className = 'preview-cat-header';
+        header.innerText = name;
+        grid.appendChild(header);
+    });
+
+    // 2. Fragen (Wir müssen zeilenweise iterieren)
+    // Wir nehmen an, dass alle Kategorien gleich viele Fragen haben (basierend auf der ersten)
+    const firstCatQuestions = categories[0].querySelectorAll('.question-block');
+    const numRows = firstCatQuestions.length;
+
+    for (let r = 0; r < numRows; r++) {
+        categories.forEach((cat, cIndex) => {
+            const questions = cat.querySelectorAll('.question-block');
+            const qBlock = questions[r] as HTMLElement;; // Die Frage in dieser Zeile
+
+            const card = document.createElement('div');
+            card.className = 'preview-card';
+            
+            if (qBlock) {
+                const pointsInput = qBlock.querySelector('.q-points') as HTMLInputElement;
+                const points = pointsInput.value;
+                const typeSelect = qBlock.querySelector('.q-type-select') as HTMLSelectElement;
+                const isMap = typeSelect.value === 'map';
+                
+                // Text Inhalt der Karte
+                card.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center;">
+                        <span>${points}</span>
+                        ${isMap ? '<span style="font-size:0.8rem;">(Map)</span>' : ''}
+                    </div>
+                `;
+                
+                // Optional: Klick scrollt zum Editor (Erweitertes Feature)
+                card.onclick = () => {
+                    switchView('list');
+                    qBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Highlight-Effekt
+                    qBlock.style.transition = 'background 0.5s';
+                    const originalBg = qBlock.style.backgroundColor; // Typ-Klasse beachten
+                    qBlock.style.backgroundColor = '#ffff99';
+                    setTimeout(() => { qBlock.style.backgroundColor = ''; }, 1000);
+                };
+            } else {
+                card.style.background = '#444'; // Leer
+            }
+            
+            grid.appendChild(card);
+        });
+    }
+}
+
+// --- THEME LOGIC ---
+
+function initTheme() {
+    const storedTheme = localStorage.getItem('quiz_theme');
+    // Standard ist hell. Wenn 'dark' gespeichert ist, anwenden.
+    if (storedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    if (newTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('quiz_theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('quiz_theme', 'light');
+    }
+}
+
+// Global verfügbar machen
+window.toggleTheme = toggleTheme;
+
+// Beim Start ausführen
+initTheme();
+
 function startGame(id: string) {
-    // Leitet zum Host weiter
     window.location.href = `/host.html?gameId=${id}`;
 }
 window.startGame = startGame;

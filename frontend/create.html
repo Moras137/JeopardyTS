@@ -5,21 +5,56 @@
     <title>Quiz Erstellen & Bearbeiten</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* (Dein bestehendes CSS hier einfügen - unverändert) */
+        /* --- THEME VARIABLES --- */
+        :root {
+            --bg-body: #eee;
+            --bg-card: #fff;
+            --bg-sidebar: #fff;
+            --bg-q-block: #f9f9f9;
+            --bg-q-filled: #d4edda;
+            --text-main: #000;
+            --text-muted: #666;
+            --border-color: #ddd;
+            --input-bg: #fff;
+            --input-text: #000;
+            --shadow: rgba(0,0,0,0.1);
+        }
+
+        /* DARK MODE OVERRIDES */
+        [data-theme="dark"] {
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --bg-sidebar: #1e1e1e;
+            --bg-q-block: #2a2a2a;
+            --bg-q-filled: #1e3a29; /* Dunkles Grün */
+            --text-main: #e0e0e0;
+            --text-muted: #aaa;
+            --border-color: #444;
+            --input-bg: #333;
+            --input-text: #fff;
+            --shadow: rgba(0,0,0,0.5);
+        }
+
+        /* --- BASE STYLES --- */
         body { 
             font-family: sans-serif; 
             display: flex; 
             height: 95vh; 
             margin: 0; 
-            background: #eee; 
+            background: var(--bg-body); 
+            color: var(--text-main);
+            transition: background 0.3s, color 0.3s;
         }
+
         #load-game-sidebar { 
             width: 250px; 
-            background: #fff; 
+            background: var(--bg-sidebar); 
             padding: 20px; 
             overflow-y: auto; 
-            border-right: 1px solid #ddd; 
+            border-right: 1px solid var(--border-color);
+            box-shadow: 2px 0 5px var(--shadow);
         }
+
         #main-content { 
             flex-grow: 1; 
             padding: 20px; 
@@ -27,110 +62,146 @@
             display: flex; 
             flex-direction: column; 
         }
+
         .card { 
-            background: white; 
+            background: var(--bg-card); 
             padding: 20px; 
             margin-bottom: 20px; 
             border-radius: 8px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            box-shadow: 0 2px 5px var(--shadow); 
+            border: 1px solid var(--border-color);
         }
+
         .question-block { 
             border-left: 4px solid #007bff; 
             padding-left: 15px; 
             margin-top: 15px; 
-            background: #f9f9f9; 
+            background: var(--bg-q-block); 
             padding: 10px; 
+            border-radius: 4px;
         }
+
         .question-block.is-filled { 
-            background: #d4edda !important; 
+            background: var(--bg-q-filled) !important; 
             border-color: #28a745; 
         }
-        .map-editor-container { 
-            height: 400px; 
-            width: 100%; 
-            margin-top: 10px; 
-            border: 2px solid #ccc; 
-            background: #f0f0f0; 
-        }
-        input[type="text"], input[type="number"] { 
+
+        /* Inputs & Selects anpassen */
+        input[type="text"], input[type="number"], select { 
             width: 100%; 
             padding: 8px; 
             margin-top: 5px; 
             box-sizing: border-box; 
+            background: var(--input-bg);
+            color: var(--input-text);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
         }
-        label { 
-            display: block; 
-            margin-top: 10px; 
-            font-weight: bold; 
-        }
-        button { 
-            cursor: pointer; 
-            padding: 10px 15px; 
-            border: none; 
-            border-radius: 4px; 
-            margin-top: 10px; 
-        }
-        button.primary { 
-            background: #28a745; 
-            color: white; 
+
+        .map-editor-container { 
+            height: 400px; 
             width: 100%; 
-            font-size: 1.2rem; 
+            margin-top: 10px; 
+            border: 2px solid var(--border-color); 
+            background: #f0f0f0; /* Map Placeholder bleibt hell oder neutral */
         }
+
+        label { display: block; margin-top: 10px; font-weight: bold; color: var(--text-main); }
+        hr { border: 0; border-top: 1px solid var(--border-color); margin: 15px 0; }
+
+        button { cursor: pointer; padding: 10px 15px; border: none; border-radius: 4px; margin-top: 10px; }
+        button.primary { background: #28a745; color: white; width: 100%; font-size: 1.2rem; }
+
         .load-item { 
             padding: 10px; 
-            border-bottom: 1px solid #eee; 
+            border-bottom: 1px solid var(--border-color); 
             cursor: pointer; display: flex; 
             justify-content: space-between; 
             align-items: center; 
+            color: var(--text-main);
         }
-        .load-item:hover { 
-            background: #f0f0f0; 
+        .load-item:hover { background: var(--bg-body); }
+        
+        /* Preview Grid Styles */
+        .preview-cat-header {
+            background: #00008b; color: white; padding: 10px; font-weight: bold; text-transform: uppercase;
+            border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center;
         }
-        .load-item.active {
-            background: #007bff; color: white; 
+        .preview-card {
+            background: #0000cc; color: #ffcc00; font-size: 1.5rem; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            height: 80px; border: 2px solid var(--border-color); cursor: pointer;
+        }
+        .preview-card:hover { background: #3333ff; }
+
+        /* Dark Mode Button Style */
+        .theme-toggle-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-left: 10px;
         }
     </style>
 </head>
 <body>
-
     <div id="load-game-sidebar">
         <h3>Quiz Verwaltung</h3>
         <button id="btn-new-quiz" style="width:100%; margin-bottom:15px; background:#28a745; color:white;">+ NEUES QUIZ</button>
         <div id="game-list">Lade Spiele...</div>
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+            <div style="display: inline-flex; background: #ddd; border-radius: 5px; padding: 5px;">
+                <button onclick="switchView('list')" id="btn-view-list" style="margin:0; background: #007bff; color: white;">📝 Liste</button>
+                <button onclick="switchView('board')" id="btn-view-board" style="margin:0; background: transparent; color: #333;">▦ Brett</button>
+            </div>
+        </div>
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Design wechseln">
+                🌓
+        </button>
+        <button class="primary" id="btn-save">💾 Speichern</button>
     </div>
 
     <div id="main-content">
-        <div class="card">
-            <label>Name des Quiz</label>
-            <input type="text" id="gameTitle" placeholder="Titel eingeben...">
-            <hr style="margin: 15px 0;">
-            <div style="display: flex; gap: 20px;">
-                <div style="flex: 1;">
-                    <label for="numCategories">Kategorien (Spalten)</label>
-                    <input type="number" id="numCategories" value="5" min="1" max="8">
-                </div>
-                <div style="flex: 1;">
-                    <label for="numQuestions">Fragen pro Kategorie (Zeilen)</label>
-                    <input type="number" id="numQuestions" value="5" min="1" max="10">
+        <div id="editor-view">
+            <div class="card">
+                <label>Name des Quiz</label>
+                <input type="text" id="gameTitle" placeholder="Titel eingeben...">
+                <hr style="margin: 15px 0;">
+                <div style="display: flex; gap: 20px;">
+                    <div style="flex: 1;">
+                        <label for="numCategories">Kategorien (Spalten)</label>
+                        <input type="number" id="numCategories" value="5" min="1" max="8">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="numQuestions">Fragen pro Kategorie (Zeilen)</label>
+                        <input type="number" id="numQuestions" value="5" min="1" max="10">
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="card">
-            <h2>Hintergrundbild</h2>
-            <input type="file" id="boardBackgroundUpload" title="Hintergrundbild hochladen" aria-label="Hintergrundbild hochladen">
-            <span class="upload-status" id="background-status"></span>
-            <div id="preview-background" style="margin-top: 5px;">
-                <img src="" id="background-preview-img" style="display:none; max-height: 150px;">
-                <input type="hidden" id="background-path" value="">
+            <div class="card">
+                <h2>Hintergrundbild</h2>
+                <input type="file" id="boardBackgroundUpload" title="Hintergrundbild hochladen" aria-label="Hintergrundbild hochladen">
+                <span class="upload-status" id="background-status"></span>
+                <div id="preview-background" style="margin-top: 5px;">
+                    <img src="" id="background-preview-img" style="display:none; max-height: 150px;">
+                    <input type="hidden" id="background-path" value="" aria-label="Gespeicherter Pfad des Hintergrundbildes">
+                </div>
+                <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
             </div>
-            <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
+
+            <div id="categories-container"></div>
+            
+            <hr>
+            
         </div>
 
-        <div id="categories-container"></div>
-        
-        <hr>
-        <button class="primary" id="btn-save">💾 Speichern</button>
+        <div id="board-preview-view" style="display: none;">
+            <div id="preview-grid" style="display: grid; gap: 10px; text-align: center;"></div>
+        </div>
     </div>
 
     <script type="module" src="./src/create.ts"></script>
