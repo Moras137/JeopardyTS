@@ -599,14 +599,12 @@
                    
                     const isCustomMapVal = qDiv.querySelector('.q-is-custom-map').value === 'true';
                     const customMapPathVal = qDiv.querySelector('.q-custom-map-path').value;
-                    alert("isCustomMap: " + isCustomMapVal + "\ncustomMapPath: " + customMapPathVal);
               
                     const img = new Image();
                     img.src = customMapPathVal;
                     const customMapWidth = img.width || 0;
                     const customMapHeight = img.height || 0;
 
-                    alert("customMapWidth: " + customMapWidth + "\ncustomMapHeight: " + customMapHeight);
                     questions.push({
                         type: qType,
                         location: { 
@@ -628,7 +626,6 @@
                         mediaType: mediaPath ? mediaPath.split('.').pop().toLowerCase() : 'none',
                         answerMediaType: answerMediaPath ? answerMediaPath.split('.').pop().toLowerCase() : 'none' 
                     });
-                    alert("Frage hinzugefügt.");
                 });
                 categories.push({ name: catName, questions: questions });
             });
