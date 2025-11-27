@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeopardy Host</title>
+    <style>
+        /* Dein CSS bleibt gleich */
+        body { 
+            font-family: sans-serif; 
+            padding: 20px; 
+            background: #eee; 
+            display: flex; 
+            height: 95vh; 
+            gap: 20px; 
+        }
+        
+        #sidebar {
+            width: 300px; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            display: flex; 
+            flex-direction: column; 
+        }
+        #player-list { 
+            list-style: none; 
+            padding: 0; 
+            margin: 10px 0; 
+            max-height: 40vh; 
+            overflow-y: auto; 
+        }
+        .player-item { 
+            padding: 8px; 
+            border-bottom: 1px solid #eee; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .player-item .score { 
+            font-weight: bold; 
+        }
+
+        #controls { 
+            flex-grow: 1; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none; /* Wird erst nach Session-Erstellung auf 'flex' gesetzt */
+            flex-direction: column; 
+        }
+        
+        #host-grid { 
+            display: flex; 
+            gap: 10px; 
+            overflow-x: auto; 
+            margin-bottom: 20px; 
+            padding-bottom: 10px; 
+            border-bottom: 2px solid #ddd; 
+        }
+        .host-col { 
+            flex: 1; 
+            min-width: 150px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 5px; 
+        }
+        .host-cat-title { 
+            font-weight: bold; 
+            text-align: center; 
+            margin-bottom: 5px; 
+            background: #00008b; 
+            color: white; 
+            padding: 5px; 
+            border-radius: 4px; 
+        }
+        
+        .q-btn {
+            padding: 15px 10px; 
+            background: #007bff; 
+            color: white; 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            border: none; 
+            cursor: pointer; 
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .q-btn:hover:not(.disabled) { 
+            background: #0056b3; 
+        }
+        .q-btn.disabled { 
+            background: #6c757d; 
+            cursor: not-allowed; 
+        }
+        .q-btn.used { 
+            background: #343a40; 
+            text-decoration: line-through; 
+            opacity: 0.7; 
+        }
+
+        /* Steuerung (Frage/Antwort) */
+        #active-question-section { 
+            margin-top: 20px; 
+            padding: 15px; 
+            border: 2px dashed #ccc; 
+            display: none; 
+        }
+        #question-display { 
+            font-size: 1.2rem; 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+        }
+        #answer-display { 
+            display: none; 
+            font-size: 1.2rem; 
+            margin-top: 10px; 
+            color: #28a745; 
+        }
+        #buzz-winner-section { 
+            margin-top: 15px; 
+            padding: 10px; 
+            background: #ffc107; 
+            color: #333; 
+            font-weight: bold; 
+            border-radius: 4px; 
+            display: none; 
+        }
+        
+        /* Map-Mode spezifische Steuerung */
+        #map-mode-controls { 
+            display: none; 
+            margin-top: 15px; 
+            padding: 10px; 
+            background: #e9ecef; 
+            border-radius: 4px; 
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="sidebar">
+        <h2>Host Steuerung</h2>
+        <p id="room-code-display">Raum: --</p>
+        <p>Board URL: <a id="board-url" href="#" target="_blank">Öffnen</a></p>
+        <button id="toggle-qr-btn" style="margin-bottom: 10px; background: #17a2b8; color: white;">QR-Code umschalten</button>
+        
+        <h3>Spieler (<span id="player-count">0</span>)</h3>
+        <ul id="player-list"></ul>
+        
+        <button id="exit-quiz-btn" style="margin-top: auto; background: #dc3545; color: white;">Session beenden</button>
+    </div>
+
+    <div id="controls">
+        <div id="host-grid">
+            </div>
+
+        <div id="active-question-section">
+            <h4 id="question-title">-- Aktive Frage --</h4>
+            <div id="question-display"></div>
+            <div id="answer-display"></div>
+            
+            <div id="buzz-winner-section">
+                <span>**BUZZ!** Gewinner: <span id="buzz-winner-name"></span></span>
+                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                    <button id="correct-btn" style="background: #28a745; color: white;">Richtig (+Punkte)</button>
+                    <button id="incorrect-btn" style="background: #dc3545; color: white;">Falsch (-Punkte)</button>
+                    <button id="unlock-buzzers-btn" style="background: #ffc107; color: black; display: none;">Buzzer wieder aktivieren</button>
+                </div>
+            </div>
+
+            <div id="map-mode-controls">
+                <span>**MAP MODUS** | <span id="map-submitted-count">0/0</span> Tipps</span>
+                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                    <button id="resolve-map-btn" style="background: #007bff; color: white;">Map auflösen</button>
+                </div>
+            </div>
+
+            <button id="close-question-btn" style="background: #6c757d; color: white; margin-top: 15px;">Frage schließen & Reset</button>
+        </div>
+    </div>
+
+    <script type="module" src="./src/host.ts"></script>
+</body>
+</html>

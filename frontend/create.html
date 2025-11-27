@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz Erstellen & Bearbeiten</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* (Dein bestehendes CSS hier einfügen - unverändert) */
+        body { 
+            font-family: sans-serif; 
+            display: flex; 
+            height: 95vh; 
+            margin: 0; 
+            background: #eee; 
+        }
+        #load-game-sidebar { 
+            width: 250px; 
+            background: #fff; 
+            padding: 20px; 
+            overflow-y: auto; 
+            border-right: 1px solid #ddd; 
+        }
+        #main-content { 
+            flex-grow: 1; 
+            padding: 20px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .card { 
+            background: white; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        .question-block { 
+            border-left: 4px solid #007bff; 
+            padding-left: 15px; 
+            margin-top: 15px; 
+            background: #f9f9f9; 
+            padding: 10px; 
+        }
+        .question-block.is-filled { 
+            background: #d4edda !important; 
+            border-color: #28a745; 
+        }
+        .map-editor-container { 
+            height: 400px; 
+            width: 100%; 
+            margin-top: 10px; 
+            border: 2px solid #ccc; 
+            background: #f0f0f0; 
+        }
+        input[type="text"], input[type="number"] { 
+            width: 100%; 
+            padding: 8px; 
+            margin-top: 5px; 
+            box-sizing: border-box; 
+        }
+        label { 
+            display: block; 
+            margin-top: 10px; 
+            font-weight: bold; 
+        }
+        button { 
+            cursor: pointer; 
+            padding: 10px 15px; 
+            border: none; 
+            border-radius: 4px; 
+            margin-top: 10px; 
+        }
+        button.primary { 
+            background: #28a745; 
+            color: white; 
+            width: 100%; 
+            font-size: 1.2rem; 
+        }
+        .load-item { 
+            padding: 10px; 
+            border-bottom: 1px solid #eee; 
+            cursor: pointer; display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .load-item:hover { 
+            background: #f0f0f0; 
+        }
+        .load-item.active {
+            background: #007bff; color: white; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="load-game-sidebar">
+        <h3>Quiz Verwaltung</h3>
+        <button id="btn-new-quiz" style="width:100%; margin-bottom:15px; background:#28a745; color:white;">+ NEUES QUIZ</button>
+        <div id="game-list">Lade Spiele...</div>
+    </div>
+
+    <div id="main-content">
+        <div class="card">
+            <label>Name des Quiz</label>
+            <input type="text" id="gameTitle" placeholder="Titel eingeben...">
+            <hr style="margin: 15px 0;">
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <label for="numCategories">Kategorien (Spalten)</label>
+                    <input type="number" id="numCategories" value="5" min="1" max="8">
+                </div>
+                <div style="flex: 1;">
+                    <label for="numQuestions">Fragen pro Kategorie (Zeilen)</label>
+                    <input type="number" id="numQuestions" value="5" min="1" max="10">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Hintergrundbild</h2>
+            <input type="file" id="boardBackgroundUpload" title="Hintergrundbild hochladen" aria-label="Hintergrundbild hochladen">
+            <span class="upload-status" id="background-status"></span>
+            <div id="preview-background" style="margin-top: 5px;">
+                <img src="" id="background-preview-img" style="display:none; max-height: 150px;">
+                <input type="hidden" id="background-path" value="">
+            </div>
+            <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
+        </div>
+
+        <div id="categories-container"></div>
+        
+        <hr>
+        <button class="primary" id="btn-save">💾 Speichern</button>
+    </div>
+
+    <script type="module" src="./src/create.ts"></script>
+</body>
+</html>

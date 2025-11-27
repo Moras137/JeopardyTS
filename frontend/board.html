@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeopardy Board</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* (Dein CSS bleibt größtenteils gleich - gekürzt) */
+        body { 
+            background: #00008b; 
+            color: #fff; 
+            font-family: 'Impact', sans-serif; 
+            margin: 0; 
+            overflow: hidden; 
+            background-size: cover; 
+            background-position: center; 
+            transition: background-image 0.5s ease; 
+        }
+        body::before { 
+            content: ''; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.4); 
+            z-index: -1; 
+        }
+
+        #game-grid { 
+            display: grid; 
+            gap: 10px; 
+            padding: 20px; 
+            height: 80vh; 
+            text-align: center; 
+        }
+        .cat-header { 
+            color: white; 
+            font-size: 1.5rem; 
+            text-transform: uppercase; 
+            text-shadow: 2px 2px 0 #000; 
+            background: #00008b; 
+            border: 3px solid #fff; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 10px; 
+            word-break: break-word; 
+            grid-row: 1; 
+        }
+        
+        .q-card { 
+            background: #0000cc; 
+            border: 3px solid #fff; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 3rem; 
+            color: #ffcc00; 
+            text-shadow: 3px 3px 0 #000; 
+        }
+        .q-card.played {
+             opacity: 0; 
+             visibility: hidden; 
+        }
+
+        /* Overlay */
+        #question-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: #00008b; 
+            z-index: 50; 
+            display: none; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 5vh 5vw; 
+            box-sizing: border-box; 
+        }
+        
+        #question-text { 
+            font-size: 8vh; 
+            line-height: 1.2; 
+            text-align: center; 
+            max-width: 90%; 
+            margin: 20px 0; 
+            background: rgba(255,255,255,0.1); 
+            padding: 20px; 
+            border-radius: 10px; 
+        }
+        #answer-text { 
+            display: none; 
+            font-size: 6vh; 
+            background: #000066; 
+            padding: 20px; 
+            border-radius: 10px;
+            margin-top: 20px; 
+        }
+
+        #media-container { 
+            max-width: 80%; 
+            max-height: 50vh; 
+            margin-bottom: 20px; 
+            display: none; 
+        }
+        #media-container img, #media-container video { 
+            max-width: 100%; 
+            max-height: 50vh; 
+            border: 5px solid white; 
+            display: block; 
+        }
+        
+        /* Map Styles */
+        #q-map { 
+            height: 60vh; 
+            width: 80%; 
+            margin: 20px auto; 
+            border: 5px solid white; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.8); 
+            display: none; 
+            background: #ccc; 
+            z-index: 100; 
+        }
+        
+        /* Map Marker Custom Styles */
+        .marker-wrapper { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            width: max-content; 
+            transform: translate(-50%, -50%); 
+        }
+        .marker-dot { 
+            width: 16px; 
+            height: 16px; 
+            border: 2px solid white; 
+            border-radius: 50%; 
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5); 
+            margin-bottom: 5px; 
+        }
+        .marker-label { 
+            background: rgba(0,0,0,0.85); 
+            color: white; 
+            padding: 5px 10px; 
+            border-radius: 5px; 
+            font-size: 14px; 
+            text-align: center; 
+            white-space: nowrap; 
+        }
+
+        /* Player Bar */
+        #player-bar { 
+            position: fixed; 
+            bottom: 0; 
+            width: 100%; 
+            height: 15vh; 
+            background: #111; 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            align-items: center; 
+            border-top: 3px solid white; 
+        }
+        .player-card { 
+            border: 2px solid white; 
+            padding: 10px 20px; 
+            font-size: 1.5rem; 
+            background: #00008b; 
+            transition: transform 0.2s; 
+        }
+        .player-card.buzzing { 
+            background: #fff; 
+            color: #00008b;
+            border-color: #ffcc00; 
+            transform: scale(1.2); 
+        }
+
+        /* QR Overlay */
+        #qr-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.95); 
+            z-index: 1000; 
+            display: none; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-grid">
+        <h1 style="width:100%; text-align:center; margin-top: 200px;">WARTE AUF SPIEL...</h1>
+    </div>
+
+    <div id="question-overlay">
+        <div id="media-container"></div>
+        <div id="q-map"></div>
+        <div id="question-text"></div>
+        <div id="answer-text"></div>
+    </div>
+
+    <div id="player-bar"></div>
+    
+    <div id="qr-overlay">
+        <h1 style="color: white; font-size: 4rem; margin-bottom: 40px;">Zum Spiel beitreten</h1>
+        <canvas id="qrcode-canvas"></canvas>
+        <p style="color: white; font-size: 2rem; margin-top: 40px;">Gehe zu: <span id="join-url"></span></p>
+    </div>
+
+    <script type="module" src="./src/board.ts"></script>
+</body>
+</html>

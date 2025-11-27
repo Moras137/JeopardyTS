@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeopardy Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* (Dein CSS bleibt unverändert - hier gekürzt der Übersicht halber) */
+        body { 
+            font-family: sans-serif; 
+            text-align: center; margin: 0; 
+            background: #222; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        #join-section, 
+        #game-section { padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100%; 
+            width: 100%; 
+        }
+        #game-section { 
+            display: none; 
+        }
+        #buzzer-button {
+            width: 250px; height: 250px; 
+            border-radius: 50%; 
+            background-color: #dc3545; 
+            color: white;
+            font-size: 2rem; 
+            border: none; 
+            cursor: pointer; 
+            transition: transform 0.1s ease, background-color 0.2s;
+            box-shadow: 0 6px 0 #888; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        #buzzer-button:active { 
+            transform: translateY(4px); 
+            box-shadow: 0 2px 0 #888; 
+        }
+        #status-message { margin-top: 20px; 
+            font-size: 1.5rem; 
+            color: #ffc107; 
+        }
+        #player-info { position: absolute; 
+            top: 10px; left: 10px; 
+            font-size: 1rem; color: #aaa; 
+        }
+        #map-interface { 
+            display: none; 
+            flex-direction: column; 
+            height: 100vh; width: 100vw; 
+            background: #333; 
+        }
+        #map-header { 
+            padding: 10px; 
+            background: #444; 
+            font-size: 1.1rem; 
+            min-height: 50px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        #player-map { 
+            flex-grow: 1; 
+            width: 100%; 
+            background: #ccc; 
+        }
+        #confirm-guess-btn { 
+            display: none; 
+            padding: 20px; 
+            font-size: 1.5rem; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            width: 100%; 
+            text-transform: uppercase; 
+            font-weight: bold; 
+            cursor: pointer; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="player-info">Nicht verbunden</div>
+
+    <div id="join-section">
+        <h1>Quiz Beitreten</h1>
+        <input type="text" id="room-code" placeholder="Raum Code (z.B. 1234)" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; text-align:center;">
+        <input type="text" id="player-name" placeholder="Dein Name" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; text-align:center;">
+        
+        <button id="join-btn" style="padding: 15px 30px; font-size: 1.2rem; background: #007bff; color: white; border: none; border-radius: 5px;">Beitreten</button>
+        
+        <p id="rejoin-msg" style="display:none; color: yellow;">Alte Sitzung gefunden...</p>
+    </div>
+
+    <div id="game-section">
+        <button id="buzzer-button">GESPERRT</button>
+        <div id="status-message">Warte auf Host...</div>
+    </div>
+
+    <div id="map-interface">
+        <div id="map-header">
+            <span id="map-q-text">Frage wird geladen...</span>
+        </div>
+        <div id="player-map"></div>
+        <button id="confirm-guess-btn">TIPP ABSENDEN</button>
+    </div>
+
+    <script type="module" src="./src/player.ts"></script>
+</body>
+</html>
