@@ -52,7 +52,7 @@
         #load-game-sidebar { 
             width: 250px; 
             background: var(--bg-sidebar); 
-            padding: 20px; 
+            /* padding: 20px; */
             overflow-y: auto; 
             border-right: 1px solid var(--border-color);
             box-shadow: 2px 0 5px var(--shadow);
@@ -137,16 +137,55 @@
         }
         .preview-card:hover { background: #3333ff; }
 
-        /* Dark Mode Button Style */
+        #load-game-sidebar { 
+            width: 250px; 
+            background: var(--bg-sidebar); 
+            padding: 20px; 
+            border-right: 1px solid var(--border-color);
+            box-shadow: 2px 0 5px var(--shadow);
+            
+            /* WICHTIG: Flexbox für die vertikale Ausrichtung */
+            display: flex;
+            flex-direction: column;
+            height: 95vh;         /* Volle Höhe nutzen */
+            box-sizing: border-box; /* Padding in Höhe einrechnen */
+            overflow: hidden;     /* Globales Scrollen verhindern */
+        }
+
+        /* Titel und Darkmode Button nebeneinander */
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between; /* Schiebt Elemente auseinander */
+            align-items: center;            /* Vertikal zentrieren */
+            margin-bottom: 10px;
+            flex-shrink: 0;                 /* Header darf nicht schrumpfen */
+        }
+
+        /* Die Liste füllt den mittleren Bereich und scrollt */
+        #game-list {
+            flex-grow: 1;          /* Wächst, um den leeren Platz zu füllen */
+            overflow-y: auto;      /* Scrollt nur diesen Bereich bei Bedarf */
+            margin: 15px 0;        
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            /* Optional: Scrollbar hübscher machen */
+            scrollbar-width: thin; 
+        }
+
+        /* Footer (Speichern Button) bleibt immer unten sichtbar */
+        .sidebar-footer {
+            flex-shrink: 0; /* Darf nicht schrumpfen */
+            margin-top: auto;
+        }
+
+        /* Anpassung für den Darkmode Button */
         .theme-toggle-btn {
+            margin: 0;      /* Altes Margin entfernen */
+            border: none;
             background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 5px 10px;
-            border-radius: 5px;
+            font-size: 1.5rem;
             cursor: pointer;
-            font-size: 1.2rem;
-            margin-left: 10px;
+            padding: 0 5px;
         }
 
         .view-toggle-container {
@@ -228,19 +267,26 @@
 </head>
 <body>
     <div id="load-game-sidebar">
-        <h3>Quiz Verwaltung</h3>
-        <button id="btn-new-quiz">+ NEUES QUIZ</button>
-        <div id="game-list">Lade Spiele...</div>
-        <div class="view-toggle-container">
-            <div class="view-toggle-group">
-                <button id="btn-view-list" class="view-toggle-btn active">📝 Liste</button>
-                <button id="btn-view-board" class="view-toggle-btn">▦ Brett</button>
-            </div>
-        </div>
-        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
+        <div class="sidebar-header">
+            <h3 style="margin: 0;">Quiz Verwaltung</h3>
+            <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
                 🌓
-        </button>
-        <button class="primary" id="btn-save">💾 Speichern</button>
+            </button>
+        </div>
+
+        <button id="btn-new-quiz" style="margin-top: 15px;">+ NEUES QUIZ</button>
+        
+        <div id="game-list">Lade Spiele...</div>
+        
+        <div class="sidebar-footer">
+            <div class="view-toggle-container">
+                <div class="view-toggle-group">
+                    <button id="btn-view-list" class="view-toggle-btn active">📝 Liste</button>
+                    <button id="btn-view-board" class="view-toggle-btn">▦ Brett</button>
+                </div>
+            </div>
+            <button class="primary" id="btn-save">💾 Speichern</button>
+        </div>
     </div>
 
     <div id="main-content">

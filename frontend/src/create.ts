@@ -410,8 +410,6 @@ async function saveGame() {
                     mapWidth = img.width || 1000;
                     mapHeight = img.height || 1000;
                 }
-                
-                alert(`Speichern: Pfad=${customPath}, Größe=${mapWidth}x${mapHeight}`);
 
                 if (lat && lng) {
                     loc = { 
