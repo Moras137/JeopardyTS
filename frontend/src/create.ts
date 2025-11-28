@@ -98,19 +98,29 @@ async function uploadFile(inputElement: HTMLInputElement, previewId: string, hid
 // Global verfügbar machen
 window.uploadFile = uploadFile;
 
+// frontend/src/create.ts
+
 function removeBackground() {
     const pathInput = document.getElementById('background-path') as HTMLInputElement;
-    const previewImg = document.getElementById('background-preview-img') as HTMLImageElement;
+    const previewContainer = document.getElementById('preview-background') as HTMLDivElement;
     
+    // Datei zum Löschen vormerken
     if (pathInput.value) {
         filesToDeleteOnSave.push(pathInput.value);
     }
+    
+    // Pfad leeren
     pathInput.value = '';
-    previewImg.src = '';
-    previewImg.style.display = 'none';
+    
+    // Preview leeren (statt auf eine ID zu zugreifen, die evtl. nicht mehr existiert)
+    if (previewContainer) {
+        previewContainer.innerHTML = ''; 
+    }
+
     const status = document.getElementById('background-status');
     if(status) status.innerText = '';
 }
+
 window.removeBackground = removeBackground;
 
 
@@ -378,7 +388,8 @@ window.uploadCustomMap = async (input, qId) => {
 // --- 4. SPEICHERN & LADEN ---
 
 async function saveGame() {
-    const bgPath = (document.getElementById('background-path') as HTMLInputElement).value;
+    const bgInput = document.getElementById('background-path') as HTMLInputElement;
+    const bgPath = bgInput?.value || ''; // Fallback auf leer, falls null
     const cats: ICategory[] = [];
 
     document.querySelectorAll('.category').forEach(catDiv => {
@@ -424,7 +435,7 @@ async function saveGame() {
             } else {
                 answerText = (qBlock.querySelector('.q-answer') as HTMLInputElement).value;
             }
-
+            
             questions.push({
                 type, 
                 points, 
@@ -522,15 +533,36 @@ async function loadGame(id: string) {
 
     editingGameId = game._id!;
     titleInput.value = game.title;
-    (document.getElementById('background-path') as HTMLInputElement).value = game.boardBackgroundPath;
+    
+    const bgPath = game.boardBackgroundPath || '';
+    const bgInput = document.getElementById('background-path') as HTMLInputElement;
+    const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+
+    bgInput.value = bgPath;
+    
+    if (bgPath) {
+        bgPreview.src = bgPath;
+        bgPreview.style.display = 'block';
+    } else {
+        bgPreview.src = '';
+        bgPreview.style.display = 'none';
+    }
     
     // UI Reset
     container.innerHTML = '';
-    game.categories.forEach(cat => addCategory(cat));
-    
-    // Inputs updaten
-    numCatInput.value = game.categories.length.toString();
-    numQInput.value = (game.categories[0]?.questions.length || 5).toString();
+    if (game.categories) {
+        game.categories.forEach(cat => addCategory(cat));
+        
+        // Inputs updaten
+        numCatInput.value = game.categories.length.toString();
+        // Sicherer Zugriff falls categories leer ist
+        numQInput.value = (game.categories[0]?.questions?.length || 5).toString();
+    } else {
+        // Fallback falls keine Kategorien da sind
+        numCatInput.value = "5";
+        numQInput.value = "5";
+    }
+
     switchView(View ? 'board' : 'list');
 }
 
