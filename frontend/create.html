@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quiz Erstellen & Bearbeiten</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -147,25 +148,72 @@
         }
 
         .view-toggle-container {
-            display: flex;
-            justify-content: flex-end;
+            width: 100%;       /* Container nimmt volle Breite der Sidebar */
             margin-bottom: 20px;
+            display: block;    /* Block statt Flex für den Container selbst */
+        }
+
+        .view-toggle-group {
+            display: flex;     /* Flexbox für die Buttons innen */
+            width: 100%;       /* Gruppe nimmt 100% ein */
+            background: var(--border-color); /* Hintergrund passend zum Theme */
+            border-radius: 6px;
+            padding: 4px;      /* Etwas Polsterung zum Rand */
+            box-sizing: border-box;
+            gap: 5px;          /* Abstand zwischen den Buttons */
         }
         
         .view-toggle-btn {
+            flex: 1;           /* WICHTIG: Jeder Button nimmt gleich viel Platz (50%) */
             margin: 0;
-            color: #333;
+            border: none;
+            background: transparent;
+            color: var(--text-main);
+            cursor: pointer;
+            border-radius: 4px;
+            text-align: center;
+            padding: 8px 0;    /* Angenehme Klickfläche */
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .view-toggle-btn:hover {
+            background: rgba(0,0,0,0.05);
         }
 
         .view-toggle-btn.active {
-            background: #007bff;
+            background: #007bff; /* Blaues Highlight */
             color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
         }
 
         #btn-new-quiz {
             width: 100%;
             margin-bottom: 15px;
             background: #28a745;
+        }
+
+        .preview-card[draggable="true"] {
+            cursor: grab;
+        }
+        .preview-card:active {
+            cursor: grabbing;
+        }
+        .preview-card.dragging {
+            opacity: 0.5;
+            border: 2px dashed white;
+        }
+        .preview-card.drag-over {
+            background: #ffc107 !important; /* Gelb beim Drüberziehen */
+            color: #000 !important;
+            transform: scale(1.05);
+            transition: transform 0.2s;
+        }
+        .preview-card.is-filled {
+            background: #28a745 !important; /* Grün */
+            color: white !important;
+            border-color: #1e7e34 !important;
         }
     </style>
 </head>
@@ -187,24 +235,21 @@
     </div>
 
     <div id="main-content">
-        <div id="editor-view">
-            <div class="card">
-                <label>Name des Quiz</label>
-                <input type="text" id="gameTitle" placeholder="Titel eingeben...">
-                <hr style="margin: 15px 0;">
-                <div style="display: flex; gap: 20px;">
-                    <div style="flex: 1;">
-                        <label for="numCategories">Kategorien (Spalten)</label>
-                        <input type="number" id="numCategories" value="5" min="1" max="8">
-                    </div>
-                    <div style="flex: 1;">
-                        <label for="numQuestions">Fragen pro Kategorie (Zeilen)</label>
-                        <input type="number" id="numQuestions" value="5" min="1" max="10">
-                    </div>
+         <div id="mandatory-view" class="card">
+            <label>Name des Quiz</label>
+            <input type="text" id="gameTitle" placeholder="Titel eingeben...">
+            <hr style="margin: 15px 0;">
+            <div style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <label for="numCategories">Kategorien (Spalten)</label>
+                    <input type="number" id="numCategories" value="5" min="1" max="8">
+                </div>
+                <div style="flex: 1;">
+                    <label for="numQuestions">Fragen pro Kategorie (Zeilen)</label>
+                    <input type="number" id="numQuestions" value="5" min="1" max="10">
                 </div>
             </div>
-
-            <div class="card">
+            <div class="card" style="margin-top: 30px;">
                 <h2>Hintergrundbild</h2>
                 <input type="file" id="boardBackgroundUpload" title="Hintergrundbild hochladen" aria-label="Hintergrundbild hochladen">
                 <span class="upload-status" id="background-status"></span>
@@ -214,7 +259,9 @@
                 </div>
                 <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
             </div>
-
+        </div>
+        <div id="editor-view">        
+            
             <div id="categories-container"></div>
             
             <hr>

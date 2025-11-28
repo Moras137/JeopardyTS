@@ -23,6 +23,8 @@ declare global {
 let editingGameId: string | null = null;
 let currentCategoriesCount = 0;
 let filesToDeleteOnSave: string[] = [];
+let View: boolean = false; // true = Board, false = List
+
 const mapInstances: Record<string, L.Map> = {}; // Speichert Leaflet Instanzen
 
 // --- DOM ELEMENTE ---
@@ -30,10 +32,12 @@ const container = document.getElementById('categories-container') as HTMLDivElem
 const titleInput = document.getElementById('gameTitle') as HTMLInputElement;
 const numCatInput = document.getElementById('numCategories') as HTMLInputElement;
 const numQInput = document.getElementById('numQuestions') as HTMLInputElement;
+const mainContent = document.getElementById('main-content') as HTMLDivElement;
+
 
 // --- INIT ---
 // Event Listener für statische Buttons
-document.getElementById('btn-new-quiz')?.addEventListener('click', () => clearForm());
+document.getElementById('btn-new-quiz')?.addEventListener('click', () => newGame());
 document.getElementById('btn-save')?.addEventListener('click', saveGame);
 document.getElementById('btn-remove-bg')?.addEventListener('click', removeBackground);
 
@@ -50,8 +54,11 @@ document.getElementById('boardBackgroundUpload')?.addEventListener('change', fun
 });
 
 // Start: Liste laden
+
+mainContent.style.display = 'none';
+
 loadGameList();
-//clearForm();
+clearForm();
 
 // --- 1. GLOBALE FUNKTIONEN (für onclick="" im HTML) ---
 
@@ -110,15 +117,54 @@ window.removeBackground = removeBackground;
 // --- 2. LOGIK FÜR FRAGEN & KATEGORIEN ---
 
 function updateQuizStructure() {
-    const numCat = parseInt(numCatInput.value) || 5;
-    const numQ = parseInt(numQInput.value) || 5;
+    const targetCatCount = parseInt(numCatInput.value) || 1;
+    const targetQCount = parseInt(numQInput.value) || 1;
 
-    container.innerHTML = '';
-    currentCategoriesCount = 0;
+    // 1. KATEGORIEN ANPASSEN (Spalten)
+    const existingCategories = container.querySelectorAll('.category');
+    const currentCatCount = existingCategories.length;
 
-    for (let i = 0; i < numCat; i++) {
-        addCategory({ forceQuestionCount: numQ });
+    if (targetCatCount > currentCatCount) {
+        // Hinzufügen: Wir müssen (Ziel - Ist) neue Kategorien erstellen
+        for (let i = currentCatCount; i < targetCatCount; i++) {
+            // Neue Kategorie direkt mit der richtigen Anzahl Fragen erstellen
+            addCategory({ forceQuestionCount: targetQCount });
+        }
+    } else if (targetCatCount < currentCatCount) {
+        // Entfernen: Die überzähligen von hinten löschen
+        for (let i = currentCatCount - 1; i >= targetCatCount; i--) {
+            existingCategories[i].remove();
+        }
     }
+
+    // 2. FRAGEN ANPASSEN (Zeilen) - für ALLE Kategorien (auch die alten)
+    // Wir holen die Liste neu, da wir oben evtl. welche hinzugefügt/gelöscht haben
+    const allCategories = container.querySelectorAll('.category');
+
+    allCategories.forEach(cat => {
+        // Wir brauchen die ID der Kategorie, um addQuestion aufzurufen.
+        // Da die ID des Divs z.B. "cat-123" ist und addQuestion genau das erwartet:
+        const catId = cat.id; 
+        
+        const qContainer = document.getElementById(`q-cont-${catId}`);
+        if (!qContainer) return;
+
+        const existingQuestions = qContainer.querySelectorAll('.question-block');
+        const currentQCount = existingQuestions.length;
+
+        if (targetQCount > currentQCount) {
+            // Fragen hinzufügen
+            for (let k = currentQCount; k < targetQCount; k++) {
+                addQuestion(catId);
+            }
+        } else if (targetQCount < currentQCount) {
+            // Fragen von hinten löschen
+            for (let k = currentQCount - 1; k >= targetQCount; k--) {
+                existingQuestions[k].remove();
+            }
+        }
+    });
+    switchView(View ? 'board' : 'list');
 }
 
 function addCategory(data: { name?: string, questions?: IQuestion[], forceQuestionCount?: number } = {}) {
@@ -474,6 +520,8 @@ async function loadGame(id: string) {
     const res = await fetch(`/api/games/${id}`);
     const game = await res.json() as IGame;
     
+    mainContent.style.display = 'block';
+
     editingGameId = game._id!;
     titleInput.value = game.title;
     (document.getElementById('background-path') as HTMLInputElement).value = game.boardBackgroundPath;
@@ -485,13 +533,27 @@ async function loadGame(id: string) {
     // Inputs updaten
     numCatInput.value = game.categories.length.toString();
     numQInput.value = (game.categories[0]?.questions.length || 5).toString();
+    switchView(View ? 'board' : 'list');
 }
 
 function clearForm() {
     editingGameId = null;
     titleInput.value = '';
+    
+    // Komplett leeren
     container.innerHTML = '';
+    currentCategoriesCount = 0;
+    
+    numCatInput.value = "5";
+    numQInput.value = "5";
+
     updateQuizStructure();
+}
+
+function newGame() {
+    clearForm();
+    switchView(View ? 'board' : 'list');
+    mainContent.style.display = 'block';
 }
 
 // --- HELPER ---
@@ -564,6 +626,7 @@ function switchView(mode: string) {
         btnList.style.color = '#333';
         btnBoard.style.background = '#007bff';
         btnBoard.style.color = 'white';
+        View = true;
     } else {
         editorView.style.display = 'block';
         boardView.style.display = 'none';
@@ -572,26 +635,106 @@ function switchView(mode: string) {
         btnList.style.color = 'white';
         btnBoard.style.background = 'transparent';
         btnBoard.style.color = '#333';
+        View = false;
     }
 }
 window.switchView = switchView;
+
+let dragSrcEl: HTMLElement | null = null;
+let dragSrcData: { cIndex: number, rIndex: number } | null = null;
+
+function handleDragStart(e: DragEvent, cIndex: number, rIndex: number) {
+    if (!e.target) return;
+    const target = e.target as HTMLElement;
+    
+    dragSrcEl = target;
+    dragSrcData = { cIndex, rIndex };
+    
+    target.classList.add('dragging');
+    e.dataTransfer!.effectAllowed = 'move';
+    // Wir speichern Indizes, um später die echten Blöcke zu finden
+    e.dataTransfer!.setData('text/plain', JSON.stringify({ cIndex, rIndex }));
+}
+
+function handleDragOver(e: DragEvent) {
+    if (e.preventDefault) e.preventDefault(); // Nötig um Drop zu erlauben
+    e.dataTransfer!.dropEffect = 'move';
+    return false;
+}
+
+function handleDragEnter(e: DragEvent) {
+    const target = (e.target as HTMLElement).closest('.preview-card');
+    if (target) target.classList.add('drag-over');
+}
+
+function handleDragLeave(e: DragEvent) {
+    const target = (e.target as HTMLElement).closest('.preview-card');
+    if (target) target.classList.remove('drag-over');
+}
+
+function handleDrop(e: DragEvent, targetCIndex: number, targetRIndex: number) {
+    if (e.stopPropagation) e.stopPropagation();
+    
+    const targetCard = (e.target as HTMLElement).closest('.preview-card');
+    if (targetCard) targetCard.classList.remove('drag-over');
+    if (dragSrcEl) dragSrcEl.classList.remove('dragging');
+
+    // Nichts tun, wenn auf sich selbst gedroppt
+    if (dragSrcData && (dragSrcData.cIndex !== targetCIndex || dragSrcData.rIndex !== targetRIndex)) {
+        swapQuestionBlocks(dragSrcData.cIndex, dragSrcData.rIndex, targetCIndex, targetRIndex);
+    }
+    
+    return false;
+}
+
+function handleDragEnd(e: DragEvent) {
+    if (dragSrcEl) dragSrcEl.classList.remove('dragging');
+    document.querySelectorAll('.preview-card').forEach(card => card.classList.remove('drag-over'));
+}
+
+// Tauscht die echten DOM-Elemente im Editor-View
+function swapQuestionBlocks(srcC: number, srcR: number, tgtC: number, tgtR: number) {
+    const categories = document.querySelectorAll('.category');
+    
+    // Quelle finden
+    const srcCat = categories[srcC];
+    const srcQuestions = srcCat.querySelectorAll('.question-block');
+    const srcBlock = srcQuestions[srcR] as HTMLElement;
+
+    // Ziel finden
+    const tgtCat = categories[tgtC];
+    const tgtQuestions = tgtCat.querySelectorAll('.question-block');
+    const tgtBlock = tgtQuestions[tgtR] as HTMLElement;
+
+    if (srcBlock && tgtBlock) {
+        // DOM Swap Trick: Platzhalter nutzen
+        const temp = document.createElement('div');
+        srcBlock.before(temp);
+        tgtBlock.before(srcBlock);
+        temp.replaceWith(tgtBlock);
+
+        // Grid neu zeichnen, um die Änderung anzuzeigen
+        renderBoardPreview();
+        
+        // Optional: Kurzes Feedback
+        console.log(`Getauscht: [${srcC},${srcR}] <-> [${tgtC},${tgtR}]`);
+    }
+}
 
 function renderBoardPreview() {
     const grid = document.getElementById('preview-grid');
     if (!grid) return;
     grid.innerHTML = '';
 
-    // Wir lesen die Daten direkt aus dem DOM, da das Spiel evtl. noch nicht gespeichert wurde
     const categories = document.querySelectorAll('.category');
     if (categories.length === 0) {
         grid.innerHTML = '<p>Keine Kategorien vorhanden.</p>';
         return;
     }
 
-    // Grid CSS setzen (Spaltenanzahl)
     grid.style.gridTemplateColumns = `repeat(${categories.length}, 1fr)`;
 
-    // 1. Header Zeile (Kategorienamen)
+    // 1. Header
     categories.forEach((cat, index) => {
         const nameInput = cat.querySelector('.cat-name') as HTMLInputElement;
         const name = nameInput.value || `Kat. ${index + 1}`;
@@ -602,45 +745,59 @@ function renderBoardPreview() {
         grid.appendChild(header);
     });
 
-    // 2. Fragen (Wir müssen zeilenweise iterieren)
-    // Wir nehmen an, dass alle Kategorien gleich viele Fragen haben (basierend auf der ersten)
+    // 2. Fragen
     const firstCatQuestions = categories[0].querySelectorAll('.question-block');
     const numRows = firstCatQuestions.length;
 
     for (let r = 0; r < numRows; r++) {
         categories.forEach((cat, cIndex) => {
             const questions = cat.querySelectorAll('.question-block');
-            const qBlock = questions[r] as HTMLElement;; // Die Frage in dieser Zeile
+            const qBlock = questions[r] as HTMLElement;
 
             const card = document.createElement('div');
             card.className = 'preview-card';
             
+            // Drag & Drop Attribute
+            card.draggable = true;
+            card.addEventListener('dragstart', (e) => handleDragStart(e, cIndex, r));
+            card.addEventListener('dragenter', handleDragEnter);
+            card.addEventListener('dragover', handleDragOver);
+            card.addEventListener('dragleave', handleDragLeave);
+            card.addEventListener('drop', (e) => handleDrop(e, cIndex, r));
+            card.addEventListener('dragend', handleDragEnd);
+
             if (qBlock) {
+                // Wir stellen sicher, dass der Block den korrekten Status hat
+                checkQuestionFilled(qBlock);
+
+                if (qBlock.classList.contains('is-filled')) {
+                    card.classList.add('is-filled');
+                }
+
                 const pointsInput = qBlock.querySelector('.q-points') as HTMLInputElement;
                 const points = pointsInput.value;
                 const typeSelect = qBlock.querySelector('.q-type-select') as HTMLSelectElement;
                 const isMap = typeSelect.value === 'map';
                 
-                // Text Inhalt der Karte
                 card.innerHTML = `
-                    <div style="display:flex; flex-direction:column; align-items:center;">
+                    <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
                         <span>${points}</span>
                         ${isMap ? '<span style="font-size:0.8rem;">(Map)</span>' : ''}
                     </div>
                 `;
                 
-                // Optional: Klick scrollt zum Editor (Erweitertes Feature)
-                card.onclick = () => {
+                card.onclick = (e) => {
+                    if (card.classList.contains('drag-over')) return;
+                    
                     switchView('list');
                     qBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Highlight-Effekt
                     qBlock.style.transition = 'background 0.5s';
-                    const originalBg = qBlock.style.backgroundColor; // Typ-Klasse beachten
                     qBlock.style.backgroundColor = '#ffff99';
                     setTimeout(() => { qBlock.style.backgroundColor = ''; }, 1000);
                 };
             } else {
-                card.style.background = '#444'; // Leer
+                card.style.background = '#444';
+                card.draggable = false;
             }
             
             grid.appendChild(card);
