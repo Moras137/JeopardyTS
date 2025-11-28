@@ -29,6 +29,61 @@ mongoose.connect(DB_URI)
 // --- STATE MANAGEMENT ---
 const sessions: Record<string, ISession> = {};
 
+const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'board' | 'player') => {
+        // Wenn keine Frage aktiv ist, gibt es nichts Spezielles zu tun (außer Scores, die eh gesendet werden)
+        if (!session.activeQuestion) return;
+
+    const q = session.activeQuestion;
+    
+    // A) BOARD SYNC
+    if (role === 'board') {
+        // Dem Board sagen, dass es die Frage anzeigen soll
+        io.to(socketId).emit('board_show_question', {
+            question: q,
+            // Wir nutzen gespeicherte Indizes oder -1, falls wir sie nicht haben (siehe host_pick_question)
+            catIndex: (session as any).activeCatIndex ?? -1,
+            qIndex: (session as any).activeQIndex ?? -1
+        });
+        
+        // Falls Maps-Auflösung schon passiert ist:
+        if ((session as any).mapResolved) {
+                // Hier müsste man theoretisch auch das Ergebnis nochmal senden, 
+                // aber für den Anfang reicht es, die Frage wieder anzuzeigen.
+        }
+    }
+
+    // B) PLAYER SYNC
+    if (role === 'player') {
+        if (q.type === 'map') {
+            io.to(socketId).emit('player_start_map_guess', {
+                questionText: q.questionText,
+                location: q.location,
+                points: q.points
+            });
+        } else {
+                io.to(socketId).emit('player_new_question', { 
+                    text: q.questionText, 
+                    points: q.points 
+                });
+                // Buzzer Status prüfen
+                if (session.buzzersActive) io.to(socketId).emit('buzzers_unlocked');
+                else io.to(socketId).emit('buzzers_locked');
+        }
+    }
+
+    // C) HOST SYNC
+    if (role === 'host') {
+        // Spezielles Event für den Host, um die UI wiederherzustellen
+        io.to(socketId).emit('host_restore_active_question', {
+            question: q,
+            catIndex: (session as any).activeCatIndex,
+            qIndex: (session as any).activeQIndex,
+            buzzersActive: session.buzzersActive,
+            mapGuessesCount: Object.keys(session.mapGuesses || {}).length
+        });
+    }
+};
+
 function generateRoomCode(): string {
     let code: string;
     do {
@@ -206,7 +261,7 @@ io.on('connection', (socket) => {
             } catch(e) {
                 console.error("Fehler beim Laden des Spiels für Rejoin:", e);
             }
-             
+             syncSessionState(session, socket.id, 'host');
              console.log(`Host hat Session ${roomCode} wieder aufgenommen.`);
         } else {
             // Session existiert nicht mehr (Server Neustart oder Timeout)
@@ -236,6 +291,7 @@ io.on('connection', (socket) => {
             if(game) socket.emit('board_init_game', game);
             
             io.to(session.boardSocketId!).emit('update_scores', session.players);
+            syncSessionState(session, socket.id, 'board');
         } else {
             socket.emit('error_message', 'Raum nicht gefunden.');
         }
@@ -268,9 +324,13 @@ io.on('connection', (socket) => {
             socket.join(roomCode);
             socket.emit('join_success', { playerId: newPlayerId, roomCode, name });
         }
-
+        
         io.to(roomCode).emit('update_player_list', session.players);
         io.to(roomCode).emit('update_scores', session.players);
+
+        if (session) {
+            syncSessionState(session, socket.id, 'player');
+        }
     });
 
     socket.on('player_buzz', (data) => {
@@ -317,6 +377,10 @@ io.on('connection', (socket) => {
         session.activeQuestion = data.question;
         session.activeQuestionPoints = data.question.points;
         session.mapGuesses = {};
+        
+        (session as any).activeCatIndex = data.catIndex;
+        (session as any).activeQIndex = data.qIndex;
+        (session as any).mapResolved = false;
 
         if (data.question.type === 'map') {
             session.buzzersActive = false;
@@ -398,6 +462,11 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if(info) {
             info.session.buzzersActive = false;
+            
+            info.session.activeQuestion = null;
+            (info.session as any).activeCatIndex = -1;
+            (info.session as any).activeQIndex = -1;
+
             io.to(info.code).emit('board_hide_question');
             io.to(info.session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
         }

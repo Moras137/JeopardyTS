@@ -90,6 +90,7 @@ export interface ServerToClientEvents {
     board_reveal_map_results: (data: any) => void;
     session_ended: () => void;
     load_game_on_board: (game: IGame) => void;
+    host_restore_active_question: (data: { question: IQuestion, catIndex: number, qIndex: number, buzzersActive: boolean,mapGuessesCount: number }) => void;
 }
 
 export interface ClientToServerEvents {

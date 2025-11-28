@@ -211,6 +211,25 @@ socket.on('buzzers_unlocked', () => {
     document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
 });
 
+socket.on('session_ended', () => {
+    // 1. Overlay anzeigen damit das Spiel verdeckt ist
+    questionOverlay.style.display = 'flex';
+    
+    // 2. Alle Medien/Karten verstecken
+    mediaContainer.innerHTML = "";
+    mediaContainer.style.display = 'none';
+    mapDiv.style.display = 'none';
+    answerTextDiv.style.display = 'none';
+    
+    // 3. Nachricht anzeigen
+    questionText.innerText = "Der Host hat die Sitzung beendet.";
+    questionText.style.color = "#ff6666"; // Helles Rot
+    
+    // 4. Optional: Nach kurzer Zeit neu laden oder schließen
+    setTimeout(() => {
+        window.close(); // Funktioniert oft nur, wenn das Fenster per Script geöffnet wurde
+    }, 3000);
+});
 
 // --- HELPER FUNKTIONEN ---
 

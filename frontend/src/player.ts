@@ -267,3 +267,17 @@ socket.on('session_ended', () => {
     localStorage.removeItem('jeopardy_session');
     location.reload();
 });
+
+socket.on('player_new_question', (data: { text: string, points: number }) => {
+    // UI Reset für Standard-Frage
+    const mapInterface = document.getElementById('map-interface') as HTMLDivElement;
+    const gameSection = document.getElementById('game-section') as HTMLDivElement;
+    const statusMessage = document.getElementById('status-message') as HTMLDivElement;
+
+    mapInterface.style.display = 'none';
+    gameSection.style.display = 'flex';
+    statusMessage.innerText = "Frage aktiv!";
+    
+    // Buzzer Button ist standardmäßig gesperrt, bis 'buzzers_unlocked' kommt
+    // Das sendet der Server in syncSessionState direkt danach.
+});

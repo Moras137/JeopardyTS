@@ -157,6 +157,46 @@ socket.on('host_update_map_status', (data) => {
     mapSubmittedCount.innerText = `${data.submittedCount}/${data.totalPlayers}`;
 });
 
+socket.on('host_restore_active_question', (data) => {
+    console.log("Stelle aktive Frage wieder her:", data);
+    
+    // Wir nutzen die existierende Logik, simulieren aber, dass wir geklickt haben
+    // (ohne das 'host_pick_question' Event nochmal an den Server zu senden, das wäre doppelt)
+    
+    // UI auf "Frage aktiv" schalten
+    activeQuestion = data.question;
+    activeQSection.style.display = 'block';
+    qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
+    
+    // Inhalte rendern
+    qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
+    aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
+
+    // Button als "used" markieren
+    const btn = document.getElementById(`q-btn-${data.catIndex}-${data.qIndex}`);
+    if (btn) btn.classList.add('used');
+
+    // Map Modus Controls prüfen
+    if (data.question.type === 'map') {
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'flex';
+        unlockBuzzersBtn.style.display = 'none';
+        
+        // Zähler aktualisieren
+        mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
+    } else {
+        // Standard Modus
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        
+        if (data.buzzersActive) {
+            unlockBuzzersBtn.style.display = 'none'; // Läuft schon
+        } else {
+            unlockBuzzersBtn.style.display = 'block'; // Manuell freigeben
+        }
+    }
+});
+
 
 // --- HELPER FUNKTION (Die fehlte vorher als eigenständige Funktion) ---
 
