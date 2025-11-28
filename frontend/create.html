@@ -145,20 +145,42 @@
             font-size: 1.2rem;
             margin-left: 10px;
         }
+
+        .view-toggle-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+        
+        .view-toggle-btn {
+            margin: 0;
+            color: #333;
+        }
+
+        .view-toggle-btn.active {
+            background: #007bff;
+            color: white;
+        }
+
+        #btn-new-quiz {
+            width: 100%;
+            margin-bottom: 15px;
+            background: #28a745;
+        }
     </style>
 </head>
 <body>
     <div id="load-game-sidebar">
         <h3>Quiz Verwaltung</h3>
-        <button id="btn-new-quiz" style="width:100%; margin-bottom:15px; background:#28a745; color:white;">+ NEUES QUIZ</button>
+        <button id="btn-new-quiz">+ NEUES QUIZ</button>
         <div id="game-list">Lade Spiele...</div>
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-            <div style="display: inline-flex; background: #ddd; border-radius: 5px; padding: 5px;">
-                <button onclick="switchView('list')" id="btn-view-list" style="margin:0; background: #007bff; color: white;">📝 Liste</button>
-                <button onclick="switchView('board')" id="btn-view-board" style="margin:0; background: transparent; color: #333;">▦ Brett</button>
+        <div class="view-toggle-container">
+            <div class="view-toggle-group">
+                <button id="btn-view-list" class="view-toggle-btn active">📝 Liste</button>
+                <button id="btn-view-board" class="view-toggle-btn">▦ Brett</button>
             </div>
         </div>
-        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Design wechseln">
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
                 🌓
         </button>
         <button class="primary" id="btn-save">💾 Speichern</button>

@@ -180,6 +180,39 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         socket.emit('session_created', roomCode);
     });
+
+    socket.on('host_rejoin_session', async (roomCode) => {
+        const session = sessions[roomCode];
+        if (session) {
+            session.hostSocketId = socket.id; // Neuen Socket zuweisen
+            socket.join(roomCode);
+            
+            // Bestätigung an Host senden
+            socket.emit('session_rejoined', { 
+                roomCode, 
+                gameId: session.gameId 
+            });
+            
+            // Aktuellen Status an den Host senden
+            socket.emit('update_player_list', session.players);
+            socket.emit('update_scores', session.players);
+            
+            // Spielstruktur für das Grid laden
+            try {
+                const game = await GameModel.findById(session.gameId);
+                if(game) {
+                    socket.emit('load_game_on_board', game);
+                }
+            } catch(e) {
+                console.error("Fehler beim Laden des Spiels für Rejoin:", e);
+            }
+             
+             console.log(`Host hat Session ${roomCode} wieder aufgenommen.`);
+        } else {
+            // Session existiert nicht mehr (Server Neustart oder Timeout)
+            socket.emit('host_rejoin_error');
+        }
+    });
     
     // NEU: Host Start Game Handler, falls das Board-Update über Socket läuft
     socket.on('host_start_game', async (gameId) => {

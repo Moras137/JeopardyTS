@@ -37,6 +37,10 @@ document.getElementById('btn-new-quiz')?.addEventListener('click', () => clearFo
 document.getElementById('btn-save')?.addEventListener('click', saveGame);
 document.getElementById('btn-remove-bg')?.addEventListener('click', removeBackground);
 
+document.getElementById("btn-view-list")?.addEventListener('click', switchView.bind(null, 'list'));
+document.getElementById("btn-view-board")?.addEventListener('click', switchView.bind(null, 'board'));
+document.getElementById("theme-toggle-btn")?.addEventListener('click', toggleTheme);
+
 document.getElementById('numCategories')?.addEventListener('change', updateQuizStructure);
 document.getElementById('numQuestions')?.addEventListener('change', updateQuizStructure);
 

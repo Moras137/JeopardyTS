@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Jeopardy Player</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -87,6 +87,12 @@
             font-weight: bold; 
             cursor: pointer; 
         }
+        .input-field {
+            padding: 15px;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -95,10 +101,10 @@
 
     <div id="join-section">
         <h1>Quiz Beitreten</h1>
-        <input type="text" id="room-code" placeholder="Raum Code (z.B. 1234)" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; text-align:center;">
-        <input type="text" id="player-name" placeholder="Dein Name" style="padding: 15px; font-size: 1.2rem; margin-bottom: 10px; text-align:center;">
+        <input type="text" id="room-code" placeholder="Raum Code (z.B. 1234)" class="input-field">
+        <input type="text" id="player-name" placeholder="Dein Name" class="input-field">
         
-        <button id="join-btn" style="padding: 15px 30px; font-size: 1.2rem; background: #007bff; color: white; border: none; border-radius: 5px;">Beitreten</button>
+        <button id="join-btn">Beitreten</button>
         
         <p id="rejoin-msg" style="display:none; color: yellow;">Alte Sitzung gefunden...</p>
     </div>

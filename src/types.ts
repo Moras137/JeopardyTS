@@ -67,7 +67,9 @@ export interface ISession {
 
 export interface ServerToClientEvents {
     session_created: (roomCode: string) => void;
-    error_message: (msg: string) => void;
+    session_rejoined: (data: { roomCode: string, gameId: string }) => void;
+    host_rejoin_error: () => void;
+    error_message: (message: string) => void;
     board_connected_success: () => void;
     board_init_game: (game: IGame) => void;
     update_scores: (players: Record<string, IPlayer>) => void;
@@ -92,6 +94,7 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
     host_create_session: (gameId: string) => void;
+    host_rejoin_session: (roomCode: string) => void;
     board_join_session: (roomCode: string) => void;
     player_join_session: (data: { roomCode: string, name: string, existingPlayerId?: string }) => void;
     player_buzz: (data: { id: string, name: string }) => void;

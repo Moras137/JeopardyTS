@@ -39,16 +39,27 @@ const resolveMapBtn = document.getElementById('resolve-map-btn') as HTMLButtonEl
 // --- INIT & EVENT LISTENER (Statische Elemente) ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    const gameId = new URLSearchParams(window.location.search).get('gameId');
-
-    if (!gameId) {
-        alert("Fehler: Keine Game-ID übergeben!");
-        window.location.href = '/create.html';
-        return;
+    // 1. Prüfen auf gespeicherte Session
+    const savedSession = localStorage.getItem('jeopardy_host_session');
+    
+    if (savedSession) {
+        try {
+            const data = JSON.parse(savedSession);
+            // Rejoin versuchen statt neu erstellen
+            socket.emit('host_rejoin_session', data.roomCode);
+            return; 
+        } catch (e) {
+            localStorage.removeItem('jeopardy_host_session');
+        }
     }
 
-    // Beim Server Session erstellen
-    socket.emit('host_create_session', gameId);
+    // 2. Fallback: Neu erstellen
+    const gameId = new URLSearchParams(window.location.search).get('gameId');
+    if (gameId) {
+        socket.emit('host_create_session', gameId);
+    } else {
+        window.location.href = '/create.html';
+    }
 });
 
 // Steuerung Button Listener
@@ -70,17 +81,37 @@ exitQuizBtn.addEventListener('click', () => {
 // --- 1. SOCKET EVENTS (Server Antworten) ---
 
 socket.on('session_created', (code) => {
-    roomCode = code;
-    roomCodeDisplay.innerText = `Raum: ${code}`;
-    controlsDiv.style.display = 'flex';
+    setupSessionUI(code);
     
-    const boardUrlValue = `${window.location.origin}/board.html?room=${code}`;
-    boardUrl.href = boardUrlValue;
-    boardUrl.innerText = boardUrlValue;
-
+    // In LocalStorage speichern
     const gameId = new URLSearchParams(window.location.search).get('gameId');
     if (gameId) {
+        localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: code, gameId }));
         socket.emit('host_start_game', gameId);
+    }
+});
+
+// B) Rejoin erfolgreich
+socket.on('session_rejoined', (data: { roomCode: string, gameId: string }) => {
+    console.log("Erfolgreich rejoined!");
+    setupSessionUI(data.roomCode);
+    
+    // Sicherheitshalber Storage erneuern
+    localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: data.roomCode, gameId: data.gameId }));
+});
+
+// C) Rejoin fehlgeschlagen (z.B. Server Neustart)
+socket.on('host_rejoin_error', () => {
+    console.warn("Rejoin fehlgeschlagen - Session nicht gefunden.");
+    localStorage.removeItem('jeopardy_host_session');
+    
+    // Versuche neu zu erstellen, falls wir noch auf der URL sind
+    const gameId = new URLSearchParams(window.location.search).get('gameId');
+    if (gameId) {
+        socket.emit('host_create_session', gameId);
+    } else {
+        alert("Sitzung abgelaufen. Bitte neu starten.");
+        window.location.href = '/create.html';
     }
 });
 
@@ -249,4 +280,14 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
     }
 
     return html;
+}
+
+function setupSessionUI(code: string) {
+    roomCode = code;
+    roomCodeDisplay.innerText = `Raum: ${code}`;
+    controlsDiv.style.display = 'flex';
+    
+    const boardUrlValue = `${window.location.origin}/board.html?room=${code}`;
+    boardUrl.href = boardUrlValue;
+    boardUrl.innerText = boardUrlValue;
 }
