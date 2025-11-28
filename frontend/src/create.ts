@@ -242,7 +242,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
         </div>
 
         <div class="map-answer-section" style="display:${type==='map'?'block':'none'}">
-             <div style="background:#eef; padding:5px; margin:5px 0;">
+             <div class="map-controls">
                 <select onchange="toggleMapSource('${qId}', this.value)">
                     <option value="osm" ${!isCustom ? 'selected' : ''}>Weltkarte</option>
                     <option value="custom" ${isCustom ? 'selected' : ''}>Bild hochladen</option>

@@ -13,6 +13,7 @@
             --bg-sidebar: #fff;
             --bg-q-block: #f9f9f9;
             --bg-q-filled: #d4edda;
+            --bg-map-controls: #eef;
             --text-main: #000;
             --text-muted: #666;
             --border-color: #ddd;
@@ -27,7 +28,8 @@
             --bg-card: #1e1e1e;
             --bg-sidebar: #1e1e1e;
             --bg-q-block: #2a2a2a;
-            --bg-q-filled: #1e3a29; /* Dunkles Grün */
+            --bg-q-filled: #1e3a29; 
+            --bg-map-controls: #2d2d2d;
             --text-main: #e0e0e0;
             --text-muted: #aaa;
             --border-color: #444;
@@ -214,6 +216,13 @@
             background: #28a745 !important; /* Grün */
             color: white !important;
             border-color: #1e7e34 !important;
+        }
+        .map-controls {
+            background: var(--bg-map-controls);
+            padding: 5px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid var(--border-color); /* Optional: sieht sauberer aus */
         }
     </style>
 </head>

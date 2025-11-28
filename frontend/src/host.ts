@@ -34,7 +34,7 @@ const exitQuizBtn = document.getElementById('exit-quiz-btn') as HTMLButtonElemen
 const mapModeControls = document.getElementById('map-mode-controls') as HTMLDivElement;
 const mapSubmittedCount = document.getElementById('map-submitted-count') as HTMLSpanElement;
 const resolveMapBtn = document.getElementById('resolve-map-btn') as HTMLButtonElement;
-
+const themeToggleBtn = document.getElementById('theme-toggle-btn') as HTMLButtonElement;
 
 // --- INIT & EVENT LISTENER (Statische Elemente) ---
 
@@ -62,6 +62,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+    // 0. Theme initialisieren (NEU)
+    initTheme();
+
+    // 1. Prüfen auf gespeicherte Session (EXISTIEREND)
+    const savedSession = localStorage.getItem('jeopardy_host_session');
+    // ... (Rest des Codes bleibt gleich)
+});
+
 // Steuerung Button Listener
 correctBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId }));
 incorrectBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId }));
@@ -69,6 +78,7 @@ unlockBuzzersBtn.addEventListener('click', () => socket.emit('host_unlock_buzzer
 closeQuestionBtn.addEventListener('click', () => socket.emit('host_close_question'));
 toggleQRBtn.addEventListener('click', () => socket.emit('host_toggle_qr'));
 resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
+themeToggleBtn.addEventListener('click', toggleTheme);
 
 exitQuizBtn.addEventListener('click', () => {
     if(confirm("Session wirklich beenden?")) {
@@ -290,4 +300,28 @@ function setupSessionUI(code: string) {
     const boardUrlValue = `${window.location.origin}/board.html?room=${code}`;
     boardUrl.href = boardUrlValue;
     boardUrl.innerText = boardUrlValue;
+}
+
+function initTheme() {
+    // Prüfen, ob schon eine Einstellung gespeichert ist
+    const storedTheme = localStorage.getItem('quiz_theme');
+    
+    if (storedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    if (newTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('quiz_theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('quiz_theme', 'light');
+    }
 }

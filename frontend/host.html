@@ -2,140 +2,132 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jeopardy Host</title>
     <style>
-        /* Dein CSS bleibt gleich */
+        /* --- THEME VARIABLES --- */
+        :root {
+            --bg-body: #eee;
+            --bg-card: #fff;
+            --text-main: #000;
+            --text-muted: #666;
+            --border-color: #ddd;
+            --cat-header-bg: #00008b;
+            --cat-header-text: #fff;
+            --btn-q-bg: #007bff;
+            --btn-q-hover: #0056b3;
+            --btn-q-used: #343a40;
+            --shadow: rgba(0,0,0,0.1);
+        }
+
+        /* DARK MODE OVERRIDES */
+        [data-theme="dark"] {
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #aaa;
+            --border-color: #444;
+            --cat-header-bg: #000055; /* Etwas dunkler */
+            --cat-header-text: #ddd;
+            --btn-q-bg: #0d6efd;
+            --btn-q-hover: #0b5ed7;
+            --btn-q-used: #222;
+            --shadow: rgba(0,0,0,0.5);
+        }
+
+        /* --- STYLES USING VARIABLES --- */
         body { 
             font-family: sans-serif; 
             padding: 20px; 
-            background: #eee; 
+            background: var(--bg-body); 
+            color: var(--text-main);
             display: flex; 
             height: 95vh; 
             gap: 20px; 
+            transition: transform 0.2s ease, background-color 0.2s ease;
         }
         
         #sidebar {
             width: 300px; 
-            background: white; 
+            background: var(--bg-card); 
             padding: 20px; 
             border-radius: 8px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            box-shadow: 0 2px 5px var(--shadow); 
+            border: 1px solid var(--border-color);
             display: flex; 
             flex-direction: column; 
         }
+
         #player-list { 
-            list-style: none; 
-            padding: 0; 
-            margin: 10px 0; 
-            max-height: 40vh; 
-            overflow-y: auto; 
+            list-style: none; padding: 0; margin: 10px 0; 
+            max-height: 40vh; overflow-y: auto; 
         }
         .player-item { 
             padding: 8px; 
-            border-bottom: 1px solid #eee; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; justify-content: space-between; align-items: center; 
         }
-        .player-item .score { 
-            font-weight: bold; 
-        }
+        .player-item .score { font-weight: bold; }
 
         #controls { 
             flex-grow: 1; 
-            background: white; 
+            background: var(--bg-card); 
             padding: 20px; 
             border-radius: 8px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            display: none; /* Wird erst nach Session-Erstellung auf 'flex' gesetzt */
+            box-shadow: 0 2px 5px var(--shadow);
+            border: 1px solid var(--border-color);
+            display: none; 
             flex-direction: column; 
         }
         
         #host-grid { 
-            display: flex; 
-            gap: 10px; 
-            overflow-x: auto; 
-            margin-bottom: 20px; 
-            padding-bottom: 10px; 
-            border-bottom: 2px solid #ddd; 
+            display: flex; gap: 10px; overflow-x: auto; 
+            margin-bottom: 20px; padding-bottom: 10px; 
+            border-bottom: 2px solid var(--border-color); 
         }
-        .host-col { 
-            flex: 1; 
-            min-width: 150px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 5px; 
-        }
+        .host-col { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 5px; }
+        
         .host-cat-title { 
-            font-weight: bold; 
-            text-align: center; 
-            margin-bottom: 5px; 
-            background: #00008b; 
-            color: white; 
-            padding: 5px; 
-            border-radius: 4px; 
+            font-weight: bold; text-align: center; margin-bottom: 5px; 
+            background: var(--cat-header-bg); 
+            color: var(--cat-header-text); 
+            padding: 5px; border-radius: 4px; 
         }
         
         .q-btn {
             padding: 15px 10px; 
-            background: #007bff; 
+            background: var(--btn-q-bg); 
             color: white; 
-            font-size: 1.2rem; 
-            font-weight: bold; 
-            border: none; 
-            cursor: pointer; 
-            border-radius: 4px;
-            transition: background 0.2s;
+            font-size: 1.2rem; font-weight: bold; 
+            border: none; cursor: pointer; border-radius: 4px;
+            transition: transform 0.2s ease, background-color 0.2s ease;
         }
-        .q-btn:hover:not(.disabled) { 
-            background: #0056b3; 
-        }
-        .q-btn.disabled { 
-            background: #6c757d; 
-            cursor: not-allowed; 
-        }
-        .q-btn.used { 
-            background: #343a40; 
-            text-decoration: line-through; 
-            opacity: 0.7; 
-        }
+        .q-btn:hover:not(.disabled) { background: var(--btn-q-hover); }
+        .q-btn.used { background: var(--btn-q-used); text-decoration: line-through; opacity: 0.7; }
 
-        /* Steuerung (Frage/Antwort) */
+        /* Steuerung & Buttons */
         #active-question-section { 
-            margin-top: 20px; 
-            padding: 15px; 
-            border: 2px dashed #ccc; 
-            display: none; 
-        }
-        #question-display { 
-            font-size: 1.2rem; 
-            font-weight: bold; 
-            margin-bottom: 10px; 
-        }
-        #answer-display { 
-            display: none; 
-            font-size: 1.2rem; 
-            margin-top: 10px; 
-            color: #28a745; 
-        }
-        #buzz-winner-section { 
-            margin-top: 15px; 
-            padding: 10px; 
-            background: #ffc107; 
-            color: #333; 
-            font-weight: bold; 
-            border-radius: 4px; 
+            margin-top: 20px; padding: 15px; 
+            border: 2px dashed var(--border-color); 
             display: none; 
         }
         
-        /* Map-Mode spezifische Steuerung */
-        #map-mode-controls { 
-            display: none; 
-            margin-top: 15px; 
-            padding: 10px; 
-            background: #e9ecef; 
-            border-radius: 4px; 
+        /* Links & Utility */
+        a { color: #007bff; }
+        
+        /* Theme Toggle Button */
+        .theme-toggle-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-top: 10px;
+            align-self: flex-start;
         }
+        .theme-toggle-btn:hover { background: var(--border-color); }
     </style>
 </head>
 <body>
@@ -149,7 +141,11 @@
         <h3>Spieler (<span id="player-count">0</span>)</h3>
         <ul id="player-list"></ul>
         
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
+            🌓
+        </button>
         <button id="exit-quiz-btn" style="margin-top: auto; background: #dc3545; color: white;">Session beenden</button>
+        
     </div>
 
     <div id="controls">
