@@ -140,6 +140,61 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
     return R * c;
 }
 
+async function cleanupUnusedFiles() {
+    try {
+        console.log("Starte Cleanup unbenutzter Dateien...");
+        // 1. Alle Spiele aus der DB holen
+        const allGames = await GameModel.find();
+
+        // 2. Set mit allen Dateinamen erstellen, die noch gebraucht werden
+        // Wir speichern nur den Dateinamen (z.B. "17234.png"), da der Pfad variieren kann
+        const usedFiles = new Set<string>();
+
+        allGames.forEach(game => {
+            if (game.boardBackgroundPath) usedFiles.add(path.basename(game.boardBackgroundPath));
+            
+            game.categories.forEach(cat => {
+                cat.questions.forEach(q => {
+                    if (q.mediaPath) usedFiles.add(path.basename(q.mediaPath));
+                    if (q.answerMediaPath) usedFiles.add(path.basename(q.answerMediaPath));
+                    // Falls Custom Maps genutzt werden:
+                    if (q.location && q.location.customMapPath) usedFiles.add(path.basename(q.location.customMapPath));
+                });
+            });
+        });
+        console.log(`Benötigte Dateien gesammelt: ${usedFiles.size}`);  
+        // 3. Inhalt des Upload-Ordners lesen
+
+        console.log(`Prüfe Upload-Ordner: ${uploadDir}`);   
+        // Prüfen ob Ordner existiert
+        try {
+            await fs.access(uploadDir);
+        } catch {
+            return; // Ordner gibt es nicht, also nichts zu tun
+        }
+
+        const filesOnDisk = await fs.readdir(uploadDir);
+
+        // 4. Vergleichen und löschen
+        let deletedCount = 0;
+        for (const file of filesOnDisk) {
+            // .gitkeep oder ähnliches nicht löschen
+            if (file.startsWith('.')) continue;
+
+            // Wenn die Datei NICHT im Set der benutzten Dateien ist -> Weg damit
+            if (!usedFiles.has(file)) {
+                await fs.unlink(path.join(uploadDir, file));
+                deletedCount++;
+            }
+        }
+        if (deletedCount > 0) {
+            console.log(`Cleanup fertig: ${deletedCount} verwaiste Dateien gelöscht.`);
+        }
+    } catch (err) {
+        console.error("Fehler beim Cleanup:", err);
+    }
+}
+
 // --- UPLOAD ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'public/uploads/'),
@@ -184,6 +239,9 @@ app.post('/api/create-game', async (req, res) => {
         } else {
             savedGame = await new GameModel(gameData).save();
         }
+
+        cleanupUnusedFiles();
+
         return res.json({ success: true, gameId: savedGame?._id });
     } catch (err: any) {
         res.status(500).json({ success: false, error: err.message });
