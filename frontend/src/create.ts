@@ -138,7 +138,6 @@ document.getElementById('backgroundMusicUpload')?.addEventListener('change', asy
             const audio = document.getElementById('music-preview') as HTMLAudioElement;
             audio.src = data.filePath;
             audio.style.display = 'block';
-            
             if(statusEl) statusEl.innerText = "Fertig!";
         }
     } catch (e) {
@@ -696,19 +695,11 @@ async function loadGame(id: string) {
         }
 
         if (game.backgroundMusicPath) {
-            alert("hier1");  
-            const musicInput = document.getElementById('background-music-path') as HTMLInputElement;
-            alert("hier2");  
-            const musicPreview = document.getElementById('music-preview') as HTMLAudioElement;
-            alert(game.backgroundMusicPath);  
-            if(musicInput) musicInput.value = game.backgroundMusicPath;
-            alert("hier4");   
-            if(musicPreview) {
-                musicPreview.src = game.backgroundMusicPath;
-                musicPreview.style.display = 'block';
-            }
-            alert("hier5");  
+            updateMusicPreview(game.backgroundMusicPath);
+        } else {
+            updateMusicPreview(''); 
         }
+        
 
         // Kategorien laden
         container.innerHTML = '';
@@ -839,8 +830,28 @@ function checkQuestionFilled(el: HTMLElement | null) {
 window.checkQuestionFilled = checkQuestionFilled;
 
 function generateMediaPreviewHtml(path: string) {
-    if(!path) return '';
-    return `<img src="${path}" class="media-preview" style="max-height:100px; display:block; margin-top:5px;">`;
+    if (!path) return '';
+
+    const lowerPath = path.toLowerCase();
+
+    // 1. Audio-Dateien
+    if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
+        return `
+            <audio controls src="${path}" style="display:block; margin-top:5px; width: 100%; max-width: 250px;">
+                Dein Browser unterstützt kein Audio.
+            </audio>`;
+    }
+
+    // 2. Video-Dateien
+    if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
+        return `
+            <video controls src="${path}" style="max-height:150px; display:block; margin-top:5px; max-width: 100%;">
+                Dein Browser unterstützt kein Video.
+            </video>`;
+    }
+
+    // 3. Standard: Bild (für jpg, png, gif, etc.)
+    return `<img src="${path}" class="media-preview" style="max-height:100px; display:block; margin-top:5px;" alt="Vorschau">`;
 }
 
 function switchView(mode: string) {
@@ -1086,8 +1097,41 @@ function showEditor() {
     if(titleDisp) titleDisp.innerText = editingGameId ? "Quiz bearbeiten" : "Neues Quiz";
 }
 
-// --- LOGIK: Kacheln laden (Ersetzt loadGameList) ---
+function updateMusicPreview(filePath: string) {
+    const audio = document.getElementById('music-preview') as HTMLAudioElement;
+    const hiddenInput = document.getElementById('background-music-path') as HTMLInputElement;
 
+    if (!audio || !hiddenInput) {
+        console.error("Audio-Element oder Hidden-Input nicht gefunden.");
+        return;
+    }
+
+    const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+    hiddenInput.value = normalizedPath;
+    audio.style.display = 'block';
+
+    if (filePath) {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+        
+        // 2. Neuen Pfad setzen
+       setTimeout(() => {
+            audio.src = normalizedPath;
+            audio.load(); 
+            console.log("Musik-Preview geladen. Pfad:", normalizedPath); 
+        }, 50); 
+    } else {
+        // Zurücksetzen
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+        audio.style.display = 'none';
+        hiddenInput.value = '';
+    }
+}
+
+// --- LOGIK: Kacheln laden (Ersetzt loadGameList) ---
 async function loadGameTiles() {
     dashboardGrid.innerHTML = '<p>Lade Quizze...</p>';
     try {
