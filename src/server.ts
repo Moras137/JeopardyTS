@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
+import os from 'os';
 
 // Typen importieren
 import { IGame, ISession, ServerToClientEvents, ClientToServerEvents } from './types';
@@ -112,6 +113,18 @@ function getSessionBySocketId(socketId: string): SessionInfo | null {
         }
     }
     return null;
+}
+
+function getLocalIpAddress() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name] || []) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
 }
 
 async function deleteMediaFile(filePath: string) {
@@ -352,6 +365,8 @@ io.on('connection', (socket) => {
             
             io.to(session.boardSocketId!).emit('update_scores', session.players);
             syncSessionState(session, socket.id, 'board');
+            const localIp = getLocalIpAddress();
+            socket.emit('server_network_info', { ip: localIp, port: 5173 });
         } else {
             socket.emit('error_message', 'Raum nicht gefunden.');
         }

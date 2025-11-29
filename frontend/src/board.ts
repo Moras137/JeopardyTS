@@ -11,6 +11,8 @@ let currentGame: IGame | null = null;
 let currentQuestion: IQuestion | null = null;
 let mapInstance: L.Map | null = null;
 let qrCodeVisible = false;
+let serverAddress = window.location.hostname; 
+let serverPort = window.location.port;
 
 // --- DOM ELEMENTE ---
 const gameGrid = document.getElementById('game-grid') as HTMLDivElement;
@@ -376,12 +378,19 @@ function renderPlayerBar(players: Record<string, IPlayer>) {
 }
 
 async function generateQrCode() {
-    const url = window.location.href.replace('board.html', 'player.html');
-    joinUrlSpan.innerText = url;
+    const protocol = window.location.protocol; 
+    const portPart = serverPort ? `:${serverPort}` : '';
+    const fullUrl = `${protocol}//${serverAddress}${portPart}/player.html`;
+
+    // Anzeige aktualisieren
+    joinUrlSpan.innerText = fullUrl;
     
-    // QRCode Lib benutzen
     try {
-        await QRCode.toCanvas(qrCanvas, url, { width: 400, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+        await QRCode.toCanvas(qrCanvas, fullUrl, { 
+            width: 400, 
+            margin: 2, 
+            color: { dark: '#000000', light: '#ffffff' } 
+        });
     } catch (err) {
         console.error("QR Fehler", err);
     }
@@ -396,3 +405,11 @@ function adjustFontSize(element: HTMLElement) {
         element.style.fontSize = size + 'vh';
     }
 }
+
+socket.on('server_network_info', (data: { ip: string, port: number }) => {
+    console.log("Server IP empfangen:", data.ip);
+    serverAddress = data.ip;
+    serverPort = data.port.toString();
+    
+    generateQrCode(); 
+});

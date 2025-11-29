@@ -93,6 +93,7 @@ export interface ServerToClientEvents {
     load_game_on_board: (game: IGame) => void;
     host_restore_active_question: (data: { question: IQuestion, catIndex: number, qIndex: number, buzzersActive: boolean,mapGuessesCount: number }) => void;
     music_control: (data: { action: 'play' | 'pause' | 'volume', value?: number }) => void;
+    server_network_info: (data: { ip: string, port: number }) => void;
 }
 
 export interface ClientToServerEvents {
