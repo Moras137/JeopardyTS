@@ -32,6 +32,7 @@ const categorySchema = new Schema<ICategory>({
 const gameSchema = new Schema<IGame>({
     title: { type: String, required: true }, 
     boardBackgroundPath: { type: String, default: '' },
+    backgroundMusicPath: { type: String, default: '' },
     categories: [categorySchema]
 });
 

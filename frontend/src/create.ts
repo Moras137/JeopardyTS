@@ -115,6 +115,48 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
+document.getElementById('backgroundMusicUpload')?.addEventListener('change', async function(this: HTMLInputElement) {
+    const file = this.files?.[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('music-status');
+    if(statusEl) statusEl.innerText = "Lade hoch...";
+
+    const formData = new FormData();
+    formData.append('mediaFile', file);
+
+    try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.success) {
+            // Pfad speichern
+            const hiddenInput = document.getElementById('background-music-path') as HTMLInputElement;
+            hiddenInput.value = data.filePath;
+            
+            // Player aktualisieren
+            const audio = document.getElementById('music-preview') as HTMLAudioElement;
+            audio.src = data.filePath;
+            audio.style.display = 'block';
+            
+            if(statusEl) statusEl.innerText = "Fertig!";
+        }
+    } catch (e) {
+        alert("Fehler beim Musik-Upload");
+    }
+});
+
+document.getElementById('btn-remove-music')?.addEventListener('click', () => {
+    const hiddenInput = document.getElementById('background-music-path') as HTMLInputElement;
+    const audio = document.getElementById('music-preview') as HTMLAudioElement;
+    const fileInput = document.getElementById('backgroundMusicUpload') as HTMLInputElement;
+    
+    hiddenInput.value = '';
+    audio.src = '';
+    audio.style.display = 'none';
+    fileInput.value = '';
+});
+
 // Start: Liste laden
 
 loadGameList();
@@ -462,7 +504,9 @@ window.uploadCustomMap = async (input, qId) => {
 
 async function saveGame() {
     const bgInput = document.getElementById('background-path') as HTMLInputElement;
-    const bgPath = bgInput?.value || ''; // Fallback auf leer, falls null
+    const bgPath = bgInput?.value || '';
+    const musicInput = document.getElementById('background-music-path') as HTMLInputElement;
+    const musicPath = musicInput ? musicInput.value : '';
     const cats: ICategory[] = [];
 
     document.querySelectorAll('.category').forEach(catDiv => {
@@ -533,6 +577,7 @@ async function saveGame() {
     const game: IGame = {
         title: titleInput.value,
         boardBackgroundPath: bgPath,
+        backgroundMusicPath: musicPath,
         categories: cats
     };
     if (editingGameId) game._id = editingGameId;
@@ -650,6 +695,21 @@ async function loadGame(id: string) {
              }
         }
 
+        if (game.backgroundMusicPath) {
+            alert("hier1");  
+            const musicInput = document.getElementById('background-music-path') as HTMLInputElement;
+            alert("hier2");  
+            const musicPreview = document.getElementById('music-preview') as HTMLAudioElement;
+            alert(game.backgroundMusicPath);  
+            if(musicInput) musicInput.value = game.backgroundMusicPath;
+            alert("hier4");   
+            if(musicPreview) {
+                musicPreview.src = game.backgroundMusicPath;
+                musicPreview.style.display = 'block';
+            }
+            alert("hier5");  
+        }
+
         // Kategorien laden
         container.innerHTML = '';
         if (game.categories && Array.isArray(game.categories) && game.categories.length > 0) {
@@ -697,21 +757,29 @@ function clearForm() {
     const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
     const bgStatus = document.getElementById('background-status');
 
-    // Pfad leeren (damit es nicht gespeichert wird)
     if (bgInput) bgInput.value = ''; 
-    
-    // Datei-Auswahl im Browser leeren
     if (bgUpload) bgUpload.value = ''; 
-    
-    // Vorschau verstecken
     if (bgPreview) {
         bgPreview.src = '';
         bgPreview.style.display = 'none';
     }
     
-    // Status-Text leeren
     if (bgStatus) bgStatus.innerText = '';
     
+    const musicInput = document.getElementById('background-music-path') as HTMLInputElement;
+    const musicPreview = document.getElementById('music-preview') as HTMLAudioElement;
+    const musicUpload = document.getElementById('backgroundMusicUpload') as HTMLInputElement;
+    const musicStatus = document.getElementById('music-status');
+
+    if(musicInput) musicInput.value = '';
+    if(musicUpload) musicUpload.value = '';
+    if(musicStatus) musicStatus.innerText = '';
+    if(musicPreview) {
+        musicPreview.pause();
+        musicPreview.src = '';
+        musicPreview.style.display = 'none';
+    }
+
     // Dateiliste zum Löschen leeren
     filesToDeleteOnSave = [];
 

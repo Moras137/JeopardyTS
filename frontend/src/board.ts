@@ -23,6 +23,7 @@ const playerBar = document.getElementById('player-bar') as HTMLDivElement;
 const qrOverlay = document.getElementById('qr-overlay') as HTMLDivElement;
 const qrCanvas = document.getElementById('qrcode-canvas') as HTMLCanvasElement;
 const joinUrlSpan = document.getElementById('join-url') as HTMLSpanElement;
+    const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -231,6 +232,27 @@ socket.on('session_ended', () => {
     }, 3000);
 });
 
+socket.on('music_control', (data: { action: string, value?: number }) => {
+    if (!audioEl || !audioEl.src) return;
+
+    switch (data.action) {
+        case 'play':
+            // Promise catchen, falls Autoplay blockiert wird
+            audioEl.play().catch(e => console.log("Autoplay Fehler:", e));
+            break;
+            
+        case 'pause':
+            audioEl.pause();
+            break;
+            
+        case 'volume':
+            if (data.value !== undefined) {
+                audioEl.volume = data.value;
+            }
+            break;
+    }
+});
+
 // --- HELPER FUNKTIONEN ---
 
 function renderGrid() {
@@ -240,6 +262,11 @@ function renderGrid() {
     gameGrid.style.gridTemplateColumns = `repeat(${currentGame.categories.length}, 1fr)`;
     const numQ = currentGame.categories[0]?.questions?.length || 5;
     gameGrid.style.gridTemplateRows = `0.5fr repeat(${numQ}, 1fr)`;
+
+    if (currentGame.backgroundMusicPath && audioEl) {
+        audioEl.src = currentGame.backgroundMusicPath;
+        audioEl.volume = 0.3; // Start-Lautstärke
+    }
 
     currentGame.categories.forEach((cat, catIndex) => {
         const head = document.createElement('div');

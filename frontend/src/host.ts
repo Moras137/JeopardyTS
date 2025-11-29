@@ -7,6 +7,7 @@ let currentGame: IGame | null = null;
 let players: Record<string, IPlayer> = {};
 let activeQuestion: IQuestion | null = null;
 let activePlayerId: string | null = null;
+let isPlaying: boolean = false;
 
 // --- DOM ELEMENTE ---
 const controlsDiv = document.getElementById('controls') as HTMLDivElement;
@@ -60,15 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         window.location.href = '/create.html';
     }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    // 0. Theme initialisieren (NEU)
-    initTheme();
-
-    // 1. Prüfen auf gespeicherte Session (EXISTIEREND)
-    const savedSession = localStorage.getItem('jeopardy_host_session');
-    // ... (Rest des Codes bleibt gleich)
 });
 
 // Steuerung Button Listener
@@ -127,6 +119,7 @@ socket.on('host_rejoin_error', () => {
 
 socket.on('load_game_on_board', (game: IGame) => {
     currentGame = game;
+    initMusic(game);
     renderGameGrid(game);
 });
 
@@ -159,9 +152,6 @@ socket.on('host_update_map_status', (data) => {
 
 socket.on('host_restore_active_question', (data) => {
     console.log("Stelle aktive Frage wieder her:", data);
-    
-    // Wir nutzen die existierende Logik, simulieren aber, dass wir geklickt haben
-    // (ohne das 'host_pick_question' Event nochmal an den Server zu senden, das wäre doppelt)
     
     // UI auf "Frage aktiv" schalten
     activeQuestion = data.question;
@@ -250,10 +240,6 @@ function renderGameGrid(game: IGame) {
             btn.className = `q-btn`;
             btn.innerText = q.points.toString();
             btn.id = `q-btn-${catIndex}-${qIndex}`;
-            
-            // Wenn der Server das Feld als 'used' markiert, muss dies in der Game-Struktur gespeichert sein!
-            // Da dies in IGame fehlt, gehen wir davon aus, dass wir es lokal verwalten oder es fehlt.
-            // Temporär: Keine Used-Logik.
 
             btn.addEventListener('click', () => handleQuestionClick(q, catIndex, qIndex));
             col.appendChild(btn);
@@ -363,5 +349,47 @@ function toggleTheme() {
     } else {
         document.documentElement.removeAttribute('data-theme');
         localStorage.setItem('quiz_theme', 'light');
+    }
+}
+async function initMusic(game: IGame) {
+    const toggleBtn = document.getElementById('btn-music-toggle');
+    const volSlider = document.getElementById('music-volume') as HTMLInputElement;
+    const gameId = game._id || ""; 
+    let isPlaying = false; 
+
+    if (game.backgroundMusicPath) {
+        // Controls anzeigen
+        const controlsDiv = document.getElementById('music-controls');
+        if(controlsDiv) controlsDiv.style.display = 'flex';
+
+        // 1. Play/Pause Button
+        if(toggleBtn) {
+            toggleBtn.onclick = () => {
+                isPlaying = !isPlaying;
+                
+                // Icon wechseln
+                toggleBtn.innerText = isPlaying ? "⏸" : "▶";
+
+                // Befehl an Server senden
+                socket.emit('music_control', {
+                    gameId: gameId, 
+                    action: isPlaying ? 'play' : 'pause'
+                });
+            };
+        }
+
+        // 2. Lautstärke Slider
+        if(volSlider) {
+            volSlider.oninput = () => {
+                const vol = parseFloat(volSlider.value);
+                
+                // Befehl an Server senden
+                socket.emit('music_control', {
+                    gameId: gameId,
+                    action: 'volume',
+                    value: vol
+                });
+            };
+        }
     }
 }

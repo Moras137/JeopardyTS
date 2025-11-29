@@ -517,6 +517,10 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('music_control', (data) => {
+        socket.to(data.gameId).emit('music_control', data);
+    });
+
     socket.on('host_close_question', () => {
         const info = getSessionBySocketId(socket.id);
         if(info) {

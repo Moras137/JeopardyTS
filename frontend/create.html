@@ -581,6 +581,19 @@
             line-height: 1;
             font-weight: bold;
         }
+        .secondary-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.1s, color 0.2s;
+        }
+        .secondary-btn:hover {
+            background: var(--border-color);
+            color: #dc3545; /* Rötlich beim Hover für Löschen */
+        }
     </style>
 </head>
 <body>
@@ -667,19 +680,51 @@
                         </div>
                     </div>
 
-                    <div class="card" style="margin-top: 30px;">
-                        <h2>Hintergrundbild</h2>
-                        <input type="file" id="boardBackgroundUpload" title="Bild hochladen">
+                    <div class="card">
+                        <h2 style="margin-top:0;">Design & Audio</h2>
                         
-                        <span class="upload-status" id="background-status"></span>
-                        
-                        <div id="preview-background" style="margin-top: 5px;">
-                            <img src="" id="background-preview-img" style="display:none; max-height: 150px;">
-                        </div>
-                        <input type="hidden" id="background-path" value="">
-                        <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
-                    </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 30px;">
+                            
+                            <div style="flex: 1; min-width: 280px;">
+                                <h3 style="margin-top: 0; color: var(--text-muted); font-size: 1rem;">🖼️ Hintergrundbild</h3>
+                                <div style="background: var(--bg-body); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                    
+                                    <input type="file" id="boardBackgroundUpload" accept="image/*" title="Bild hochladen">
+                                    <span class="upload-status" id="background-status" style="font-size: 0.9rem; margin-left: 10px;"></span>
+                                    
+                                    <div id="preview-background" style="margin-top: 10px; min-height: 20px;">
+                                        <img src="" id="background-preview-img" style="display:none; max-width: 100%; max-height: 150px; border-radius: 4px; border: 1px solid #ccc;">
+                                    </div>
+                                    
+                                    <input type="hidden" id="background-path" value="">
+                                    
+                                    <div style="margin-top: 10px;">
+                                        <button type="button" id="btn-remove-bg" class="secondary-btn" style="font-size: 0.8rem;">🗑️ Bild entfernen</button>
+                                    </div>
+                                </div>
+                            </div>
 
+                            <div style="flex: 1; min-width: 280px;">
+                                <h3 style="margin-top: 0; color: var(--text-muted); font-size: 1rem;">🎵 Hintergrundmusik (Loop)</h3>
+                                <div style="background: var(--bg-body); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                    
+                                    <input type="file" id="backgroundMusicUpload" accept="audio/*" title="Audio-Datei hochladen">
+                                    <span class="upload-status" id="music-status" style="font-size: 0.9rem; margin-left: 10px;"></span>
+                                    
+                                    <div id="music-preview-container" style="margin-top: 10px; min-height: 20px;">
+                                        <audio id="music-preview" controls style="display:none; width: 100%; height: 35px;"></audio>
+                                    </div>
+                                    
+                                    <input type="hidden" id="background-music-path" value="">
+                                    
+                                    <div style="margin-top: 10px;">
+                                        <button type="button" id="btn-remove-music" class="secondary-btn" style="font-size: 0.8rem;">🗑️ Musik entfernen</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
                     <div id="editor-view">        
                         <div id="categories-container"></div>
                     </div>

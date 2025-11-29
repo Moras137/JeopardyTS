@@ -35,7 +35,8 @@ export interface ICategory {
 export interface IGame {
     _id?: string; // Optional, da es vor dem Speichern noch keine ID hat
     title: string;
-    boardBackgroundPath: string;
+    boardBackgroundPath?: string;
+    backgroundMusicPath?: string;
     categories: ICategory[];
 }
 
@@ -91,6 +92,7 @@ export interface ServerToClientEvents {
     session_ended: () => void;
     load_game_on_board: (game: IGame) => void;
     host_restore_active_question: (data: { question: IQuestion, catIndex: number, qIndex: number, buzzersActive: boolean,mapGuessesCount: number }) => void;
+    music_control: (data: { action: 'play' | 'pause' | 'volume', value?: number }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -107,5 +109,6 @@ export interface ClientToServerEvents {
     player_submit_map_guess: (coords: { lat: number, lng: number }) => void;
     host_resolve_map: () => void;
     host_end_session: () => void;
-    host_start_game: (gameId: string) => void; // Falls noch nicht vorhanden
+    host_start_game: (gameId: string) => void;
+    music_control: (data: { gameId: string, action: 'play' | 'pause' | 'volume', value?: number }) => void;
 }
