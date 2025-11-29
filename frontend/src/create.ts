@@ -23,7 +23,9 @@ declare global {
 let editingGameId: string | null = null;
 let currentCategoriesCount = 0;
 let filesToDeleteOnSave: string[] = [];
+let cachedGames: IGame[] = [];
 let View: boolean = false; // true = Board, false = List
+let sidebarGamesCache: IGame[] = [];
 
 const mapInstances: Record<string, L.Map> = {}; // Speichert Leaflet Instanzen
 
@@ -44,6 +46,8 @@ const gameListDiv = document.getElementById('game-list') as HTMLDivElement;
 const btnDashboardNew = document.getElementById('btn-dashboard-new') as HTMLButtonElement;
 const btnSidebarNew = document.getElementById('btn-sidebar-new') as HTMLButtonElement;
 const btnBackDash = document.getElementById('btn-back-dashboard') as HTMLButtonElement;
+const searchInput = document.getElementById('dashboard-search') as HTMLInputElement;
+const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
 
 // --- INIT ---
 // Event Listener für statische Buttons
@@ -88,6 +92,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 sidebar.style.display = 'none';
             }
         };
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = (e.target as HTMLInputElement).value.toLowerCase();
+            filterAndRenderTiles(term);
+        });
+    }
+
+    if (sidebarSearchInput) {
+        sidebarSearchInput.addEventListener('input', (e) => {
+            const term = (e.target as HTMLInputElement).value.toLowerCase();
+            renderSidebarList(term);
+        });
     }
 
     if(backToDashBtn) backToDashBtn.onclick = showDashboard;
@@ -189,13 +207,9 @@ function updateQuizStructure() {
         }
     }
 
-    // 2. FRAGEN ANPASSEN (Zeilen) - für ALLE Kategorien (auch die alten)
-    // Wir holen die Liste neu, da wir oben evtl. welche hinzugefügt/gelöscht haben
     const allCategories = container.querySelectorAll('.category');
 
     allCategories.forEach(cat => {
-        // Wir brauchen die ID der Kategorie, um addQuestion aufzurufen.
-        // Da die ID des Divs z.B. "cat-123" ist und addQuestion genau das erwartet:
         const catId = cat.id; 
         
         const qContainer = document.getElementById(`q-cont-${catId}`);
@@ -252,8 +266,6 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const type = qData.type ?? 'standard';
     
     // Default Werte mit Nullish Coalescing (??)
-    const points = qData.points ?? 100;
-    const negPoints = qData.negativePoints ?? 0;
     const qText = qData.questionText ?? '';
     const aText = qData.answerText ?? '';
     const media = qData.mediaPath ?? '';
@@ -263,6 +275,13 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const lng = qData.location?.lng ?? '';
     const isCustom = qData.location?.isCustomMap ?? false;
     const customPath = qData.location?.customMapPath ?? '';
+    
+    const existingQuestionsCount = qContainer.querySelectorAll('.question-block').length;
+    const defaultPoints = (existingQuestionsCount + 1) * 100;
+    const defaultNegPoints = (existingQuestionsCount + 1) * 50;
+
+    const points = qData.points ?? defaultPoints;
+    const negPoints = qData.negativePoints ?? defaultNegPoints;
 
     // HTML Template (Achtung: onclick ruft globale window-Funktionen auf)
     const html = `
@@ -520,102 +539,131 @@ async function saveGame() {
 }
 
 async function loadGameList() {
-    const list = document.getElementById('game-list');
-    if(!list) return;
-    list.innerHTML = '<p style="text-align:center; color:#666;">Lade...</p>';
+    // Falls man gerade sucht, wollen wir den Suchbegriff behalten, 
+    // oder leer '' übergeben, wenn nichts drin steht.
+    const currentFilter = sidebarSearchInput ? sidebarSearchInput.value.toLowerCase() : '';
+
+    gameListDiv.innerHTML = '<div style="padding:10px; color:grey;">Aktualisiere...</div>';
     
     try {
         const res = await fetch('/api/games');
-        const games = await res.json();
+        sidebarGamesCache = await res.json() as IGame[];
         
-        list.innerHTML = '';
-        
-        if (games.length === 0) {
-            list.innerHTML = '<p style="text-align:center; color:#999;">Keine Spiele gefunden.</p>';
-            return;
-        }
+        // Nach dem Laden direkt rendern (mit aktuellem Filter)
+        renderSidebarList(currentFilter);
 
-        games.forEach((g: any) => {
-            const html = `
-            <div class="load-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;">
-                
-                <span onclick="loadGame('${g._id}')" 
-                      style="flex-grow: 1; cursor: pointer; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-                      title="Zum Bearbeiten klicken">
-                    ${g.title}
-                </span>
-
-                <div style="display: flex; gap: 5px; margin-left: 10px;">
-                    <button onclick="startGame('${g._id}')" 
-                            style="background: #28a745; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 0.9rem;"
-                            title="Hosten">
-                        ▶
-                    </button>
-                    
-                    <button onclick="deleteGame('${g._id}')" 
-                            style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 0.9rem;"
-                            title="Löschen">
-                        🗑
-                    </button>
-                </div>
-            </div>`;
-            
-            list.insertAdjacentHTML('beforeend', html);
-        });
     } catch (e) {
-        list.innerHTML = '<p style="color:red; text-align:center;">Fehler beim Laden.</p>';
+        console.error(e);
+        gameListDiv.innerText = "Fehler beim Laden";
     }
 }
 
-async function loadGame(id: string) {
-    try {
-        const res = await fetch(`/api/games/${id}`);
-        const game = await res.json() as IGame;
+function renderSidebarList(filterTerm: string) {
+    if (!gameListDiv) return;
+    gameListDiv.innerHTML = '';
 
-        editingGameId = game._id!;
-        titleInput.value = game.title;
+    // Filtern
+    const filtered = sidebarGamesCache.filter(g => 
+        (g.title || "Unbenannt").toLowerCase().includes(filterTerm)
+    );
+
+    if (filtered.length === 0) {
+        gameListDiv.innerHTML = '<div style="padding:10px; color:grey; font-style:italic;">Kein Quiz gefunden.</div>';
+        return;
+    }
+
+    const listContainer = document.createElement('div');
+    
+    filtered.forEach(g => {
+        const item = document.createElement('div');
+        item.className = 'load-item';
         
-
-        if(game.boardBackgroundPath) {
-            const bgInput = document.getElementById('background-path') as HTMLInputElement;
-            const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
-            bgInput.value = game.boardBackgroundPath;
-            bgPreview.src = game.boardBackgroundPath;
-            bgPreview.style.display = 'block';
+        // Highlight für das aktuell bearbeitete Spiel
+        if(editingGameId === g._id) {
+            item.classList.add('active');
         }
 
-        // const bgPath = game.boardBackgroundPath || '';
-        // const bgInput = document.getElementById('background-path') as HTMLInputElement;
-        // const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
-
-        // bgInput.value = bgPath;
-        
-        // if (bgPath) {
-        //     bgPreview.src = bgPath;
-        //     bgPreview.style.display = 'block';
-        // } else {
-        //     bgPreview.src = '';
-        //     bgPreview.style.display = 'none';
-        // }
-        
-        // UI Reset
-        container.innerHTML = '';
-        if (game.categories) {
-            game.categories.forEach(cat => addCategory(cat));
+        item.innerHTML = `
+            <span onclick="loadGame('${g._id}')" style="flex-grow:1; overflow:hidden; text-overflow:ellipsis;">
+                ${g.title || 'Ohne Titel'}
+            </span>
+            <button onclick="event.stopPropagation(); startGame('${g._id}')" class="sidebar-play-btn" title="Spiel starten">▶</button>
             
-            // Inputs updaten
-            numCatInput.value = game.categories.length.toString();
-            // Sicherer Zugriff falls categories leer ist
-            numQInput.value = (game.categories[0]?.questions?.length || 5).toString();
+            <button onclick="event.stopPropagation(); deleteGame('${g._id}')" class="sidebar-delete-btn" title="Löschen">×</button>
+        `;
+        
+        listContainer.appendChild(item);
+    });
+    
+    gameListDiv.appendChild(listContainer);
+}
+
+async function loadGame(id: string) {
+    console.log("Versuche Spiel zu laden mit ID:", id);
+
+    if (!id || id === 'undefined') {
+        alert("Fehler: Ungültige Spiel-ID.");
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/games/${id}`);
+        
+        // 1. Prüfen ob der Server OK sagt (Status 200-299)
+        if (!res.ok) {
+            throw new Error(`Server antwortete mit Status: ${res.status}`);
+        }
+
+        const game = await res.json() as IGame;
+        console.log("Spiel geladen:", game);
+
+        // Formular komplett leeren bevor wir füllen
+        clearForm();
+
+        editingGameId = game._id!;
+        titleInput.value = game.title || ""; // Fallback auf leer
+
+        // Hintergrundbild setzen (nur wenn Pfad existiert)
+        if (game.boardBackgroundPath) {
+             const bgInput = document.getElementById('background-path') as HTMLInputElement;
+             const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+             
+             if(bgInput) bgInput.value = game.boardBackgroundPath;
+             
+             if(bgPreview) {
+                bgPreview.src = game.boardBackgroundPath;
+                bgPreview.style.display = 'block';
+             }
+        }
+
+        // Kategorien laden
+        container.innerHTML = '';
+        if (game.categories && Array.isArray(game.categories) && game.categories.length > 0) {
+             // Kategorien rendern
+             game.categories.forEach(cat => {
+                 if(cat) addCategory(cat);
+             });
+
+             // Inputs oben füllen (basierend auf der ersten Kategorie)
+             numCatInput.value = game.categories.length.toString();
+             // Sicherer Zugriff auf Fragen-Länge
+             const firstCat = game.categories[0];
+             const qCount = (firstCat && firstCat.questions) ? firstCat.questions.length : 5;
+             numQInput.value = qCount.toString();
         } else {
-            // Fallback falls keine Kategorien da sind
+            // Falls keine Kategorien da sind (ganz neues Spiel), Standards setzen
             numCatInput.value = "5";
             numQInput.value = "5";
         }
+
+        // In den Editor wechseln
         showEditor();
-        switchView(View ? 'board' : 'list');
-    } catch (e) {
-        alert("Fehler beim Laden.");
+        switchView('list');
+
+    } catch (e: any) {
+        console.error("Detaillierter Ladefehler:", e);
+        // Zeigt dem Nutzer den echten Fehler an
+        alert("Fehler beim Laden des Quizzes:\n" + (e.message || e));
     }
 }
 
@@ -629,6 +677,29 @@ function clearForm() {
     
     numCatInput.value = "5";
     numQInput.value = "5";
+
+    const bgInput = document.getElementById('background-path') as HTMLInputElement;
+    const bgUpload = document.getElementById('boardBackgroundUpload') as HTMLInputElement;
+    const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+    const bgStatus = document.getElementById('background-status');
+
+    // Pfad leeren (damit es nicht gespeichert wird)
+    if (bgInput) bgInput.value = ''; 
+    
+    // Datei-Auswahl im Browser leeren
+    if (bgUpload) bgUpload.value = ''; 
+    
+    // Vorschau verstecken
+    if (bgPreview) {
+        bgPreview.src = '';
+        bgPreview.style.display = 'none';
+    }
+    
+    // Status-Text leeren
+    if (bgStatus) bgStatus.innerText = '';
+    
+    // Dateiliste zum Löschen leeren
+    filesToDeleteOnSave = [];
 
     updateQuizStructure();
 }
@@ -939,37 +1010,10 @@ async function loadGameTiles() {
     dashboardGrid.innerHTML = '<p>Lade Quizze...</p>';
     try {
         const res = await fetch('/api/games');
-        const games = await res.json() as IGame[]; // Stelle sicher, dass IGame boardBackgroundPath enthält
+        cachedGames = await res.json() as IGame[]; // Speichern im Cache
 
-        dashboardGrid.innerHTML = '';
-
-        if (games.length === 0) {
-            dashboardGrid.innerHTML = '<p>Noch keine Quizze vorhanden. Erstelle jetzt eins!</p>';
-            return;
-        }
-
-        games.forEach(game => {
-            const tile = document.createElement('div');
-            tile.className = 'quiz-tile';
-
-            // Wir nutzen encodeURI, falls Leerzeichen im Dateinamen sind
-            const bgStyle = game.boardBackgroundPath 
-                ? `background-image: url('${encodeURI(game.boardBackgroundPath)}');` 
-                : 'background: linear-gradient(45deg, #007bff, #6610f2);'; // Fallback Gradient
-
-            tile.innerHTML = `
-                <div class="tile-bg" style="${bgStyle}"></div>
-                <div class="tile-content">
-                    <h3 class="tile-title" title="${game.title}">${game.title || 'Unbenannt'}</h3>
-                    <div class="tile-actions">
-                        <button class="tile-btn btn-play" onclick="startGame('${game._id}')">▶ Spielen</button>
-                        <button class="tile-btn btn-edit" onclick="loadGame('${game._id}')">✏ Edit</button>
-                        <button class="tile-btn btn-del" onclick="deleteGame('${game._id}')">🗑</button>
-                    </div>
-                </div>
-            `;
-            dashboardGrid.appendChild(tile);
-        });
+        // Direkt alles anzeigen (Filter ist am Anfang leer)
+        filterAndRenderTiles(''); 
 
     } catch (err) {
         console.error(err);
@@ -980,7 +1024,50 @@ async function loadGameTiles() {
 // Damit onclick im HTML funktioniert
 (window as any).loadGameTiles = loadGameTiles;
 
-// Beim Start ausführen
+
+// 2. Filtern und Rendern
+function filterAndRenderTiles(searchTerm: string) {
+    // Liste filtern
+    const filtered = cachedGames.filter(g => 
+        (g.title || "").toLowerCase().includes(searchTerm)
+    );
+
+    dashboardGrid.innerHTML = '';
+
+    if (filtered.length === 0) {
+        if(cachedGames.length === 0) {
+             dashboardGrid.innerHTML = '<p>Noch keine Quizze vorhanden. Erstelle jetzt eins!</p>';
+        } else {
+             dashboardGrid.innerHTML = '<p>Kein Quiz mit diesem Namen gefunden.</p>';
+        }
+        return;
+    }
+
+    // Kacheln bauen
+    filtered.forEach(game => {
+        const tile = document.createElement('div');
+        tile.className = 'quiz-tile';
+
+        // Hintergrundbild Logik
+        const bgStyle = game.boardBackgroundPath 
+            ? `background-image: url('${encodeURI(game.boardBackgroundPath)}');` 
+            : 'background: linear-gradient(45deg, #007bff, #6610f2);';
+
+        tile.innerHTML = `
+            <div class="tile-bg" style="${bgStyle}"></div>
+            <div class="tile-content">
+                <h3 class="tile-title" title="${game.title}">${game.title || 'Unbenannt'}</h3>
+                <div class="tile-actions">
+                    <button class="tile-btn btn-play" onclick="startGame('${game._id}')">▶ Spielen</button>
+                    <button class="tile-btn btn-edit" onclick="loadGame('${game._id}')">✏ Edit</button>
+                    <button class="tile-btn btn-del" onclick="deleteGame('${game._id}')">🗑</button>
+                </div>
+            </div>
+        `;
+        dashboardGrid.appendChild(tile);
+    });
+}
+
 initTheme();
 
 function startGame(id: string) {

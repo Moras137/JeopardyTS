@@ -117,6 +117,7 @@
         button.primary { background: #28a745; color: white; width: 100%; font-size: 1.2rem; }
 
         .load-item { 
+            display: flex;
             padding: 10px; 
             border-bottom: 1px solid var(--border-color); 
             cursor: pointer; display: flex; 
@@ -511,7 +512,75 @@
             margin-bottom: 20px;
             border: 1px solid var(--border-color);
         }
-        
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            font-size: 1rem;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-main);
+            border-radius: 20px; /* Runde Ecken für modernen Look */
+            outline: none;
+            transition: box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+        }
+
+        .sidebar-search-input {
+            width: 100%;
+            box-sizing: border-box; /* Damit Padding nicht die Breite sprengt */
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-body);
+            color: var(--text-main);
+            border-radius: 4px;
+            outline: none;
+        }
+        .sidebar-search-input:focus {
+            border-color: #007bff;
+        }
+
+        .sidebar-delete-btn {
+            color: var(--text-muted); 
+            font-weight: bold; 
+            padding: 0 8px;
+            cursor: pointer;
+        }
+        .sidebar-delete-btn:hover {
+            color: #dc3545; /* Rot beim Hover */
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+        .sidebar-play-btn {
+            background: transparent;
+            border: none;
+            color: #28a745; /* Grün */
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 8px;
+            line-height: 1;
+            transition: transform 0.1s, color 0.2s;
+        }
+
+        .sidebar-play-btn:hover {
+            color: #1e7e34; /* Dunkleres Grün */
+            transform: scale(1.2); /* Leicht vergrößern */
+        }
+
+        /* Update für den Delete-Button, damit beide gleich ausgerichtet sind */
+        .sidebar-delete-btn {
+            background: transparent;
+            border: none;
+            color: #dc3545; /* Rot */
+            font-size: 1.5rem; /* Das X ist oft etwas kleiner, daher größerer Font */
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -519,11 +588,18 @@
     
         <div id="sidebar" class="sidebar" style="display: none;">
             <div class="sidebar-header">
-                <h3>Quiz Liste</h3>
-            </div>
+                <h3 style="margin: 0;">Quiz Liste</h3>
+                <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
+                    🌓
+                </button>
+        </div>
             
             <button id="btn-sidebar-new" class="primary-btn full-width" style="margin-bottom: 10px;">+ Neues Quiz</button>
             
+            <div style="padding-bottom: 10px;">
+                <input type="text" id="sidebar-search" placeholder="🔍 Filtern..." class="sidebar-search-input">
+            </div>
+
             <div id="game-list">Lade...</div>
 
             <div class="sidebar-footer">
@@ -537,9 +613,6 @@
                 </div>
 
                 <div style="display: flex; gap: 10px;">
-                    <button class="theme-toggle-btn secondary-btn" onclick="toggleTheme()" title="Design wechseln" style="padding: 10px;">
-                        🌓
-                    </button>
                     <button class="primary-btn" id="btn-save" style="flex-grow: 1;">💾 Speichern</button>
                 </div>
             </div>
@@ -550,6 +623,9 @@
             <div id="quiz-dashboard" class="dashboard-container">
                 <div class="dashboard-header">
                     <h1>Meine Quizze</h1>
+                    <div style="flex-grow: 1; max-width: 400px; margin: 0 20px;">
+                        <input type="text" id="dashboard-search" placeholder="🔍 Quiz suchen..." class="search-input">
+                    </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button class="theme-toggle-btn" onclick="toggleTheme()" title="Design wechseln" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🌓</button>
                         <button id="btn-dashboard-new" class="primary-btn big-btn">+ Neues Quiz erstellen</button>
