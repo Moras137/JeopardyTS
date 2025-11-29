@@ -269,6 +269,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const qText = qData.questionText ?? '';
     const aText = qData.answerText ?? '';
     const media = qData.mediaPath ?? '';
+    const answerMedia = qData.answerMediaPath ?? '';
     
     // Map Daten
     const lat = qData.location?.lat ?? '';
@@ -287,7 +288,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const html = `
     <div class="question-block type-${type}" id="block-${qId}" data-points="${points}">
         <div style="margin-bottom:10px; border-bottom:1px solid #ddd;">
-            <label>Typ:</label>
+            <label>Fragentyp</label>
             <select class="q-type-select" onchange="changeQuestionType(this, '${qId}')">
                 <option value="standard" ${type === 'standard' ? 'selected' : ''}>Standard</option>
                 <option value="map" ${type === 'map' ? 'selected' : ''}>Karte</option>
@@ -308,8 +309,19 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
         <input type="hidden" class="q-media-path" id="media-${qId}" value="${media}">
 
         <div class="standard-answer-section" style="display:${type==='standard'?'block':'none'}">
-            <label>Antwort:</label>
+            <label>Antwort (Text):</label>
             <input type="text" class="q-answer" value="${aText}" oninput="checkQuestionFilled(this)">
+            
+            <div style="margin-top: 10px; padding-top: 5px;">
+                <label>Medien (Antwort)</label>
+                <input type="file" onchange="uploadFile(this, 'preview-ans-${qId}', 'media-ans-${qId}')">
+                
+                <div id="preview-ans-${qId}">
+                    ${generateMediaPreviewHtml(answerMedia)}
+                </div>
+                
+                <input type="hidden" class="q-answer-media-path" id="media-ans-${qId}" value="${answerMedia}">
+            </div>
         </div>
 
         <div class="map-answer-section" style="display:${type==='map'?'block':'none'}">
@@ -463,7 +475,9 @@ async function saveGame() {
             const negPoints = parseInt((qBlock.querySelector('.q-negative-points') as HTMLInputElement).value) || 0;
             const text = (qBlock.querySelector('.q-text') as HTMLInputElement).value;
             const media = (qBlock.querySelector('.q-media-path') as HTMLInputElement).value;
-            
+            const answerMediaInput = qBlock.querySelector('.q-answer-media-path') as HTMLInputElement;
+            const answerMedia = answerMediaInput ? answerMediaInput.value : '';
+
             let answerText = '';
             let loc = undefined;
             let mapWidth = 0;
@@ -505,9 +519,9 @@ async function saveGame() {
                 answerText,
                 mediaPath: media || '', 
                 hasMedia: !!media, 
-                mediaType: 'none', // Typ vereinfacht
-                answerMediaPath: '', 
-                hasAnswerMedia: false,
+                mediaType: 'none',
+                answerMediaPath: answerMedia || '', 
+                hasAnswerMedia: !!answerMedia,
                 answerMediaType: 'none',
                 location: loc
             });
