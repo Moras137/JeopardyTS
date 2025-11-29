@@ -32,8 +32,18 @@ const container = document.getElementById('categories-container') as HTMLDivElem
 const titleInput = document.getElementById('gameTitle') as HTMLInputElement;
 const numCatInput = document.getElementById('numCategories') as HTMLInputElement;
 const numQInput = document.getElementById('numQuestions') as HTMLInputElement;
-const mainContent = document.getElementById('main-content') as HTMLDivElement;
-
+const dashboardDiv = document.getElementById('quiz-dashboard') as HTMLDivElement;
+const editorDiv = document.getElementById('quiz-editor') as HTMLDivElement;
+const dashboardGrid = document.getElementById('dashboard-grid') as HTMLDivElement;
+const backToDashBtn = document.getElementById('btn-back-dashboard') as HTMLButtonElement;
+const createNewBtn = document.getElementById('btn-create-new') as HTMLButtonElement;
+const editorTitleDisplay = document.getElementById('editor-title-display') as HTMLHeadingElement;
+const sidebar = document.getElementById('sidebar') as HTMLDivElement;
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn') as HTMLButtonElement;
+const gameListDiv = document.getElementById('game-list') as HTMLDivElement;
+const btnDashboardNew = document.getElementById('btn-dashboard-new') as HTMLButtonElement;
+const btnSidebarNew = document.getElementById('btn-sidebar-new') as HTMLButtonElement;
+const btnBackDash = document.getElementById('btn-back-dashboard') as HTMLButtonElement;
 
 // --- INIT ---
 // Event Listener für statische Buttons
@@ -48,14 +58,46 @@ document.getElementById("theme-toggle-btn")?.addEventListener('click', toggleThe
 document.getElementById('numCategories')?.addEventListener('change', updateQuizStructure);
 document.getElementById('numQuestions')?.addEventListener('change', updateQuizStructure);
 
-// Upload Listener für Hintergrundbild (statisch)
 document.getElementById('boardBackgroundUpload')?.addEventListener('change', function(this: HTMLInputElement) {
     uploadFile(this, 'preview-background', 'background-path');
 });
 
-// Start: Liste laden
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    
+    showDashboard();
 
-mainContent.style.display = 'none';
+    const handleNew = () => {
+        clearForm();
+        editingGameId = null;
+        // Reset Markierungen in der Liste
+        document.querySelectorAll('.load-item').forEach(i => i.classList.remove('active'));
+        showEditor(); // Wechselt in Editor Ansicht
+    };
+
+    if(btnDashboardNew) btnDashboardNew.onclick = handleNew;
+    if(btnSidebarNew) btnSidebarNew.onclick = handleNew;
+    if(btnBackDash) btnBackDash.onclick = showDashboard;
+
+    // Sidebar Toggle (nur im Editor relevant)
+    if(sidebarToggleBtn) {
+        sidebarToggleBtn.onclick = () => {
+            if(sidebar.style.display === 'none') {
+                sidebar.style.display = 'flex';
+            } else {
+                sidebar.style.display = 'none';
+            }
+        };
+    }
+
+    if(backToDashBtn) backToDashBtn.onclick = showDashboard;
+    if(createNewBtn) createNewBtn.onclick = () => {
+        clearForm();
+        showEditor();
+    };
+});
+
+// Start: Liste laden
 
 loadGameList();
 clearForm();
@@ -526,44 +568,55 @@ async function loadGameList() {
 }
 
 async function loadGame(id: string) {
-    const res = await fetch(`/api/games/${id}`);
-    const game = await res.json() as IGame;
-    
-    mainContent.style.display = 'block';
+    try {
+        const res = await fetch(`/api/games/${id}`);
+        const game = await res.json() as IGame;
 
-    editingGameId = game._id!;
-    titleInput.value = game.title;
-    
-    const bgPath = game.boardBackgroundPath || '';
-    const bgInput = document.getElementById('background-path') as HTMLInputElement;
-    const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
-
-    bgInput.value = bgPath;
-    
-    if (bgPath) {
-        bgPreview.src = bgPath;
-        bgPreview.style.display = 'block';
-    } else {
-        bgPreview.src = '';
-        bgPreview.style.display = 'none';
-    }
-    
-    // UI Reset
-    container.innerHTML = '';
-    if (game.categories) {
-        game.categories.forEach(cat => addCategory(cat));
+        editingGameId = game._id!;
+        titleInput.value = game.title;
         
-        // Inputs updaten
-        numCatInput.value = game.categories.length.toString();
-        // Sicherer Zugriff falls categories leer ist
-        numQInput.value = (game.categories[0]?.questions?.length || 5).toString();
-    } else {
-        // Fallback falls keine Kategorien da sind
-        numCatInput.value = "5";
-        numQInput.value = "5";
-    }
 
-    switchView(View ? 'board' : 'list');
+        if(game.boardBackgroundPath) {
+            const bgInput = document.getElementById('background-path') as HTMLInputElement;
+            const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+            bgInput.value = game.boardBackgroundPath;
+            bgPreview.src = game.boardBackgroundPath;
+            bgPreview.style.display = 'block';
+        }
+
+        // const bgPath = game.boardBackgroundPath || '';
+        // const bgInput = document.getElementById('background-path') as HTMLInputElement;
+        // const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+
+        // bgInput.value = bgPath;
+        
+        // if (bgPath) {
+        //     bgPreview.src = bgPath;
+        //     bgPreview.style.display = 'block';
+        // } else {
+        //     bgPreview.src = '';
+        //     bgPreview.style.display = 'none';
+        // }
+        
+        // UI Reset
+        container.innerHTML = '';
+        if (game.categories) {
+            game.categories.forEach(cat => addCategory(cat));
+            
+            // Inputs updaten
+            numCatInput.value = game.categories.length.toString();
+            // Sicherer Zugriff falls categories leer ist
+            numQInput.value = (game.categories[0]?.questions?.length || 5).toString();
+        } else {
+            // Fallback falls keine Kategorien da sind
+            numCatInput.value = "5";
+            numQInput.value = "5";
+        }
+        showEditor();
+        switchView(View ? 'board' : 'list');
+    } catch (e) {
+        alert("Fehler beim Laden.");
+    }
 }
 
 function clearForm() {
@@ -583,7 +636,6 @@ function clearForm() {
 function newGame() {
     clearForm();
     switchView(View ? 'board' : 'list');
-    mainContent.style.display = 'block';
 }
 
 // --- HELPER ---
@@ -861,6 +913,73 @@ function toggleTheme() {
 // Global verfügbar machen
 window.toggleTheme = toggleTheme;
 
+function showDashboard() {
+    sidebar.style.display = 'none';
+    editorDiv.style.display = 'none';
+    dashboardDiv.style.display = 'block';
+    loadGameTiles(); 
+}
+
+function showEditor() {
+    dashboardDiv.style.display = 'none';
+    
+    sidebar.style.display = 'flex';
+    sidebar.classList.remove('collapsed'); 
+    loadGameList(); // Liste für Sidebar laden
+    
+    editorDiv.style.display = 'flex'; // Flex, wegen Flex-Direction Column im HTML
+    
+    const titleDisp = document.getElementById('editor-title-display');
+    if(titleDisp) titleDisp.innerText = editingGameId ? "Quiz bearbeiten" : "Neues Quiz";
+}
+
+// --- LOGIK: Kacheln laden (Ersetzt loadGameList) ---
+
+async function loadGameTiles() {
+    dashboardGrid.innerHTML = '<p>Lade Quizze...</p>';
+    try {
+        const res = await fetch('/api/games');
+        const games = await res.json() as IGame[]; // Stelle sicher, dass IGame boardBackgroundPath enthält
+
+        dashboardGrid.innerHTML = '';
+
+        if (games.length === 0) {
+            dashboardGrid.innerHTML = '<p>Noch keine Quizze vorhanden. Erstelle jetzt eins!</p>';
+            return;
+        }
+
+        games.forEach(game => {
+            const tile = document.createElement('div');
+            tile.className = 'quiz-tile';
+
+            // Wir nutzen encodeURI, falls Leerzeichen im Dateinamen sind
+            const bgStyle = game.boardBackgroundPath 
+                ? `background-image: url('${encodeURI(game.boardBackgroundPath)}');` 
+                : 'background: linear-gradient(45deg, #007bff, #6610f2);'; // Fallback Gradient
+
+            tile.innerHTML = `
+                <div class="tile-bg" style="${bgStyle}"></div>
+                <div class="tile-content">
+                    <h3 class="tile-title" title="${game.title}">${game.title || 'Unbenannt'}</h3>
+                    <div class="tile-actions">
+                        <button class="tile-btn btn-play" onclick="startGame('${game._id}')">▶ Spielen</button>
+                        <button class="tile-btn btn-edit" onclick="loadGame('${game._id}')">✏ Edit</button>
+                        <button class="tile-btn btn-del" onclick="deleteGame('${game._id}')">🗑</button>
+                    </div>
+                </div>
+            `;
+            dashboardGrid.appendChild(tile);
+        });
+
+    } catch (err) {
+        console.error(err);
+        dashboardGrid.innerHTML = '<p style="color:red">Fehler beim Laden der Spiele.</p>';
+    }
+}
+
+// Damit onclick im HTML funktioniert
+(window as any).loadGameTiles = loadGameTiles;
+
 // Beim Start ausführen
 initTheme();
 
@@ -881,6 +1000,7 @@ async function deleteGame(id: string) {
             if (editingGameId === id) clearForm();
             // Liste neu laden
             loadGameList();
+            loadGameTiles();
         } else {
             alert("Fehler beim Löschen.");
         }

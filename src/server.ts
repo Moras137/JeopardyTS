@@ -162,10 +162,11 @@ async function cleanupUnusedFiles() {
                 });
             });
         });
-        console.log(`Benötigte Dateien gesammelt: ${usedFiles.size}`);  
+ 
         // 3. Inhalt des Upload-Ordners lesen
 
-        console.log(`Prüfe Upload-Ordner: ${uploadDir}`);   
+        const uploadDir = path.join(__dirname, '../public/uploads');
+
         // Prüfen ob Ordner existiert
         try {
             await fs.access(uploadDir);
@@ -213,7 +214,7 @@ app.post('/api/upload', upload.single('mediaFile'), (req: Request, res: Response
 // --- API ROUTES ---
 app.get('/api/games', async (req, res) => {
     try {
-        const games = await GameModel.find().select('_id title');
+        const games = await GameModel.find().select('_id title boardBackgroundPath');
         res.json(games);
     } catch (err) {
         res.status(500).json({ error: 'Fehler beim Laden' });

@@ -41,7 +41,7 @@
         /* --- BASE STYLES --- */
         body { 
             font-family: sans-serif; 
-            display: flex; 
+            display: block; 
             height: 100vh; 
             margin: 0; 
             background: var(--bg-body); 
@@ -59,13 +59,13 @@
             box-shadow: 2px 0 5px var(--shadow);
         }
 
-        #main-content { 
-            flex-grow: 1; 
-            padding: 20px; 
-            overflow-y: auto; 
-            display: flex; 
-            flex-direction: column; 
-        }
+        #main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%; 
+            overflow: hidden;
+        }   
 
         .card { 
             background: var(--bg-card); 
@@ -173,7 +173,7 @@
 
         /* Footer (Speichern Button) bleibt immer unten sichtbar */
         .sidebar-footer {
-            flex-shrink: 0; /* Darf nicht schrumpfen */
+            flex-shrink: 0;
             margin-top: auto;
         }
 
@@ -262,72 +262,362 @@
             border-radius: 4px;
             border: 1px solid var(--border-color); /* Optional: sieht sauberer aus */
         }
+        .dashboard-container {
+            padding: 40px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        #dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+        }
+
+        /* DIE KACHEL */
+        .quiz-tile {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            height: 220px;
+            position: relative;
+            border: 1px solid var(--border-color);
+        }
+
+        .quiz-tile:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px var(--shadow);
+        }
+
+        /* Bildbereich oben */
+        .tile-bg {
+            height: 120px;
+            background-color: #ccc;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+        
+        .tile-bg::after {
+            content: '';
+            position: absolute;
+            top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.2); /* Leichter Schleier */
+        }
+
+        /* Inhalt unten */
+        .tile-content {
+            padding: 15px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: var(--bg-card);
+            z-index: 2;
+        }
+
+        .tile-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Buttons auf der Kachel */
+        .tile-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tile-btn {
+            flex: 1;
+            padding: 6px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        .tile-btn:hover { opacity: 0.8; }
+
+        .btn-play { background: #28a745; color: white; }
+        .btn-edit { background: #007bff; color: white; }
+        .btn-del  { background: #dc3545; color: white; }
+
+        /* Editor Header & Footer Anpassungen */
+        .editor-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        
+        .editor-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--bg-card);
+            padding: 15px 40px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            box-sizing: border-box;
+            z-index: 100;
+        }
+        
+        /* Damit der Content nicht hinter dem Footer verschwindet */
+        #quiz-editor {
+            display: none; /* Standardmäßig aus */
+            flex-grow: 1;
+            overflow: hidden; /* Scrollen passiert im inneren Bereich */
+        }
+
+        .secondary-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .secondary-btn:hover { 
+            background: var(--border-color); 
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background: var(--bg-body);
+            color: var(--text-main);
+            overflow: hidden; /* Scrollen macht nur der innere Bereich */
+            height: 100vh;
+        }
+
+        #app-container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            width: 300px; /* Etwas breiter für die Buttons */
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: margin-left 0.3s ease; /* Animation für Toggle */
+            flex-shrink: 0;
+            box-sizing: border-box;
+            padding: 20px;
+        }
+
+        /* Klasse für geschlossene Sidebar */
+        .sidebar.collapsed {
+            width: 0;
+            padding-left: 0;
+            padding-right: 0;
+            border: none;
+        }
+
+        .sidebar-header { margin-bottom: 20px; }
+        
+        #game-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .load-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between;
+        }
+        .load-item:hover { background: rgba(0,0,0,0.05); }
+        .load-item.active { background: #007bff; color: white; }
+
+        .top-bar {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        #sidebar-toggle-btn {
+            font-size: 1.5rem;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-main);
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        #sidebar-toggle-btn:hover { background: rgba(0,0,0,0.1); }
+
+        #editor-scroll-area {
+            flex-grow: 1;
+            overflow-y: auto; /* Scrollt den Inhalt */
+            padding: 30px;
+        }
+
+        .main-footer {
+            height: 70px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; /* Button rechts */
+            padding: 0 40px;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        /* Buttons und Inputs */
+        .primary-btn { background: #007bff; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; }
+        .full-width { width: 100%; }
+        
+        /* Karten Style */
+        .card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px var(--shadow);
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
     </style>
 </head>
 <body>
-    <div id="load-game-sidebar">
-        <div class="sidebar-header">
-            <h3 style="margin: 0;">Quiz Verwaltung</h3>
-            <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
-                🌓
-            </button>
-        </div>
+    <div id="app-container">
+    
+        <div id="sidebar" class="sidebar" style="display: none;">
+            <div class="sidebar-header">
+                <h3>Quiz Liste</h3>
+            </div>
+            
+            <button id="btn-sidebar-new" class="primary-btn full-width" style="margin-bottom: 10px;">+ Neues Quiz</button>
+            
+            <div id="game-list">Lade...</div>
 
-        <button id="btn-new-quiz" style="margin-top: 15px;">+ NEUES QUIZ</button>
-        
-        <div id="game-list">Lade Spiele...</div>
-        
-        <div class="sidebar-footer">
-            <div class="view-toggle-container">
-                <div class="view-toggle-group">
-                    <button id="btn-view-list" class="view-toggle-btn active">📝 Liste</button>
-                    <button id="btn-view-board" class="view-toggle-btn">▦ Brett</button>
+            <div class="sidebar-footer">
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 10px 0;">
+
+                <div class="view-toggle-container" style="margin-bottom: 15px;">
+                    <div class="view-toggle-group" style="width: 100%;">
+                        <button id="btn-view-list" class="view-toggle-btn active" style="flex:1;">📝 Liste</button>
+                        <button id="btn-view-board" class="view-toggle-btn" style="flex:1;">▦ Brett</button>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="theme-toggle-btn secondary-btn" onclick="toggleTheme()" title="Design wechseln" style="padding: 10px;">
+                        🌓
+                    </button>
+                    <button class="primary-btn" id="btn-save" style="flex-grow: 1;">💾 Speichern</button>
                 </div>
             </div>
-            <button class="primary" id="btn-save">💾 Speichern</button>
+        </div>
+
+        <div id="main-content">
+            
+            <div id="quiz-dashboard" class="dashboard-container">
+                <div class="dashboard-header">
+                    <h1>Meine Quizze</h1>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Design wechseln" style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🌓</button>
+                        <button id="btn-dashboard-new" class="primary-btn big-btn">+ Neues Quiz erstellen</button>
+                    </div>
+                </div>
+                <div id="dashboard-grid">Lade Quizze...</div>
+            </div>
+
+            <div id="quiz-editor" style="display: none; height: 100%; flex-direction: column;">
+                
+                <div class="top-bar">
+                    <div style="display:flex; align-items:center;">
+                        <button id="sidebar-toggle-btn" title="Menü auf/zu">☰</button>
+                        <h2 id="editor-title-display" style="margin:0; margin-left: 15px;">Editor</h2>
+                    </div>
+                    
+                    <button id="btn-back-dashboard" class="secondary-btn" style="margin-left: auto;">
+                        ← Zurück zur Übersicht
+                    </button>
+                </div>
+
+                <div id="editor-scroll-area">
+                    
+                    <div class="card">
+                        <label for="gameTitle">Name des Quiz</label>
+                        <input type="text" id="gameTitle" placeholder="Titel eingeben...">
+                        
+                        <hr style="margin: 15px 0;">
+                        
+                        <div style="display: flex; gap: 20px;">
+                            <div style="flex: 1;">
+                                <label for="numCategories">Kategorien</label>
+                                <input type="number" id="numCategories" value="5" min="1" max="8">
+                            </div>
+                            <div style="flex: 1;">
+                                <label for="numQuestions">Fragen</label>
+                                <input type="number" id="numQuestions" value="5" min="1" max="10">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 30px;">
+                        <h2>Hintergrundbild</h2>
+                        <input type="file" id="boardBackgroundUpload" title="Bild hochladen">
+                        
+                        <span class="upload-status" id="background-status"></span>
+                        
+                        <div id="preview-background" style="margin-top: 5px;">
+                            <img src="" id="background-preview-img" style="display:none; max-height: 150px;">
+                        </div>
+                        <input type="hidden" id="background-path" value="">
+                        <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
+                    </div>
+
+                    <div id="editor-view">        
+                        <div id="categories-container"></div>
+                    </div>
+
+                    <div id="board-preview-view" style="display: none;">
+                        <div id="preview-grid" style="display: grid; gap: 10px; text-align: center;"></div>
+                    </div>
+
+                    <div style="height: 50px;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="main-content">
-         <div id="mandatory-view" class="card">
-            <label>Name des Quiz</label>
-            <input type="text" id="gameTitle" placeholder="Titel eingeben...">
-            <hr style="margin: 15px 0;">
-            <div style="display: flex; gap: 20px;">
-                <div style="flex: 1;">
-                    <label for="numCategories">Kategorien (Spalten)</label>
-                    <input type="number" id="numCategories" value="5" min="1" max="8">
-                </div>
-                <div style="flex: 1;">
-                    <label for="numQuestions">Fragen pro Kategorie (Zeilen)</label>
-                    <input type="number" id="numQuestions" value="5" min="1" max="10">
-                </div>
-            </div>
-            <div class="card" style="margin-top: 30px;">
-                <h2>Hintergrundbild</h2>
-                <input type="file" id="boardBackgroundUpload" title="Hintergrundbild hochladen" aria-label="Hintergrundbild hochladen">
-                <span class="upload-status" id="background-status"></span>
-                <div id="preview-background" style="margin-top: 5px;">
-                    <img src="" id="background-preview-img" style="display:none; max-height: 150px;">
-                </div>
-
-                <input type="hidden" id="background-path" value="" aria-label="Gespeicherter Pfad des Hintergrundbildes">
-                <button type="button" id="btn-remove-bg" style="background:#6c757d; color:white;">Entfernen</button>
-            </div>
-        </div>
-        <div id="editor-view">        
-            
-            <div id="categories-container"></div>
-            
-            <hr>
-            
-        </div>
-
-        <div id="board-preview-view" style="display: none;">
-            <div id="preview-grid" style="display: grid; gap: 10px; text-align: center;"></div>
-        </div>
-    </div>
-
-    <script type="module" src="./src/create.ts"></script>
+    <script type="module" src="/src/create.ts"></script>
 </body>
 </html>
