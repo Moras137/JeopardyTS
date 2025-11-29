@@ -128,6 +128,54 @@
             align-self: flex-start;
         }
         .theme-toggle-btn:hover { background: var(--border-color); }
+        
+        #music-controls {
+            display: none; /* Wird per JS auf flex gesetzt */
+            flex-direction: column;
+            gap: 10px;
+            background: var(--bg-card);      /* Passt sich an Darkmode an */
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: transform 0.1s, color 0.2s;
+        }
+
+        #music-title {
+            color: var(--text-main);         /* Passt sich an Darkmode an */
+            font-weight: bold;
+        }
+
+        /* Der Play-Button */
+        #btn-music-toggle {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 1.5rem;
+            width: 40px; 
+            height: 40px; 
+            border-radius: 50%;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            color: var(--text-main);         /* Icon Farbe */
+            transition: transform 0.1s, color 0.2s;
+        }
+
+        #btn-music-toggle:hover {
+            background: var(--border-color); /* Hover Effekt passend zum Theme */
+        }
+
+        /* Wenn Musik läuft (wird per JS Klasse gesetzt) */
+        #btn-music-toggle.is-playing {
+            background: rgba(40, 167, 69, 0.2); /* Leichtes Grün */
+            color: #28a745;
+        }
+
+        .music-volume-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -138,9 +186,20 @@
         <p>Board URL: <a id="board-url" href="#" target="_blank">Öffnen</a></p>
         <button id="toggle-qr-btn" style="margin-bottom: 10px; background: #17a2b8; color: white;">QR-Code umschalten</button>
         
+        <div id="music-controls">
+            <div style="display:flex; align-items: center; justify-content: space-between;">
+                <span id="music-title">🎵 Musik</span>
+                <button id="btn-music-toggle" title="Play/Pause">▶</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span class="music-volume-label">Lautstärke:</span>
+                <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.3" style="flex-grow: 1; cursor: pointer;">
+            </div>
+        </div>
+
         <h3>Spieler (<span id="player-count">0</span>)</h3>
         <ul id="player-list"></ul>
-        
+
         <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
             🌓
         </button>

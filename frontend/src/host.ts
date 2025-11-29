@@ -79,6 +79,7 @@ exitQuizBtn.addEventListener('click', () => {
     }
 });
 
+toggleTheme();
 
 // --- 1. SOCKET EVENTS (Server Antworten) ---
 
@@ -352,10 +353,17 @@ function toggleTheme() {
     }
 }
 async function initMusic(game: IGame) {
+
+    if (!game.backgroundMusicPath) return;
+
     const toggleBtn = document.getElementById('btn-music-toggle');
     const volSlider = document.getElementById('music-volume') as HTMLInputElement;
     const gameId = game._id || ""; 
     let isPlaying = false; 
+
+    if(controlsDiv) {
+        controlsDiv.style.display = 'flex'; // Flexbox für unser neues Layout
+    }
 
     if (game.backgroundMusicPath) {
         // Controls anzeigen
@@ -369,6 +377,7 @@ async function initMusic(game: IGame) {
                 
                 // Icon wechseln
                 toggleBtn.innerText = isPlaying ? "⏸" : "▶";
+                toggleBtn.style.background = isPlaying ? "#e2e6ea" : "transparent";
 
                 // Befehl an Server senden
                 socket.emit('music_control', {

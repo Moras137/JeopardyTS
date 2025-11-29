@@ -48,10 +48,17 @@ socket.on('board_init_game', (game: IGame) => {
     
     renderGrid();
     
-    // QR Code beim Start anzeigen
     generateQrCode();
-    qrCodeVisible = true;
+    qrCodeVisible = false;
     qrOverlay.style.display = 'flex';
+
+    if (game.backgroundMusicPath) {
+        const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
+        if(audioEl) {
+            audioEl.src = game.backgroundMusicPath;
+            audioEl.volume = 0.3; // Standardwert
+        }
+    }
 });
 
 socket.on('board_show_question', (data) => {
@@ -232,19 +239,28 @@ socket.on('session_ended', () => {
     }, 3000);
 });
 
-socket.on('music_control', (data: { action: string, value?: number }) => {
-    if (!audioEl || !audioEl.src) return;
+socket.on('music_control', (data) => {
+    const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
+    if (!audioEl) return;
+    
+    if (!audioEl.src && currentGame?.backgroundMusicPath) {
+        audioEl.src = currentGame.backgroundMusicPath;
+    }
+
+    if (!audioEl.src) return;
 
     switch (data.action) {
         case 'play':
-            // Promise catchen, falls Autoplay blockiert wird
-            audioEl.play().catch(e => console.log("Autoplay Fehler:", e));
+            const playPromise = audioEl.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Autoplay prevented or interrupted:", error);
+                });
+            }
             break;
-            
         case 'pause':
             audioEl.pause();
             break;
-            
         case 'volume':
             if (data.value !== undefined) {
                 audioEl.volume = data.value;

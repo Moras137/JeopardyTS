@@ -152,6 +152,7 @@ async function cleanupUnusedFiles() {
 
         allGames.forEach(game => {
             if (game.boardBackgroundPath) usedFiles.add(path.basename(game.boardBackgroundPath));
+            if (game.backgroundMusicPath) usedFiles.add(path.basename(game.backgroundMusicPath));
             
             game.categories.forEach(cat => {
                 cat.questions.forEach(q => {
@@ -518,7 +519,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('music_control', (data) => {
-        socket.to(data.gameId).emit('music_control', data);
+        const info = getSessionBySocketId(socket.id);
+        
+        if (info) {
+            io.to(info.code).emit('music_control', data);
+        }
     });
 
     socket.on('host_close_question', () => {
