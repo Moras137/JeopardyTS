@@ -6,7 +6,7 @@ export default defineConfig({
   root: 'frontend', // Unser Quellcode liegt hier
   build: {
     outDir: '../public', // Das Ziel ist der öffentliche Server-Ordner
-    emptyOutDir: true,   // Löscht public vor jedem Build
+    emptyOutDir: false,   // Löscht public vor jedem Build
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'frontend/create.html'),
