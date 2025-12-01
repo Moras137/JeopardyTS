@@ -37,6 +37,19 @@ let currentRoom: string | null = null;
 
 // --- 3. INITIALISIERUNG (window.onload Ersatz) ---
 
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const roomFromUrl = params.get('room');
+
+    if (roomFromUrl && roomInput) {
+        roomInput.value = roomFromUrl;
+        
+        if (nameInput) {
+            nameInput.focus();
+        }
+    }
+});
+
 // URL Parameter prüfen (z.B. vom QR Code)
 const urlParams = new URLSearchParams(window.location.search);
 const urlRoom = urlParams.get('room');

@@ -402,7 +402,7 @@ function renderPlayerBar(players: Record<string, IPlayer>) {
 async function generateQrCode() {
     const protocol = window.location.protocol; 
     const portPart = serverPort ? `:${serverPort}` : '';
-    const fullUrl = `${protocol}//${serverAddress}${portPart}/player.html`;
+    const fullUrl = `${protocol}//${serverAddress}${portPart}/player.html?room=${roomCode}`;
 
     // Anzeige aktualisieren
     joinUrlSpan.innerText = fullUrl;
