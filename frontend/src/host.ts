@@ -7,7 +7,7 @@ let currentGame: IGame | null = null;
 let players: Record<string, IPlayer> = {};
 let activeQuestion: IQuestion | null = null;
 let activePlayerId: string | null = null;
-let isPlaying: boolean = false;
+// Die globale Variable 'isPlaying' wurde entfernt, da sie in 'initMusic' von einer lokalen Variable überschattet wurde und ungenutzt war.
 
 // --- DOM ELEMENTE ---
 const controlsDiv = document.getElementById('controls') as HTMLDivElement;
@@ -123,8 +123,34 @@ socket.on('host_session_restored', (data: any) => {
     // 4. Aktive Frage wiederherstellen (falls gerade eine lief)
     if (data.activeQuestion) {
         activeQuestion = data.activeQuestion;
-        renderActiveQuestion(data.activeQuestion);
-        // Falls nötig: Buzzer-Status prüfen (das wäre der nächste Optimierungsschritt)
+        
+        // Direkte Logik zum Wiederherstellen der Frage (ersetzt die unnötige renderActiveQuestion Funktion)
+        activeQSection.style.display = 'block';
+        qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
+        qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
+        aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
+
+        const btn = document.getElementById(`q-btn-${data.catIndex}-${data.qIndex}`);
+        if (btn) btn.classList.add('used');
+
+        if (data.question.type === 'map') {
+            buzzWinnerSection.style.display = 'none';
+            mapModeControls.style.display = 'flex';
+            unlockBuzzersBtn.style.display = 'none';
+            mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
+        } else {
+            buzzWinnerSection.style.display = 'none';
+            mapModeControls.style.display = 'none';
+            unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+            if (data.buzzWinnerId) {
+                 buzzWinnerName.innerText = players[data.buzzWinnerId]?.name || 'Spieler';
+                 buzzWinnerSection.style.display = 'block';
+            }
+        }
+        
+    } else {
+        // Falls keine Frage aktiv, Sektion verstecken
+        activeQSection.style.display = 'none';
     }
 
     // 5. WICHTIG: Bereits gespielte Fragen ausgrauen
@@ -171,7 +197,6 @@ socket.on('update_scores', (updatedPlayers) => {
 
 socket.on('player_won_buzz', (data) => {
     activePlayerId = data.id;
-    // JETZT funktioniert der Aufruf, weil die Funktion unten definiert ist
     updateHostControls({
         buzzWinnerId: data.id,
         buzzWinnerName: data.name,
@@ -224,7 +249,7 @@ socket.on('host_restore_active_question', (data) => {
 });
 
 
-// --- HELPER FUNKTION (Die fehlte vorher als eigenständige Funktion) ---
+// --- HELPER FUNKTION ---
 
 function updateHostControls(data: { buzzWinnerId?: string | null, buzzWinnerName?: string, mapMode?: boolean, submittedCount?: number }) {
     
@@ -337,20 +362,37 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
     let html = `<p>${text}</p>`;
 
     if (path) {
-        // Hier müsste man den Medientyp prüfen (Video, Audio, Image)
-        // Vereinfacht für das Beispiel:
-        html += `<img src="${path}" style="max-width: 100%; max-height: 200px; display: block; margin: 10px 0;">`;
+        const lowerPath = path.toLowerCase();
+        let mediaHtml = '';
+
+        if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
+            mediaHtml = `<audio controls src="${path}" style="width: 100%; max-width: 300px; display: block; margin: 10px auto;">
+                            Dein Browser unterstützt kein Audio.
+                         </audio>`;
+        } else if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
+            mediaHtml = `<video controls src="${path}" style="max-height: 200px; max-width: 100%; display: block; margin: 10px auto;">
+                            Dein Browser unterstützt kein Video.
+                         </video>`;
+        } else {
+            // Standardmäßig als Bild annehmen
+            mediaHtml = `<img src="${path}" style="max-width: 100%; max-height: 200px; display: block; margin: 10px auto;" alt="Medien">`;
+        }
+        
+        html += mediaHtml;
     }
     
     if (part === 'answer') {
-        html = `<p style="color: #28a745; font-weight: bold;">Lösung: ${text}</p>`;
+        // Nutze CSS Variable für die Erfolgsfarbe
+        html = `<p style="color: var(--color-success); font-weight: bold;">Lösung: ${text}</p>` + html;
         if (q.type === 'map' && q.location) {
-            html += `<p style="font-style: italic;">Ziel: LAT ${q.location.lat.toFixed(4)}, LNG ${q.location.lng.toFixed(4)}</p>`;
+            // Nutze CSS Variable für gedämpften Text
+            html += `<p style="font-style: italic; color: var(--text-muted);">Ziel: LAT ${q.location.lat.toFixed(4)}, LNG ${q.location.lng.toFixed(4)}</p>`;
         }
     }
 
     return html;
 }
+
 
 function setupSessionUI(code: string) {
     roomCode = code;
@@ -385,6 +427,7 @@ function toggleTheme() {
         localStorage.setItem('quiz_theme', 'light');
     }
 }
+
 async function initMusic(game: IGame) {
 
     if (!game.backgroundMusicPath) return;
@@ -408,9 +451,13 @@ async function initMusic(game: IGame) {
             toggleBtn.onclick = () => {
                 isPlaying = !isPlaying;
                 
-                // Icon wechseln
+                // Icon wechseln und Klasse setzen
                 toggleBtn.innerText = isPlaying ? "⏸" : "▶";
-                toggleBtn.style.background = isPlaying ? "#e2e6ea" : "transparent";
+                if(isPlaying) {
+                    toggleBtn.classList.add('is-playing');
+                } else {
+                    toggleBtn.classList.remove('is-playing');
+                }
 
                 // Befehl an Server senden
                 socket.emit('music_control', {
@@ -441,49 +488,5 @@ function markQuestionAsUsed(catIndex: number, qIndex: number) {
     if (btn) {
         btn.classList.add('used');
         //btn.disabled = true; // Optional: Button auch deaktivieren
-    }
-}
-
-function renderActiveQuestion(q: IQuestion) {
-    if (!q) return;
-
-    // 1. Bereich sichtbar machen
-    if (activeQSection) {
-        activeQSection.style.display = 'block';
-    }
-
-    // 2. Titel setzen (Punkte)
-    if (qTitle) {
-        qTitle.innerText = `Frage um ${q.points} Punkte`;
-    }
-
-    // 3. Inhalt rendern (nutzt deine existierende renderQuestionContent Funktion)
-    if (qDisplay) {
-        qDisplay.innerHTML = renderQuestionContent(q, 'question');
-    }
-    if (aDisplay) {
-        aDisplay.innerHTML = renderQuestionContent(q, 'answer');
-    }
-
-    // 4. Modus-Unterscheidung (Map vs. Standard/Buzzer)
-    const mapControls = document.getElementById('map-mode-controls');
-    const buzzControls = document.getElementById('buzz-winner-section');
-
-    if (q.type === 'map') {
-        // Map Modus: Zeige Map-Controls, verstecke Buzzer
-        if (mapControls) mapControls.style.display = 'block';
-        if (buzzControls) buzzControls.style.display = 'none';
-        
-        // Reset Map Counter Anzeige
-        const mapCount = document.getElementById('map-submitted-count');
-        if (mapCount) mapCount.innerText = "0/0"; // Wird später durch Events geupdated
-
-    } else {
-        // Standard Modus: Zeige Buzzer-Controls, verstecke Map
-        if (mapControls) mapControls.style.display = 'none';
-        if (buzzControls) buzzControls.style.display = 'block';
-        
-        // Reset Buzzer Name
-        if (buzzWinnerName) buzzWinnerName.innerText = "";
     }
 }

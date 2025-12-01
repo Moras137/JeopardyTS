@@ -18,6 +18,14 @@
             --btn-q-hover: #0056b3;
             --btn-q-used: #343a40;
             --shadow: rgba(0,0,0,0.1);
+
+            /* NEUE AKZENTFARBEN FÜR BUTTONS */
+            --color-primary: #007bff;
+            --color-success: #28a745;
+            --color-danger: #dc3545;
+            --color-warning: #ffc107;
+            --color-info: #17a2b8;
+            --color-secondary: #6c757d;
         }
 
         /* DARK MODE OVERRIDES */
@@ -27,12 +35,20 @@
             --text-main: #e0e0e0;
             --text-muted: #aaa;
             --border-color: #444;
-            --cat-header-bg: #000055; /* Etwas dunkler */
+            --cat-header-bg: #000055;
             --cat-header-text: #ddd;
             --btn-q-bg: #0d6efd;
             --btn-q-hover: #0b5ed7;
             --btn-q-used: #222;
             --shadow: rgba(0,0,0,0.5);
+            
+            /* DARK MODE AKZENTFARBEN */
+            --color-primary: #0d6efd;
+            --color-success: #38c15a;
+            --color-danger: #e35a67;
+            --color-warning: #ffd130;
+            --color-info: #21b8cc;
+            --color-secondary: #7a8288;
         }
 
         /* --- STYLES USING VARIABLES --- */
@@ -44,7 +60,7 @@
             display: flex; 
             height: 95vh; 
             gap: 20px; 
-            transition: transform 0.2s ease, background-color 0.2s ease;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
         
         #sidebar {
@@ -102,18 +118,48 @@
             border: none; cursor: pointer; border-radius: 4px;
             transition: transform 0.2s ease, background-color 0.2s ease;
         }
-        .q-btn:hover:not(.disabled) { background: var(--btn-q-hover); }
-        .q-btn.used { background: var(--btn-q-used); text-decoration: line-through; opacity: 0.7; }
+        .q-btn:hover:not(.used) { background: var(--btn-q-hover); }
+        .q-btn.used { background: var(--btn-q-used); text-decoration: line-through; opacity: 0.7; cursor: default;}
 
         /* Steuerung & Buttons */
         #active-question-section { 
             margin-top: 20px; padding: 15px; 
             border: 2px dashed var(--border-color); 
+            border-radius: 8px;
             display: none; 
         }
+
+        /* NEUE ALLGEMEINE BUTTON KLASSEN */
+        .host-btn {
+            border: none; 
+            color: white; 
+            padding: 10px 20px; 
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-weight: bold;
+        }
+
+        .btn-primary { background: var(--color-primary); }
+        .btn-primary:hover { background: #0056b3; }
+
+        .btn-success { background: var(--color-success); }
+        .btn-success:hover { background: #1e7e34; }
+
+        .btn-danger { background: var(--color-danger); }
+        .btn-danger:hover { background: #bd2130; }
+
+        .btn-warning { background: var(--color-warning); color: black; }
+        .btn-warning:hover { background: #e0a800; }
+
+        .btn-info { background: var(--color-info); }
+        .btn-info:hover { background: #138496; }
+        
+        .btn-secondary { background: var(--color-secondary); }
+        .btn-secondary:hover { background: #5a6268; }
         
         /* Links & Utility */
-        a { color: #007bff; }
+        a { color: var(--color-primary); }
         
         /* Theme Toggle Button */
         .theme-toggle-btn {
@@ -130,19 +176,19 @@
         .theme-toggle-btn:hover { background: var(--border-color); }
         
         #music-controls {
-            display: none; /* Wird per JS auf flex gesetzt */
+            display: none; 
             flex-direction: column;
             gap: 10px;
-            background: var(--bg-card);      /* Passt sich an Darkmode an */
+            background: var(--bg-card);
             border: 1px solid var(--border-color);
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
-            transition: transform 0.1s, color 0.2s;
+            transition: background-color 0.2s, color 0.2s;
         }
 
         #music-title {
-            color: var(--text-main);         /* Passt sich an Darkmode an */
+            color: var(--text-main);
             font-weight: bold;
         }
 
@@ -158,18 +204,17 @@
             display: flex; 
             align-items: center; 
             justify-content: center;
-            color: var(--text-main);         /* Icon Farbe */
-            transition: transform 0.1s, color 0.2s;
+            color: var(--text-main);
+            transition: background-color 0.2s, color 0.2s;
         }
 
         #btn-music-toggle:hover {
-            background: var(--border-color); /* Hover Effekt passend zum Theme */
+            background: var(--border-color);
         }
 
-        /* Wenn Musik läuft (wird per JS Klasse gesetzt) */
         #btn-music-toggle.is-playing {
-            background: rgba(40, 167, 69, 0.2); /* Leichtes Grün */
-            color: #28a745;
+            background: rgba(40, 167, 69, 0.2);
+            color: var(--color-success);
         }
 
         .music-volume-label {
@@ -184,7 +229,7 @@
         <h2>Host Steuerung</h2>
         <p id="room-code-display">Raum: --</p>
         <p>Board URL: <a id="board-url" href="#" target="_blank">Öffnen</a></p>
-        <button id="toggle-qr-btn" style="margin-bottom: 10px; background: #17a2b8; color: white;">QR-Code umschalten</button>
+        <button id="toggle-qr-btn" class="host-btn btn-info" style="margin-bottom: 10px;">QR-Code umschalten</button>
         
         <div id="music-controls">
             <div style="display:flex; align-items: center; justify-content: space-between;">
@@ -203,7 +248,7 @@
         <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
             🌓
         </button>
-        <button id="exit-quiz-btn" style="margin-top: auto; background: #dc3545; color: white;">Session beenden</button>
+        <button id="exit-quiz-btn" class="host-btn btn-danger" style="margin-top: auto;">Session beenden</button>
         
     </div>
 
@@ -219,20 +264,20 @@
             <div id="buzz-winner-section">
                 <span>**BUZZ!** Gewinner: <span id="buzz-winner-name"></span></span>
                 <div style="margin-top: 10px; display: flex; gap: 10px;">
-                    <button id="correct-btn" style="background: #28a745; color: white;">Richtig (+Punkte)</button>
-                    <button id="incorrect-btn" style="background: #dc3545; color: white;">Falsch (-Punkte)</button>
-                    <button id="unlock-buzzers-btn" style="background: #ffc107; color: black; display: none;">Buzzer wieder aktivieren</button>
+                    <button id="correct-btn" class="host-btn btn-success">Richtig (+Punkte)</button>
+                    <button id="incorrect-btn" class="host-btn btn-danger">Falsch (-Punkte)</button>
+                    <button id="unlock-buzzers-btn" class="host-btn btn-warning" style="display: none;">Buzzer wieder aktivieren</button>
                 </div>
             </div>
 
             <div id="map-mode-controls">
                 <span>**MAP MODUS** | <span id="map-submitted-count">0/0</span> Tipps</span>
                 <div style="margin-top: 10px; display: flex; gap: 10px;">
-                    <button id="resolve-map-btn" style="background: #007bff; color: white;">Map auflösen</button>
+                    <button id="resolve-map-btn" class="host-btn btn-primary">Map auflösen</button>
                 </div>
             </div>
 
-            <button id="close-question-btn" style="background: #6c757d; color: white; margin-top: 15px;">Frage schließen & Reset</button>
+            <button id="close-question-btn" class="host-btn btn-secondary" style="margin-top: 15px;">Frage schließen & Reset</button>
         </div>
     </div>
 
