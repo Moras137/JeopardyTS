@@ -41,7 +41,6 @@ document.body.appendChild(tooltip);
 // --- STATE ---
 let editingGameId: string | null = null;
 let currentCategoriesCount = 0;
-let filesToDeleteOnSave: string[] = [];
 let cachedGames: IGame[] = [];
 let View: boolean = false; // true = Board, false = List
 let sidebarGamesCache: IGame[] = [];
@@ -57,7 +56,6 @@ const dashboardDiv = document.getElementById('quiz-dashboard') as HTMLDivElement
 const editorDiv = document.getElementById('quiz-editor') as HTMLDivElement;
 const dashboardGrid = document.getElementById('dashboard-grid') as HTMLDivElement;
 const backToDashBtn = document.getElementById('btn-back-dashboard') as HTMLButtonElement;
-const createNewBtn = document.getElementById('btn-create-new') as HTMLButtonElement;
 const editorTitleDisplay = document.getElementById('editor-title-display') as HTMLHeadingElement;
 const sidebar = document.getElementById('sidebar') as HTMLDivElement;
 const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn') as HTMLButtonElement;
@@ -69,7 +67,6 @@ const searchInput = document.getElementById('dashboard-search') as HTMLInputElem
 const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
 
 // --- INIT ---
-document.getElementById('btn-new-quiz')?.addEventListener('click', () => newGame());
 document.getElementById('btn-save')?.addEventListener('click', saveGame);
 document.getElementById('btn-remove-bg')?.addEventListener('click', removeBackground);
 
@@ -127,10 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(backToDashBtn) backToDashBtn.onclick = showDashboard;
-    if(createNewBtn) createNewBtn.onclick = () => {
-        clearForm();
-        showEditor();
-    };
 });
 
 document.getElementById('backgroundMusicUpload')?.addEventListener('change', async function(this: HTMLInputElement) {
@@ -212,9 +205,6 @@ function removeBackground() {
     const pathInput = document.getElementById('background-path') as HTMLInputElement;
     const previewContainer = document.getElementById('preview-background') as HTMLDivElement;
     
-    if (pathInput.value) {
-        filesToDeleteOnSave.push(pathInput.value);
-    }
     pathInput.value = '';
     if (previewContainer) {
         previewContainer.innerHTML = ''; 
@@ -724,7 +714,6 @@ function clearForm() {
         musicPreview.style.display = 'none';
     }
 
-    filesToDeleteOnSave = [];
     updateQuizStructure();
 }
 
