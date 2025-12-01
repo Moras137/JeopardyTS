@@ -16,6 +16,7 @@ declare global {
         deleteGame: (id: string) => void;
         loadGame: (id: string) => void;
         toggleTheme: () => void;
+        loadGameTiles: () => void;
     }
 }
 
@@ -30,9 +31,9 @@ Object.assign(tooltip.style, {
     borderRadius: '5px',
     maxWidth: '300px',
     zIndex: '10000',
-    pointerEvents: 'none', // Damit die Maus nicht flackert
+    pointerEvents: 'none',
     fontSize: '0.9rem',
-    whiteSpace: 'pre-wrap', // Zeilenumbrüche erlauben
+    whiteSpace: 'pre-wrap',
     boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
 });
 document.body.appendChild(tooltip);
@@ -45,7 +46,7 @@ let cachedGames: IGame[] = [];
 let View: boolean = false; // true = Board, false = List
 let sidebarGamesCache: IGame[] = [];
 
-const mapInstances: Record<string, L.Map> = {}; // Speichert Leaflet Instanzen
+const mapInstances: Record<string, L.Map> = {};
 
 // --- DOM ELEMENTE ---
 const container = document.getElementById('categories-container') as HTMLDivElement;
@@ -68,7 +69,6 @@ const searchInput = document.getElementById('dashboard-search') as HTMLInputElem
 const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
 
 // --- INIT ---
-// Event Listener für statische Buttons
 document.getElementById('btn-new-quiz')?.addEventListener('click', () => newGame());
 document.getElementById('btn-save')?.addEventListener('click', saveGame);
 document.getElementById('btn-remove-bg')?.addEventListener('click', removeBackground);
@@ -94,14 +94,14 @@ document.addEventListener('DOMContentLoaded', () => {
         editingGameId = null;
         // Reset Markierungen in der Liste
         document.querySelectorAll('.load-item').forEach(i => i.classList.remove('active'));
-        showEditor(); // Wechselt in Editor Ansicht
+        showEditor(); 
     };
 
     if(btnDashboardNew) btnDashboardNew.onclick = handleNew;
     if(btnSidebarNew) btnSidebarNew.onclick = handleNew;
     if(btnBackDash) btnBackDash.onclick = showDashboard;
 
-    // Sidebar Toggle (nur im Editor relevant)
+    // Sidebar Toggle
     if(sidebarToggleBtn) {
         sidebarToggleBtn.onclick = () => {
             if(sidebar.style.display === 'none') {
@@ -148,11 +148,9 @@ document.getElementById('backgroundMusicUpload')?.addEventListener('change', asy
         const data = await res.json();
 
         if (data.success) {
-            // Pfad speichern
             const hiddenInput = document.getElementById('background-music-path') as HTMLInputElement;
             hiddenInput.value = data.filePath;
             
-            // Player aktualisieren
             const audio = document.getElementById('music-preview') as HTMLAudioElement;
             audio.src = data.filePath;
             audio.style.display = 'block';
@@ -175,21 +173,16 @@ document.getElementById('btn-remove-music')?.addEventListener('click', () => {
 });
 
 // Start: Liste laden
-
 loadGameList();
 clearForm();
 
-// --- 1. GLOBALE FUNKTIONEN (für onclick="" im HTML) ---
+// --- 1. GLOBALE FUNKTIONEN ---
 
-// Datei Upload Helper
 async function uploadFile(inputElement: HTMLInputElement, previewId: string, hiddenInputId: string) {
     const statusEl = inputElement.nextElementSibling as HTMLElement;
     const previewContainer = document.getElementById(previewId) as HTMLDivElement;
     const hiddenInput = document.getElementById(hiddenInputId) as HTMLInputElement;
     
-    // Preview Image Element suchen (könnte img oder video sein, wir suchen im Container)
-    let imgPreview = previewContainer.querySelector('img.media-preview') as HTMLImageElement;
-
     const file = inputElement.files?.[0];
     if (!file) return;
 
@@ -206,42 +199,30 @@ async function uploadFile(inputElement: HTMLInputElement, previewId: string, hid
             hiddenInput.value = data.filePath;
             if(statusEl) statusEl.innerText = "Fertig!";
             
-            // Preview Logik (vereinfacht)
             previewContainer.innerHTML = generateMediaPreviewHtml(data.filePath);
-            checkQuestionFilled(hiddenInput); // Status aktualisieren
+            checkQuestionFilled(hiddenInput); 
         }
     } catch (e) {
         alert("Upload Fehler");
     }
 }
-// Global verfügbar machen
 window.uploadFile = uploadFile;
-
-// frontend/src/create.ts
 
 function removeBackground() {
     const pathInput = document.getElementById('background-path') as HTMLInputElement;
     const previewContainer = document.getElementById('preview-background') as HTMLDivElement;
     
-    // Datei zum Löschen vormerken
     if (pathInput.value) {
         filesToDeleteOnSave.push(pathInput.value);
     }
-    
-    // Pfad leeren
     pathInput.value = '';
-    
-    // Preview leeren (statt auf eine ID zu zugreifen, die evtl. nicht mehr existiert)
     if (previewContainer) {
         previewContainer.innerHTML = ''; 
     }
-
     const status = document.getElementById('background-status');
     if(status) status.innerText = '';
 }
-
 window.removeBackground = removeBackground;
-
 
 // --- 2. LOGIK FÜR FRAGEN & KATEGORIEN ---
 
@@ -249,18 +230,14 @@ function updateQuizStructure() {
     const targetCatCount = parseInt(numCatInput.value) || 1;
     const targetQCount = parseInt(numQInput.value) || 1;
 
-    // 1. KATEGORIEN ANPASSEN (Spalten)
     const existingCategories = container.querySelectorAll('.category');
     const currentCatCount = existingCategories.length;
 
     if (targetCatCount > currentCatCount) {
-        // Hinzufügen: Wir müssen (Ziel - Ist) neue Kategorien erstellen
         for (let i = currentCatCount; i < targetCatCount; i++) {
-            // Neue Kategorie direkt mit der richtigen Anzahl Fragen erstellen
             addCategory({ forceQuestionCount: targetQCount });
         }
     } else if (targetCatCount < currentCatCount) {
-        // Entfernen: Die überzähligen von hinten löschen
         for (let i = currentCatCount - 1; i >= targetCatCount; i--) {
             existingCategories[i].remove();
         }
@@ -278,12 +255,10 @@ function updateQuizStructure() {
         const currentQCount = existingQuestions.length;
 
         if (targetQCount > currentQCount) {
-            // Fragen hinzufügen
             for (let k = currentQCount; k < targetQCount; k++) {
                 addQuestion(catId);
             }
         } else if (targetQCount < currentQCount) {
-            // Fragen von hinten löschen
             for (let k = currentQCount - 1; k >= targetQCount; k--) {
                 existingQuestions[k].remove();
             }
@@ -324,13 +299,11 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const qId = (Date.now() + Math.random()).toString().replace('.', '_');
     const type = qData.type ?? 'standard';
     
-    // Default Werte mit Nullish Coalescing (??)
     const qText = qData.questionText ?? '';
     const aText = qData.answerText ?? '';
     const media = qData.mediaPath ?? '';
     const answerMedia = qData.answerMediaPath ?? '';
     
-    // Map Daten
     const lat = qData.location?.lat ?? '';
     const lng = qData.location?.lng ?? '';
     const isCustom = qData.location?.isCustomMap ?? false;
@@ -343,7 +316,6 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const points = qData.points ?? defaultPoints;
     const negPoints = qData.negativePoints ?? defaultNegPoints;
     
-    // HTML Template (Achtung: onclick ruft globale window-Funktionen auf)
     const html = `
     <div class="question-block type-${type}" id="block-${qId}" data-points="${points}">
         <div style="margin-bottom:10px; border-bottom:1px solid #ddd;">
@@ -409,12 +381,10 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
 
     qContainer.insertAdjacentHTML('beforeend', html);
 
-    // Initialisiere Map falls nötig
     if (type === 'map') {
         setTimeout(() => initMap(qId, Number(lat), Number(lng), isCustom, customPath), 100);
     }
     
-    // Check Status
     const newBlock = document.getElementById(`block-${qId}`);
     if(newBlock) checkQuestionFilled(newBlock);
 }
@@ -426,7 +396,6 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
     const mapEl = document.getElementById(mapId);
     if (!mapEl) return;
 
-    // Aufräumen alter Instanzen
     if (mapInstances[qId]) {
         mapInstances[qId].remove();
         delete mapInstances[qId];
@@ -436,7 +405,6 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
     let map: L.Map;
 
     if (isCustom && customPath) {
-        // Custom Map (Bild)
         const img = new Image();
 
         img.onerror = (err) => {
@@ -462,7 +430,6 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
         };
         img.src = customPath;
     } else {
-        // OSM
         map = L.map(mapId).setView([lat || 51.16, lng || 10.45], lat ? 13 : 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         setupMapClick(map, qId);
@@ -487,13 +454,11 @@ function setupMapClick(map: L.Map, qId: string) {
     });
 }
 
-// Helper für Map-Wechsel
 window.toggleMapSource = (qId, source) => {
     const isCustom = source === 'custom';
     (document.getElementById(`custom-upload-${qId}`) as HTMLElement).style.display = isCustom ? 'block' : 'none';
     (document.getElementById(`is-custom-${qId}`) as HTMLInputElement).value = isCustom.toString();
     
-    // Reset Values
     (document.getElementById(`lat-${qId}`) as HTMLInputElement).value = '';
     const path = (document.getElementById(`custom-path-${qId}`) as HTMLInputElement).value;
     
@@ -615,19 +580,13 @@ async function saveGame() {
 }
 
 async function loadGameList() {
-    // Falls man gerade sucht, wollen wir den Suchbegriff behalten, 
-    // oder leer '' übergeben, wenn nichts drin steht.
     const currentFilter = sidebarSearchInput ? sidebarSearchInput.value.toLowerCase() : '';
-
     gameListDiv.innerHTML = '<div style="padding:10px; color:grey;">Aktualisiere...</div>';
     
     try {
         const res = await fetch('/api/games');
         sidebarGamesCache = await res.json() as IGame[];
-        
-        // Nach dem Laden direkt rendern (mit aktuellem Filter)
         renderSidebarList(currentFilter);
-
     } catch (e) {
         console.error(e);
         gameListDiv.innerText = "Fehler beim Laden";
@@ -638,7 +597,6 @@ function renderSidebarList(filterTerm: string) {
     if (!gameListDiv) return;
     gameListDiv.innerHTML = '';
 
-    // Filtern
     const filtered = sidebarGamesCache.filter(g => 
         (g.title || "Unbenannt").toLowerCase().includes(filterTerm)
     );
@@ -654,7 +612,6 @@ function renderSidebarList(filterTerm: string) {
         const item = document.createElement('div');
         item.className = 'load-item';
         
-        // Highlight für das aktuell bearbeitete Spiel
         if(editingGameId === g._id) {
             item.classList.add('active');
         }
@@ -664,10 +621,8 @@ function renderSidebarList(filterTerm: string) {
                 ${g.title || 'Ohne Titel'}
             </span>
             <button onclick="event.stopPropagation(); startGame('${g._id}')" class="sidebar-play-btn" title="Spiel starten">▶</button>
-            
             <button onclick="event.stopPropagation(); deleteGame('${g._id}')" class="sidebar-delete-btn" title="Löschen">×</button>
         `;
-        
         listContainer.appendChild(item);
     });
     
@@ -675,8 +630,6 @@ function renderSidebarList(filterTerm: string) {
 }
 
 async function loadGame(id: string) {
-    console.log("Versuche Spiel zu laden mit ID:", id);
-
     if (!id || id === 'undefined') {
         alert("Fehler: Ungültige Spiel-ID.");
         return;
@@ -684,22 +637,14 @@ async function loadGame(id: string) {
 
     try {
         const res = await fetch(`/api/games/${id}`);
-        
-        // 1. Prüfen ob der Server OK sagt (Status 200-299)
-        if (!res.ok) {
-            throw new Error(`Server antwortete mit Status: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Server antwortete mit Status: ${res.status}`);
 
         const game = await res.json() as IGame;
-        console.log("Spiel geladen:", game);
-
-        // Formular komplett leeren bevor wir füllen
         clearForm();
 
         editingGameId = game._id!;
-        titleInput.value = game.title || ""; // Fallback auf leer
+        titleInput.value = game.title || ""; 
 
-        // Hintergrundbild setzen (nur wenn Pfad existiert)
         if (game.boardBackgroundPath) {
              const bgInput = document.getElementById('background-path') as HTMLInputElement;
              const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
@@ -717,35 +662,26 @@ async function loadGame(id: string) {
         } else {
             updateMusicPreview(''); 
         }
-        
 
-        // Kategorien laden
         container.innerHTML = '';
         if (game.categories && Array.isArray(game.categories) && game.categories.length > 0) {
-             // Kategorien rendern
              game.categories.forEach(cat => {
                  if(cat) addCategory(cat);
              });
-
-             // Inputs oben füllen (basierend auf der ersten Kategorie)
              numCatInput.value = game.categories.length.toString();
-             // Sicherer Zugriff auf Fragen-Länge
              const firstCat = game.categories[0];
              const qCount = (firstCat && firstCat.questions) ? firstCat.questions.length : 5;
              numQInput.value = qCount.toString();
         } else {
-            // Falls keine Kategorien da sind (ganz neues Spiel), Standards setzen
             numCatInput.value = "5";
             numQInput.value = "5";
         }
 
-        // In den Editor wechseln
         showEditor();
         switchView('list');
 
     } catch (e: any) {
         console.error("Detaillierter Ladefehler:", e);
-        // Zeigt dem Nutzer den echten Fehler an
         alert("Fehler beim Laden des Quizzes:\n" + (e.message || e));
     }
 }
@@ -754,7 +690,6 @@ function clearForm() {
     editingGameId = null;
     titleInput.value = '';
     
-    // Komplett leeren
     container.innerHTML = '';
     currentCategoriesCount = 0;
     
@@ -789,9 +724,7 @@ function clearForm() {
         musicPreview.style.display = 'none';
     }
 
-    // Dateiliste zum Löschen leeren
     filesToDeleteOnSave = [];
-
     updateQuizStructure();
 }
 
@@ -814,14 +747,13 @@ function changeQuestionType(select: HTMLSelectElement, qId: string) {
     if (type === 'map') {
         stdSec.style.display = 'none';
         mapSec.style.display = 'block';
-        initMap(qId); // Leaflet Hack: Refresh size
+        initMap(qId);
     } else {
         stdSec.style.display = 'block';
         mapSec.style.display = 'none';
     }
     checkQuestionFilled(select);
 }
-
 window.changeQuestionType = changeQuestionType;
 
 function checkQuestionFilled(el: HTMLElement | null) {
@@ -844,7 +776,6 @@ function checkQuestionFilled(el: HTMLElement | null) {
     if(filled) block.classList.add('is-filled');
     else block.classList.remove('is-filled');
 }
-
 window.checkQuestionFilled = checkQuestionFilled;
 
 function generateMediaPreviewHtml(path: string) {
@@ -852,23 +783,18 @@ function generateMediaPreviewHtml(path: string) {
 
     const lowerPath = path.toLowerCase();
 
-    // 1. Audio-Dateien
     if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
         return `
             <audio controls src="${path}" style="display:block; margin-top:5px; width: 100%; max-width: 250px;">
                 Dein Browser unterstützt kein Audio.
             </audio>`;
     }
-
-    // 2. Video-Dateien
     if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
         return `
             <video controls src="${path}" style="max-height:150px; display:block; margin-top:5px; max-width: 100%;">
                 Dein Browser unterstützt kein Video.
             </video>`;
     }
-
-    // 3. Standard: Bild (für jpg, png, gif, etc.)
     return `<img src="${path}" class="media-preview" style="max-height:100px; display:block; margin-top:5px;" alt="Vorschau">`;
 }
 
@@ -879,13 +805,10 @@ function switchView(mode: string) {
     const btnBoard = document.getElementById('btn-view-board') as HTMLButtonElement;
 
     if (mode === 'board') {
-        // Daten aus dem Editor lesen und Grid bauen
         renderBoardPreview();
-        
         editorView.style.display = 'none';
         boardView.style.display = 'block';
         
-        // Buttons stylen
         btnList.style.background = 'transparent';
         btnList.style.color = '#333';
         btnBoard.style.background = '#007bff';
@@ -916,12 +839,11 @@ function handleDragStart(e: DragEvent, cIndex: number, rIndex: number) {
     
     target.classList.add('dragging');
     e.dataTransfer!.effectAllowed = 'move';
-    // Wir speichern Indizes, um später die echten Blöcke zu finden
     e.dataTransfer!.setData('text/plain', JSON.stringify({ cIndex, rIndex }));
 }
 
 function handleDragOver(e: DragEvent) {
-    if (e.preventDefault) e.preventDefault(); // Nötig um Drop zu erlauben
+    if (e.preventDefault) e.preventDefault();
     e.dataTransfer!.dropEffect = 'move';
     return false;
 }
@@ -943,11 +865,9 @@ function handleDrop(e: DragEvent, targetCIndex: number, targetRIndex: number) {
     if (targetCard) targetCard.classList.remove('drag-over');
     if (dragSrcEl) dragSrcEl.classList.remove('dragging');
 
-    // Nichts tun, wenn auf sich selbst gedroppt
     if (dragSrcData && (dragSrcData.cIndex !== targetCIndex || dragSrcData.rIndex !== targetRIndex)) {
         swapQuestionBlocks(dragSrcData.cIndex, dragSrcData.rIndex, targetCIndex, targetRIndex);
     }
-    
     return false;
 }
 
@@ -956,32 +876,23 @@ function handleDragEnd(e: DragEvent) {
     document.querySelectorAll('.preview-card').forEach(card => card.classList.remove('drag-over'));
 }
 
-// Tauscht die echten DOM-Elemente im Editor-View
 function swapQuestionBlocks(srcC: number, srcR: number, tgtC: number, tgtR: number) {
     const categories = document.querySelectorAll('.category');
     
-    // Quelle finden
     const srcCat = categories[srcC];
     const srcQuestions = srcCat.querySelectorAll('.question-block');
     const srcBlock = srcQuestions[srcR] as HTMLElement;
 
-    // Ziel finden
     const tgtCat = categories[tgtC];
     const tgtQuestions = tgtCat.querySelectorAll('.question-block');
     const tgtBlock = tgtQuestions[tgtR] as HTMLElement;
 
     if (srcBlock && tgtBlock) {
-        // DOM Swap Trick: Platzhalter nutzen
         const temp = document.createElement('div');
         srcBlock.before(temp);
         tgtBlock.before(srcBlock);
         temp.replaceWith(tgtBlock);
-
-        // Grid neu zeichnen, um die Änderung anzuzeigen
         renderBoardPreview();
-        
-        // Optional: Kurzes Feedback
-        console.log(`Getauscht: [${srcC},${srcR}] <-> [${tgtC},${tgtR}]`);
     }
 }
 
@@ -998,7 +909,6 @@ function renderBoardPreview() {
 
     grid.style.gridTemplateColumns = `repeat(${categories.length}, 1fr)`;
 
-    // 1. Header
     categories.forEach((cat, index) => {
         const nameInput = cat.querySelector('.cat-name') as HTMLInputElement;
         const name = nameInput.value || `Kat. ${index + 1}`;
@@ -1009,7 +919,6 @@ function renderBoardPreview() {
         grid.appendChild(header);
     });
 
-    // 2. Fragen
     const firstCatQuestions = categories[0].querySelectorAll('.question-block');
     const numRows = firstCatQuestions.length;
 
@@ -1021,9 +930,6 @@ function renderBoardPreview() {
             const card = document.createElement('div');
             card.className = 'preview-card';
             
-           
-
-            // Drag & Drop Attribute
             card.draggable = true;
             card.addEventListener('dragstart', (e) => handleDragStart(e, cIndex, r));
             card.addEventListener('dragenter', handleDragEnter);
@@ -1037,7 +943,7 @@ function renderBoardPreview() {
                 const aInput = qBlock.querySelector('.q-answer') as HTMLTextAreaElement | HTMLInputElement;
                 const qText = qInput ? qInput.value : '';
                 const aText = aInput ? aInput.value : '';
-                // Wir stellen sicher, dass der Block den korrekten Status hat
+                
                 checkQuestionFilled(qBlock);
 
                 card.addEventListener('mouseenter', () => {
@@ -1049,14 +955,11 @@ function renderBoardPreview() {
                     tooltip.style.display = 'block';
                 });
 
-                // 2. Maus bewegen -> Tooltip folgt Maus
                 card.addEventListener('mousemove', (e) => {
-                    // Tooltip etwas versetzt positionieren, damit er nicht unter der Maus ist
                     tooltip.style.left = (e.clientX + 15) + 'px';
                     tooltip.style.top = (e.clientY + 15) + 'px';
                 });
 
-                // 3. Maus raus -> Verstecken
                 card.addEventListener('mouseleave', () => {
                     tooltip.style.display = 'none';
                 });
@@ -1090,7 +993,6 @@ function renderBoardPreview() {
                 card.style.background = '#444';
                 card.draggable = false;
             }
-            
             grid.appendChild(card);
         });
     }
@@ -1100,7 +1002,6 @@ function renderBoardPreview() {
 
 function initTheme() {
     const storedTheme = localStorage.getItem('quiz_theme');
-    // Standard ist hell. Wenn 'dark' gespeichert ist, anwenden.
     if (storedTheme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
     }
@@ -1118,8 +1019,6 @@ function toggleTheme() {
         localStorage.setItem('quiz_theme', 'light');
     }
 }
-
-// Global verfügbar machen
 window.toggleTheme = toggleTheme;
 
 function showDashboard() {
@@ -1134,9 +1033,9 @@ function showEditor() {
     
     sidebar.style.display = 'flex';
     sidebar.classList.remove('collapsed'); 
-    loadGameList(); // Liste für Sidebar laden
+    loadGameList(); 
     
-    editorDiv.style.display = 'flex'; // Flex, wegen Flex-Direction Column im HTML
+    editorDiv.style.display = 'flex';
     
     const titleDisp = document.getElementById('editor-title-display');
     if(titleDisp) titleDisp.innerText = editingGameId ? "Quiz bearbeiten" : "Neues Quiz";
@@ -1160,14 +1059,12 @@ function updateMusicPreview(filePath: string) {
         audio.removeAttribute('src');
         audio.load();
         
-        // 2. Neuen Pfad setzen
        setTimeout(() => {
             audio.src = normalizedPath;
             audio.load(); 
             console.log("Musik-Preview geladen. Pfad:", normalizedPath); 
         }, 50); 
     } else {
-        // Zurücksetzen
         audio.pause();
         audio.removeAttribute('src');
         audio.load();
@@ -1176,29 +1073,21 @@ function updateMusicPreview(filePath: string) {
     }
 }
 
-// --- LOGIK: Kacheln laden (Ersetzt loadGameList) ---
+// --- LOGIK: Kacheln laden ---
 async function loadGameTiles() {
     dashboardGrid.innerHTML = '<p>Lade Quizze...</p>';
     try {
         const res = await fetch('/api/games');
-        cachedGames = await res.json() as IGame[]; // Speichern im Cache
-
-        // Direkt alles anzeigen (Filter ist am Anfang leer)
+        cachedGames = await res.json() as IGame[];
         filterAndRenderTiles(''); 
-
     } catch (err) {
         console.error(err);
         dashboardGrid.innerHTML = '<p style="color:red">Fehler beim Laden der Spiele.</p>';
     }
 }
-
-// Damit onclick im HTML funktioniert
 (window as any).loadGameTiles = loadGameTiles;
 
-
-// 2. Filtern und Rendern
 function filterAndRenderTiles(searchTerm: string) {
-    // Liste filtern
     const filtered = cachedGames.filter(g => 
         (g.title || "").toLowerCase().includes(searchTerm)
     );
@@ -1214,12 +1103,10 @@ function filterAndRenderTiles(searchTerm: string) {
         return;
     }
 
-    // Kacheln bauen
     filtered.forEach(game => {
         const tile = document.createElement('div');
         tile.className = 'quiz-tile';
 
-        // Hintergrundbild Logik
         const bgStyle = game.boardBackgroundPath 
             ? `background-image: url('${encodeURI(game.boardBackgroundPath)}');` 
             : 'background: linear-gradient(45deg, #007bff, #6610f2);';
@@ -1254,9 +1141,7 @@ async function deleteGame(id: string) {
         const data = await res.json();
         
         if (data.success) {
-            // Wenn das aktuell offene Spiel gelöscht wurde, Formular leeren
             if (editingGameId === id) clearForm();
-            // Liste neu laden
             loadGameList();
             loadGameTiles();
         } else {
@@ -1268,6 +1153,4 @@ async function deleteGame(id: string) {
     }
 }
 window.deleteGame = deleteGame;
-
-// loadGame muss auch global verfügbar sein für onclick="..."
 window.loadGame = loadGame;
