@@ -92,6 +92,7 @@ socket.on('session_created', (code) => {
         localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: code, gameId }));
         socket.emit('host_start_game', gameId);
     }
+    
 });
 
 // B) Rejoin erfolgreich
@@ -101,6 +102,40 @@ socket.on('session_rejoined', (data: { roomCode: string, gameId: string }) => {
     
     // Sicherheitshalber Storage erneuern
     localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: data.roomCode, gameId: data.gameId }));
+});
+
+socket.on('host_session_restored', (data: any) => {
+    console.log("Session wiederhergestellt:", data);
+
+    // 1. Basis-Infos setzen
+    roomCode = data.roomCode;
+    currentGame = data.game;
+    players = data.players;
+    
+    if(roomCodeDisplay) roomCodeDisplay.innerText = `Raum: ${roomCode}`;
+
+    // 2. Grid neu aufbauen
+    renderGameGrid(data.game);
+    
+    // 3. Spielerliste aktualisieren
+    renderPlayerList();
+    
+    // 4. Aktive Frage wiederherstellen (falls gerade eine lief)
+    if (data.activeQuestion) {
+        activeQuestion = data.activeQuestion;
+        renderActiveQuestion(data.activeQuestion);
+        // Falls nötig: Buzzer-Status prüfen (das wäre der nächste Optimierungsschritt)
+    }
+
+    // 5. WICHTIG: Bereits gespielte Fragen ausgrauen
+    if (data.usedQuestions && Array.isArray(data.usedQuestions)) {
+        data.usedQuestions.forEach((item: {catIndex: number, qIndex: number}) => {
+            markQuestionAsUsed(item.catIndex, item.qIndex);
+        });
+    }
+    
+    // 6. Musiksteuerung initialisieren
+    initMusic(data.game);
 });
 
 // C) Rejoin fehlgeschlagen (z.B. Server Neustart)
@@ -118,7 +153,7 @@ socket.on('host_rejoin_error', () => {
     }
 });
 
-socket.on('load_game_on_board', (game: IGame) => {
+socket.on('load_game_on_host', (game: IGame) => {
     currentGame = game;
     initMusic(game);
     renderGameGrid(game);
@@ -275,9 +310,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
         // Buzzer Unlock erfolgt durch Server nach 'host_pick_question'
     }
 
-    // 4. Button als 'used' markieren
-    const btn = document.getElementById(`q-btn-${catIndex}-${qIndex}`);
-    if (btn) btn.classList.add('used');
+    markQuestionAsUsed(catIndex, qIndex);
 }
 
 function renderPlayerList() {
@@ -400,5 +433,57 @@ async function initMusic(game: IGame) {
                 });
             };
         }
+    }
+}
+
+function markQuestionAsUsed(catIndex: number, qIndex: number) {
+    const btn = document.getElementById(`q-btn-${catIndex}-${qIndex}`);
+    if (btn) {
+        btn.classList.add('used');
+        //btn.disabled = true; // Optional: Button auch deaktivieren
+    }
+}
+
+function renderActiveQuestion(q: IQuestion) {
+    if (!q) return;
+
+    // 1. Bereich sichtbar machen
+    if (activeQSection) {
+        activeQSection.style.display = 'block';
+    }
+
+    // 2. Titel setzen (Punkte)
+    if (qTitle) {
+        qTitle.innerText = `Frage um ${q.points} Punkte`;
+    }
+
+    // 3. Inhalt rendern (nutzt deine existierende renderQuestionContent Funktion)
+    if (qDisplay) {
+        qDisplay.innerHTML = renderQuestionContent(q, 'question');
+    }
+    if (aDisplay) {
+        aDisplay.innerHTML = renderQuestionContent(q, 'answer');
+    }
+
+    // 4. Modus-Unterscheidung (Map vs. Standard/Buzzer)
+    const mapControls = document.getElementById('map-mode-controls');
+    const buzzControls = document.getElementById('buzz-winner-section');
+
+    if (q.type === 'map') {
+        // Map Modus: Zeige Map-Controls, verstecke Buzzer
+        if (mapControls) mapControls.style.display = 'block';
+        if (buzzControls) buzzControls.style.display = 'none';
+        
+        // Reset Map Counter Anzeige
+        const mapCount = document.getElementById('map-submitted-count');
+        if (mapCount) mapCount.innerText = "0/0"; // Wird später durch Events geupdated
+
+    } else {
+        // Standard Modus: Zeige Buzzer-Controls, verstecke Map
+        if (mapControls) mapControls.style.display = 'none';
+        if (buzzControls) buzzControls.style.display = 'block';
+        
+        // Reset Buzzer Name
+        if (buzzWinnerName) buzzWinnerName.innerText = "";
     }
 }

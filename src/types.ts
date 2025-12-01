@@ -53,6 +53,7 @@ export interface IPlayer {
 
 export interface ISession {
     gameId: string;
+    game: IGame;
     hostSocketId: string;
     boardSocketId?: string;
     players: Record<string, IPlayer>;
@@ -61,6 +62,7 @@ export interface ISession {
     activeQuestion: IQuestion | null;
     activeQuestionPoints: number;
     mapGuesses: Record<string, { lat: number; lng: number }>;
+    usedQuestions: { catIndex: number, qIndex: number }[];
 }
 
 // --- SOCKET EVENTS ---
@@ -69,6 +71,7 @@ export interface ISession {
 export interface ServerToClientEvents {
     session_created: (roomCode: string) => void;
     session_rejoined: (data: { roomCode: string, gameId: string }) => void;
+    host_session_restored: (data: {roomCode: string; game: IGame; players: Record<string, IPlayer>; activeQuestion: IQuestion | null; usedQuestions: { catIndex: number, qIndex: number }[];}) => void;
     host_rejoin_error: () => void;
     error_message: (message: string) => void;
     board_connected_success: () => void;
@@ -90,10 +93,11 @@ export interface ServerToClientEvents {
     board_toggle_qr: () => void;
     board_reveal_map_results: (data: any) => void;
     session_ended: () => void;
-    load_game_on_board: (game: IGame) => void;
+    load_game_on_host: (game: IGame) => void;
     host_restore_active_question: (data: { question: IQuestion, catIndex: number, qIndex: number, buzzersActive: boolean,mapGuessesCount: number }) => void;
     music_control: (data: { action: 'play' | 'pause' | 'volume', value?: number }) => void;
     server_network_info: (data: { ip: string, port: number }) => void;
+    load_game_on_board: (data: { game: IGame, usedQuestions: { catIndex: number, qIndex: number }[] }) => void;
 }
 
 export interface ClientToServerEvents {

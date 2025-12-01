@@ -293,17 +293,27 @@ app.post('/api/delete-files', async (req, res) => {
 io.on('connection', (socket) => {
     console.log('Verbunden:', socket.id);
 
-    socket.on('host_create_session', (gameId) => {
+    socket.on('host_create_session', async (gameId) => {
+
+        const gameData = await GameModel.findById(gameId); // oder deine Lade-Logik
+        
+        if (!gameData) {
+            alert("Spiel nicht gefunden.");
+            return;
+        }
+
         const roomCode = generateRoomCode();
         sessions[roomCode] = {
             gameId,
+            game: gameData,
             hostSocketId: socket.id,
             players: {},
             buzzersActive: false,
             currentBuzzWinnerId: null,
             activeQuestion: null,
             activeQuestionPoints: 0,
-            mapGuesses: {}
+            mapGuesses: {},
+            usedQuestions: []
         };
         socket.join(roomCode);
         socket.emit('session_created', roomCode);
@@ -311,31 +321,28 @@ io.on('connection', (socket) => {
 
     socket.on('host_rejoin_session', async (roomCode) => {
         const session = sessions[roomCode];
+
         if (session) {
             session.hostSocketId = socket.id; // Neuen Socket zuweisen
             socket.join(roomCode);
             
+            syncSessionState(session, socket.id, 'host');
+            console.log(`Host hat Session ${roomCode} wieder aufgenommen.`);    
+
             // Bestätigung an Host senden
-            socket.emit('session_rejoined', { 
-                roomCode, 
-                gameId: session.gameId 
+            socket.emit('host_session_restored', {
+                roomCode: roomCode,
+                game: session.game,
+                players: session.players,              // Damit die Spielerliste sofort da ist
+                activeQuestion: session.activeQuestion,// Damit die aktuelle Frage wieder aufgeht
+                usedQuestions: session.usedQuestions || [] // Damit die Buttons grau werden
             });
             
             // Aktuellen Status an den Host senden
             socket.emit('update_player_list', session.players);
             socket.emit('update_scores', session.players);
             
-            // Spielstruktur für das Grid laden
-            try {
-                const game = await GameModel.findById(session.gameId);
-                if(game) {
-                    socket.emit('load_game_on_board', game);
-                }
-            } catch(e) {
-                console.error("Fehler beim Laden des Spiels für Rejoin:", e);
-            }
-             syncSessionState(session, socket.id, 'host');
-             console.log(`Host hat Session ${roomCode} wieder aufgenommen.`);
+            
         } else {
             // Session existiert nicht mehr (Server Neustart oder Timeout)
             socket.emit('host_rejoin_error');
@@ -348,7 +355,7 @@ io.on('connection', (socket) => {
             const game = await GameModel.findById(gameId);
             if(game) {
                 // Sende das Spiel zurück an den Host zur Anzeige
-                socket.emit('load_game_on_board', game); 
+                socket.emit('load_game_on_host', game ) ; 
             }
         } catch(e) { console.error(e); }
     });
@@ -362,7 +369,12 @@ io.on('connection', (socket) => {
             
             const game = await GameModel.findById(session.gameId);
             if(game) socket.emit('board_init_game', game);
-            
+
+            socket.emit('load_game_on_board', { 
+                 game: session.game,
+                 usedQuestions: session.usedQuestions || [] 
+             });
+
             io.to(session.boardSocketId!).emit('update_scores', session.players);
             syncSessionState(session, socket.id, 'board');
             const localIp = getLocalIpAddress();
@@ -456,6 +468,21 @@ io.on('connection', (socket) => {
         (session as any).activeCatIndex = data.catIndex;
         (session as any).activeQIndex = data.qIndex;
         (session as any).mapResolved = false;
+        
+        if (!info.session.usedQuestions) {
+                info.session.usedQuestions = [];
+        }
+        
+        const alreadyUsed = info.session.usedQuestions.some(
+            u => u.catIndex === data.catIndex && u.qIndex === data.qIndex
+        );
+
+        if (!alreadyUsed) {
+            info.session.usedQuestions.push({ 
+                catIndex: data.catIndex, 
+                qIndex: data.qIndex 
+            });
+        }
 
         if (data.question.type === 'map') {
             session.buzzersActive = false;

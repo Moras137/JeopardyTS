@@ -271,6 +271,28 @@ socket.on('music_control', (data) => {
     }
 });
 
+socket.on('load_game_on_board', (data: { game: IGame, usedQuestions: { catIndex: number, qIndex: number }[] }) => {
+    console.log("Board geladen:", data);
+    currentGame = data.game;
+    
+    
+
+    // 2. Benutzte Fragen entfernen (unsichtbar machen)
+    if (data.usedQuestions) {
+        data.usedQuestions.forEach(item => {
+            const tile = document.getElementById(`card-${item.catIndex}-${item.qIndex}`);
+            if (tile) {
+                // Option A: Komplett unsichtbar (Layout bleibt erhalten)
+                tile.style.visibility = 'hidden'; 
+                
+                // Option B: Nur Text weg und ausgegraut (falls man sehen soll, was weg ist)
+                // tile.innerText = "";
+                // tile.style.backgroundColor = "transparent";
+            }
+        });
+    }
+});
+
 // --- HELPER FUNKTIONEN ---
 
 function renderGrid() {
