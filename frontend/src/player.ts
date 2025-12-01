@@ -1,11 +1,9 @@
 import { socket } from './socket';
-import L, { map } from 'leaflet';
+import L from 'leaflet';
 
-// Falls das CSS nicht im HTML ist, kann man es oft so importieren (Vite kümmert sich darum):
 import 'leaflet/dist/leaflet.css';
 
 // --- 1. DOM ELEMENTE ---
-// Wir holen alle Elemente sicher ab und casten sie auf den richtigen Typ.
 const joinSection = document.getElementById('join-section') as HTMLDivElement;
 const gameSection = document.getElementById('game-section') as HTMLDivElement;
 const mapInterface = document.getElementById('map-interface') as HTMLDivElement;
@@ -23,11 +21,11 @@ const mapQText = document.getElementById('map-q-text') as HTMLSpanElement;
 const confirmGuessBtn = document.getElementById('confirm-guess-btn') as HTMLButtonElement;
 
 // --- 2. STATE VARIABLEN ---
-let myId: string | null = null;
+let mySocketId: string | null = null;
 let playerName = "";
 let playerBuzzed = true; // Startet gesperrt
 
-// Leaflet Variablen (können null sein, bevor die Map initialisiert ist)
+// Leaflet Variablen
 let playerMap: L.Map | null = null;
 let playerMarker: L.Marker | null = null;
 
@@ -35,45 +33,39 @@ let playerMarker: L.Marker | null = null;
 let myPlayerId: string | null = null;
 let currentRoom: string | null = null;
 
-// --- 3. INITIALISIERUNG (window.onload Ersatz) ---
+// --- 3. INITIALISIERUNG ---
 
 document.addEventListener('DOMContentLoaded', () => {
+    // URL Parameter prüfen (z.B. vom QR Code)
     const params = new URLSearchParams(window.location.search);
     const roomFromUrl = params.get('room');
 
     if (roomFromUrl && roomInput) {
         roomInput.value = roomFromUrl;
-        
-        if (nameInput) {
-            nameInput.focus();
+        if (nameInput) nameInput.focus();
+    }
+
+    // LocalStorage prüfen (Rejoin)
+    const savedSession = localStorage.getItem('jeopardy_session');
+    if (savedSession) {
+        try {
+            const data = JSON.parse(savedSession);
+            if(data.roomCode && data.name && data.playerId) {
+                rejoinMsg.style.display = 'block';
+                console.log("Versuche Rejoin...", data);
+
+                socket.emit('player_join_session', {
+                    roomCode: data.roomCode,
+                    name: data.name,
+                    existingPlayerId: data.playerId
+                });
+            }
+        } catch (e) {
+            console.error("Fehler beim Parsen der Session", e);
+            localStorage.removeItem('jeopardy_session');
         }
     }
 });
-
-// URL Parameter prüfen (z.B. vom QR Code)
-const urlParams = new URLSearchParams(window.location.search);
-const urlRoom = urlParams.get('room');
-if (urlRoom) {
-    roomInput.value = urlRoom;
-}
-
-// LocalStorage prüfen
-const savedSession = localStorage.getItem('jeopardy_session');
-if (savedSession) {
-    try {
-        const data = JSON.parse(savedSession);
-        rejoinMsg.style.display = 'block';
-        console.log("Versuche Rejoin...", data);
-
-        socket.emit('player_join_session', {
-            roomCode: data.roomCode,
-            name: data.name,
-            existingPlayerId: data.playerId
-        });
-    } catch (e) {
-        console.error("Fehler beim Parsen der Session", e);
-    }
-}
 
 // --- 4. EVENT LISTENER (User Aktionen) ---
 
@@ -90,14 +82,12 @@ joinBtn.addEventListener('click', () => {
 
 buzzerBtn.addEventListener('click', () => {
     if (!playerBuzzed) {
-        // Lokales Feedback
+        // Lokales Feedback sofort anzeigen
         playerBuzzed = true;
-        buzzerBtn.style.backgroundColor = '#ffc107'; // Gelb
-        buzzerBtn.innerText = "...";
+        setBuzzerState('waiting');
         
-        // Da socket.id undefined sein könnte, nutzen wir myId oder einen Fallback
-        if (myId) {
-            socket.emit('player_buzz', { id: myId, name: playerName });
+        if (mySocketId) {
+            socket.emit('player_buzz', { id: mySocketId, name: playerName });
         }
     }
 });
@@ -120,14 +110,15 @@ confirmGuessBtn.addEventListener('click', () => {
         playerMap.dragging.disable();
         playerMap.touchZoom.disable();
         playerMap.scrollWheelZoom.disable();
+        playerMap.doubleClickZoom.disable();
+        playerMap.boxZoom.disable();
     }
 });
 
 // --- 5. SOCKET EVENTS (Server Antworten) ---
 
 socket.on('connect', () => {
-    myId = socket.id ?? null;
-    console.log("Verbunden mit Socket ID:", myId);
+    mySocketId = socket.id ?? null;
 });
 
 socket.on('join_success', (data) => {
@@ -145,46 +136,41 @@ socket.on('join_success', (data) => {
     // UI Wechsel
     joinSection.style.display = 'none';
     gameSection.style.display = 'flex';
-    playerInfoDiv.innerText = `${data.name} (Raum: ${currentRoom})`;
+    playerInfoDiv.innerText = `${data.name}`;
+    
+    // Reset für den Fall eines Rejoins mitten im Spiel
+    setBuzzerState('locked');
 });
 
 socket.on('join_error', (msg) => {
     alert("Fehler: " + msg);
     localStorage.removeItem('jeopardy_session');
     rejoinMsg.style.display = 'none';
+    joinSection.style.display = 'flex';
+    gameSection.style.display = 'none';
 });
 
 // --- BUZZER LOGIK ---
 
 socket.on('buzzers_unlocked', () => {
     playerBuzzed = false;
-    buzzerBtn.style.backgroundColor = '#28a745'; // Grün
-    buzzerBtn.innerText = "DRÜCKEN!";
-    statusMsg.innerText = 'LOS!';
-    document.body.style.backgroundColor = '#222';
+    setBuzzerState('active');
 });
 
 socket.on('buzzers_locked', () => {
     playerBuzzed = true;
-    buzzerBtn.style.backgroundColor = '#dc3545'; // Rot
-    buzzerBtn.innerText = "GESPERRT";
-    statusMsg.innerText = 'Gesperrt';
+    setBuzzerState('locked');
 });
 
 socket.on('player_won_buzz', (data) => {
-    buzzerBtn.style.backgroundColor = '#dc3545';
-    buzzerBtn.innerText = "GESPERRT";
-    
-    // Vergleich mit der gespeicherten PlayerId ist sicherer als SocketID (wegen Reconnects)
-    // Aber data.id kommt vom Server, hier muss man prüfen, ob der Server socket.id oder player.id sendet.
-    // Laut deinem Server-Code sendet er die 'playerId'.
+    setBuzzerState('locked');
     
     if (data.id === myPlayerId) { 
         statusMsg.innerText = 'DU BIST DRAN!';
         document.body.style.backgroundColor = '#155724'; // Dunkelgrün
     } else {
         statusMsg.innerText = `${data.name} ist dran!`;
-        document.body.style.backgroundColor = '#222';
+        document.body.style.backgroundColor = 'var(--bg-body)';
     }
 });
 
@@ -198,7 +184,7 @@ socket.on('player_start_map_guess', (data) => {
     mapInterface.style.display = 'flex';
     mapQText.innerText = data.questionText || "Wo liegt das?";
     confirmGuessBtn.style.display = 'none';
-    document.body.style.backgroundColor = '#222';
+    document.body.style.backgroundColor = 'var(--bg-body)';
 
     // Karte initialisieren (Verzögerung für DOM Rendering)
     setTimeout(() => {
@@ -208,27 +194,24 @@ socket.on('player_start_map_guess', (data) => {
             playerMarker = null;
         }
 
-        // Wir nutzen Leaflet Types hier!
         playerMap = L.map('player-map', {
-                    center: [0, 0],
-                    zoomSnap: 0.5,
-                    zoomControl: true,
-                    attributionControl: false,
-                    crs: L.CRS.Simple
-                });
+            center: [0, 0],
+            zoomSnap: 0.5,
+            zoomControl: false, // Mobil besser ohne Zoom-Buttons
+            attributionControl: false,
+            crs: L.CRS.Simple // Standard für Init, wird ggf. geändert
+        });
 
         const location = data.location;
 
         if (location && location.isCustomMap && location.customMapPath) {
             // --- CUSTOM MAP ---
-            // Wir müssen die Karte auf "Simple" CRS umstellen für flache Bilder
             const bounds: L.LatLngBoundsExpression = [[0, 0], [location.mapHeight, location.mapWidth]];
-            
             L.imageOverlay(location.customMapPath, bounds).addTo(playerMap);
             playerMap.fitBounds(bounds);
         } else {
             // --- WELTKARTE ---
-            playerMap.options.crs = L.CRS.EPSG3857; // Zurücksetzen auf Standard
+            playerMap.options.crs = L.CRS.EPSG3857; 
             playerMap.setView([0, 0], 2);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19
@@ -258,14 +241,12 @@ socket.on('board_hide_question', () => {
     // Map verstecken
     mapInterface.style.display = 'none';
     
-    // Wenn eingeloggt, zeige Buzzer
+    // Wenn eingeloggt, zeige Buzzer Screen wieder
     if (myPlayerId) {
         gameSection.style.display = 'flex';
-        // Reset Status
-        buzzerBtn.style.backgroundColor = '#dc3545';
-        buzzerBtn.innerText = "GESPERRT";
-        statusMsg.innerText = "Warte...";
-        document.body.style.backgroundColor = '#222';
+        setBuzzerState('locked');
+        statusMsg.innerText = "Warte auf nächste Frage...";
+        document.body.style.backgroundColor = 'var(--bg-body)';
     }
 
     // Karte aufräumen
@@ -283,14 +264,25 @@ socket.on('session_ended', () => {
 
 socket.on('player_new_question', (data: { text: string, points: number }) => {
     // UI Reset für Standard-Frage
-    const mapInterface = document.getElementById('map-interface') as HTMLDivElement;
-    const gameSection = document.getElementById('game-section') as HTMLDivElement;
-    const statusMessage = document.getElementById('status-message') as HTMLDivElement;
-
     mapInterface.style.display = 'none';
     gameSection.style.display = 'flex';
-    statusMessage.innerText = "Frage aktiv!";
-    
-    // Buzzer Button ist standardmäßig gesperrt, bis 'buzzers_unlocked' kommt
-    // Das sendet der Server in syncSessionState direkt danach.
+    statusMsg.innerText = "Frage aktiv!";
+    document.body.style.backgroundColor = 'var(--bg-body)';
 });
+
+// --- HELPER ---
+
+function setBuzzerState(state: 'active' | 'locked' | 'waiting') {
+    if (state === 'active') {
+        buzzerBtn.style.backgroundColor = 'var(--btn-buzz-active)';
+        buzzerBtn.innerText = "DRÜCKEN!";
+        statusMsg.innerText = 'LOS!';
+    } else if (state === 'waiting') {
+        buzzerBtn.style.backgroundColor = 'var(--btn-buzz-wait)';
+        buzzerBtn.innerText = "...";
+    } else {
+        buzzerBtn.style.backgroundColor = 'var(--btn-buzz-locked)';
+        buzzerBtn.innerText = "GESPERRT";
+        if(statusMsg.innerText === 'LOS!') statusMsg.innerText = 'Gesperrt';
+    }
+}
