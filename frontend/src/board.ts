@@ -1,9 +1,9 @@
 import { socket } from './socket';
 import L from 'leaflet';
-import QRCode from 'qrcode'; // Das installierte NPM Paket
+import QRCode from 'qrcode'; 
 import { IGame, IQuestion, IPlayer } from '../../src/types';
 
-// CSS Import (optional, falls Vite verwendet wird)
+// CSS Import
 import 'leaflet/dist/leaflet.css';
 
 // --- STATE ---
@@ -18,14 +18,14 @@ let serverPort = window.location.port;
 const gameGrid = document.getElementById('game-grid') as HTMLDivElement;
 const questionOverlay = document.getElementById('question-overlay') as HTMLDivElement;
 const questionText = document.getElementById('question-text') as HTMLDivElement;
-const answerTextDiv = document.getElementById('answer-text') as HTMLDivElement; // Umbenannt, um Konflikt mit Variable zu vermeiden
+const answerTextDiv = document.getElementById('answer-text') as HTMLDivElement;
 const mediaContainer = document.getElementById('media-container') as HTMLDivElement;
 const mapDiv = document.getElementById('q-map') as HTMLDivElement;
 const playerBar = document.getElementById('player-bar') as HTMLDivElement;
 const qrOverlay = document.getElementById('qr-overlay') as HTMLDivElement;
 const qrCanvas = document.getElementById('qrcode-canvas') as HTMLCanvasElement;
 const joinUrlSpan = document.getElementById('join-url') as HTMLSpanElement;
-    const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
+const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -54,12 +54,9 @@ socket.on('board_init_game', (game: IGame) => {
     qrCodeVisible = false;
     qrOverlay.style.display = 'flex';
 
-    if (game.backgroundMusicPath) {
-        const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
-        if(audioEl) {
-            audioEl.src = game.backgroundMusicPath;
-            audioEl.volume = 0.3; // Standardwert
-        }
+    if (game.backgroundMusicPath && audioEl) {
+        audioEl.src = game.backgroundMusicPath;
+        audioEl.volume = 0.3; // Standardwert
     }
 });
 
@@ -71,7 +68,7 @@ socket.on('board_show_question', (data) => {
     mediaContainer.innerHTML = "";
     mediaContainer.style.display = 'none';
     mapDiv.style.display = 'none';
-    answerTextDiv.style.display = 'none'; // Antwort verstecken
+    answerTextDiv.style.display = 'none';
     answerTextDiv.innerHTML = "";
     
     questionText.innerText = question.questionText;
@@ -100,13 +97,12 @@ socket.on('board_reveal_answer', () => {
     if (!currentQuestion) return;
 
     // Antwort Text anzeigen
-    answerTextDiv.innerHTML = `<span style="color:#4CAF50; font-size:0.5em; display:block;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
+    answerTextDiv.innerHTML = `<span style="color:var(--text-success); font-size:0.5em; display:block;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
     answerTextDiv.style.display = 'block';
 
     // --- MAP AUFLÖSUNG ---
     if (currentQuestion.type === 'map' && currentQuestion.location) {
-        // Karte muss sichtbar bleiben, Marker werden vom 'board_reveal_map_results' Event gezeichnet
-        // Hier passiert erstmal nichts Visuelles außer dem Text
+        // Karte bleibt sichtbar, Marker kommen via 'board_reveal_map_results'
     } 
     // --- STANDARD ANTWORT MEDIA ---
     else {
@@ -129,8 +125,6 @@ socket.on('board_reveal_map_results', (data: { results: any, players: Record<str
 
     const map = mapInstance; 
     
-    if (!map) return;
-
     const { results, players, target } = data;
     const bounds: L.LatLngTuple[] = [[target.lat, target.lng]];
 
@@ -222,27 +216,22 @@ socket.on('buzzers_unlocked', () => {
 });
 
 socket.on('session_ended', () => {
-    // 1. Overlay anzeigen damit das Spiel verdeckt ist
     questionOverlay.style.display = 'flex';
     
-    // 2. Alle Medien/Karten verstecken
     mediaContainer.innerHTML = "";
     mediaContainer.style.display = 'none';
     mapDiv.style.display = 'none';
     answerTextDiv.style.display = 'none';
     
-    // 3. Nachricht anzeigen
     questionText.innerText = "Der Host hat die Sitzung beendet.";
-    questionText.style.color = "#ff6666"; // Helles Rot
+    questionText.style.color = "#ff6666";
     
-    // 4. Optional: Nach kurzer Zeit neu laden oder schließen
     setTimeout(() => {
-        window.close(); // Funktioniert oft nur, wenn das Fenster per Script geöffnet wurde
+        window.close(); 
     }, 3000);
 });
 
 socket.on('music_control', (data) => {
-    const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
     if (!audioEl) return;
     
     if (!audioEl.src && currentGame?.backgroundMusicPath) {
@@ -255,9 +244,7 @@ socket.on('music_control', (data) => {
         case 'play':
             const playPromise = audioEl.play();
             if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.log("Autoplay prevented or interrupted:", error);
-                });
+                playPromise.catch(error => console.log("Autoplay prevented:", error));
             }
             break;
         case 'pause':
@@ -275,22 +262,21 @@ socket.on('load_game_on_board', (data: { game: IGame, usedQuestions: { catIndex:
     console.log("Board geladen:", data);
     currentGame = data.game;
     
-    
-
-    // 2. Benutzte Fragen entfernen (unsichtbar machen)
     if (data.usedQuestions) {
         data.usedQuestions.forEach(item => {
             const tile = document.getElementById(`card-${item.catIndex}-${item.qIndex}`);
             if (tile) {
-                // Option A: Komplett unsichtbar (Layout bleibt erhalten)
-                tile.style.visibility = 'hidden'; 
-                
-                // Option B: Nur Text weg und ausgegraut (falls man sehen soll, was weg ist)
-                // tile.innerText = "";
-                // tile.style.backgroundColor = "transparent";
+                tile.classList.add('played');
             }
         });
     }
+});
+
+socket.on('server_network_info', (data: { ip: string, port: number }) => {
+    console.log("Server IP empfangen:", data.ip);
+    serverAddress = data.ip;
+    serverPort = data.port.toString();
+    generateQrCode(); 
 });
 
 // --- HELPER FUNKTIONEN ---
@@ -305,7 +291,7 @@ function renderGrid() {
 
     if (currentGame.backgroundMusicPath && audioEl) {
         audioEl.src = currentGame.backgroundMusicPath;
-        audioEl.volume = 0.3; // Start-Lautstärke
+        audioEl.volume = 0.3; 
     }
 
     currentGame.categories.forEach((cat, catIndex) => {
@@ -332,10 +318,8 @@ function initMap(question: IQuestion) {
     if (mapInstance) { mapInstance.remove(); mapInstance = null; }
 
     const loc = question.location;
-
     const crsMode = loc.isCustomMap ? L.CRS.Simple : L.CRS.EPSG3857;
 
-    // Basis Map Setup
     mapInstance = L.map('q-map', {
         center: [0, 0],
         zoomSnap: 0.5,
@@ -391,7 +375,7 @@ function renderPlayerBar(players: Record<string, IPlayer>) {
         const p = players[id];
         const div = document.createElement('div');
         div.className = 'player-card';
-        div.id = 'p-' + p.id; // WICHTIG: p.id benutzen, nicht den Object-Key (falls unterschiedlich)
+        div.id = 'p-' + p.id; 
         div.style.color = p.color;
         div.style.borderColor = p.color;
         div.innerText = `${p.name}: ${p.score}`;
@@ -404,7 +388,6 @@ async function generateQrCode() {
     const portPart = serverPort ? `:${serverPort}` : '';
     const fullUrl = `${protocol}//${serverAddress}${portPart}/player.html?room=${roomCode}`;
 
-    // Anzeige aktualisieren
     joinUrlSpan.innerText = fullUrl;
     
     try {
@@ -427,11 +410,3 @@ function adjustFontSize(element: HTMLElement) {
         element.style.fontSize = size + 'vh';
     }
 }
-
-socket.on('server_network_info', (data: { ip: string, port: number }) => {
-    console.log("Server IP empfangen:", data.ip);
-    serverAddress = data.ip;
-    serverPort = data.port.toString();
-    
-    generateQrCode(); 
-});

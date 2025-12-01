@@ -6,73 +6,94 @@
     <title>Jeopardy Board</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* (Dein CSS bleibt größtenteils gleich - gekürzt) */
+        /* --- THEME VARIABLES --- */
+        :root {
+            --bg-board: #00008b;
+            --bg-card: #0000cc;
+            --bg-overlay: rgba(0,0,0,0.95);
+            --bg-player-bar: #111;
+            
+            --text-main: #fff;
+            --text-highlight: #ffcc00;
+            --text-success: #4CAF50;
+            
+            --border-color: #fff;
+            --border-highlight: #ffcc00;
+            
+            --font-main: 'Impact', sans-serif;
+            --shadow-text: 2px 2px 0 #000;
+        }
+
+        /* --- BASE STYLES --- */
         body { 
-            background: #00008b; 
-            color: #fff; 
-            font-family: 'Impact', sans-serif; 
+            background: var(--bg-board); 
+            color: var(--text-main); 
+            font-family: var(--font-main); 
             margin: 0; 
             overflow: hidden; 
             background-size: cover; 
             background-position: center; 
             transition: background-image 0.5s ease; 
         }
+        
         body::before { 
             content: ''; 
             position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
             background: rgba(0,0,0,0.4); 
             z-index: -1; 
         }
 
+        /* --- GRID --- */
         #game-grid { 
             display: grid; 
             gap: 10px; 
             padding: 20px; 
             height: 80vh; 
             text-align: center; 
+            box-sizing: border-box;
         }
+
         .cat-header { 
-            color: white; 
+            color: var(--text-main); 
             font-size: 1.5rem; 
             text-transform: uppercase; 
-            text-shadow: 2px 2px 0 #000; 
-            background: #00008b; 
-            border: 3px solid #fff; 
+            text-shadow: var(--shadow-text); 
+            background: var(--bg-board); 
+            border: 3px solid var(--border-color); 
             display: flex; 
             align-items: center; 
             justify-content: center; 
             padding: 10px; 
             word-break: break-word; 
+            /* Grid Placement wird in JS handled, fallback: */
             grid-row: 1; 
         }
         
         .q-card { 
-            background: #0000cc; 
-            border: 3px solid #fff; 
+            background: var(--bg-card); 
+            border: 3px solid var(--border-color); 
             display: flex; 
             align-items: center; 
             justify-content: center; 
             font-size: 3rem; 
-            color: #ffcc00; 
+            color: var(--text-highlight); 
             text-shadow: 3px 3px 0 #000; 
+            cursor: default;
         }
+        
         .q-card.played {
              opacity: 0; 
              visibility: hidden; 
         }
 
-        /* Overlay */
+        /* --- QUESTION OVERLAY --- */
         #question-overlay { 
             position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: #00008b; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: var(--bg-board); 
             z-index: 50; 
             display: none; 
             flex-direction: column; 
@@ -92,6 +113,7 @@
             padding: 20px; 
             border-radius: 10px; 
         }
+
         #answer-text { 
             display: none; 
             font-size: 6vh; 
@@ -100,7 +122,7 @@
             border-radius: 10px;
             margin-top: 20px; 
         }
-
+        
         #media-container { 
             max-width: 80%; 
             max-height: 50vh; 
@@ -110,23 +132,23 @@
         #media-container img, #media-container video { 
             max-width: 100%; 
             max-height: 50vh; 
-            border: 5px solid white; 
+            border: 5px solid var(--border-color); 
             display: block; 
         }
-        
-        /* Map Styles */
+
+        /* --- MAP STYLES --- */
         #q-map { 
             height: 60vh; 
             width: 80%; 
             margin: 20px auto; 
-            border: 5px solid white; 
+            border: 5px solid var(--border-color); 
             box-shadow: 0 0 20px rgba(0,0,0,0.8); 
             display: none; 
             background: #ccc; 
             z-index: 100; 
         }
         
-        /* Map Marker Custom Styles */
+        /* Custom Marker Styles (für Leaflet DivIcon) */
         .marker-wrapper { 
             display: flex; 
             flex-direction: column; 
@@ -135,8 +157,7 @@
             transform: translate(-50%, -50%); 
         }
         .marker-dot { 
-            width: 16px; 
-            height: 16px; 
+            width: 16px; height: 16px; 
             border: 2px solid white; 
             border-radius: 50%; 
             box-shadow: 2px 2px 5px rgba(0,0,0,0.5); 
@@ -150,43 +171,46 @@
             font-size: 14px; 
             text-align: center; 
             white-space: nowrap; 
+            font-family: sans-serif;
         }
 
-        /* Player Bar */
+        /* --- PLAYER BAR --- */
         #player-bar { 
             position: fixed; 
             bottom: 0; 
             width: 100%; 
             height: 15vh; 
-            background: #111; 
+            background: var(--bg-player-bar); 
             display: flex; 
             justify-content: center; 
             gap: 20px; 
             align-items: center; 
-            border-top: 3px solid white; 
+            border-top: 3px solid var(--border-color); 
+            z-index: 60;
         }
+        
         .player-card { 
-            border: 2px solid white; 
+            border: 2px solid var(--border-color); 
             padding: 10px 20px; 
             font-size: 1.5rem; 
-            background: #00008b; 
-            transition: transform 0.2s; 
+            background: var(--bg-board); 
+            transition: transform 0.1s, background-color 0.1s; 
         }
+        
         .player-card.buzzing { 
             background: #fff; 
-            color: #00008b;
-            border-color: #ffcc00; 
+            color: var(--bg-board);
+            border-color: var(--border-highlight); 
             transform: scale(1.2); 
+            box-shadow: 0 0 15px var(--border-highlight);
         }
 
-        /* QR Overlay */
+        /* --- QR OVERLAY --- */
         #qr-overlay { 
             position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0,0,0,0.95); 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: var(--bg-overlay); 
             z-index: 1000; 
             display: none; 
             flex-direction: column; 
@@ -197,6 +221,7 @@
 </head>
 <body>
     <audio id="board-bg-music" loop></audio>
+    
     <div id="game-grid">
         <h1 style="width:100%; text-align:center; margin-top: 200px;">WARTE AUF SPIEL...</h1>
     </div>
