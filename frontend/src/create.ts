@@ -19,6 +19,24 @@ declare global {
     }
 }
 
+const tooltip = document.createElement('div');
+tooltip.id = 'preview-tooltip';
+Object.assign(tooltip.style, {
+    position: 'fixed',
+    display: 'none',
+    background: 'rgba(0, 0, 0, 0.9)',
+    color: '#fff',
+    padding: '10px',
+    borderRadius: '5px',
+    maxWidth: '300px',
+    zIndex: '10000',
+    pointerEvents: 'none', // Damit die Maus nicht flackert
+    fontSize: '0.9rem',
+    whiteSpace: 'pre-wrap', // Zeilenumbrüche erlauben
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+});
+document.body.appendChild(tooltip);
+
 // --- STATE ---
 let editingGameId: string | null = null;
 let currentCategoriesCount = 0;
@@ -324,7 +342,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
 
     const points = qData.points ?? defaultPoints;
     const negPoints = qData.negativePoints ?? defaultNegPoints;
-
+    
     // HTML Template (Achtung: onclick ruft globale window-Funktionen auf)
     const html = `
     <div class="question-block type-${type}" id="block-${qId}" data-points="${points}">
@@ -999,10 +1017,12 @@ function renderBoardPreview() {
         categories.forEach((cat, cIndex) => {
             const questions = cat.querySelectorAll('.question-block');
             const qBlock = questions[r] as HTMLElement;
-
+            
             const card = document.createElement('div');
             card.className = 'preview-card';
             
+           
+
             // Drag & Drop Attribute
             card.draggable = true;
             card.addEventListener('dragstart', (e) => handleDragStart(e, cIndex, r));
@@ -1013,8 +1033,33 @@ function renderBoardPreview() {
             card.addEventListener('dragend', handleDragEnd);
 
             if (qBlock) {
+                const qInput = qBlock.querySelector('.q-text') as HTMLTextAreaElement | HTMLInputElement;
+                const aInput = qBlock.querySelector('.q-answer') as HTMLTextAreaElement | HTMLInputElement;
+                const qText = qInput ? qInput.value : '';
+                const aText = aInput ? aInput.value : '';
                 // Wir stellen sicher, dass der Block den korrekten Status hat
                 checkQuestionFilled(qBlock);
+
+                card.addEventListener('mouseenter', () => {
+                    let content = `<div style="margin-bottom:8px; color:#aaa; font-size:0.8em;"></div>`;
+                    content += `<div><strong>F:</strong> ${qText || '<em style="color:#777">Leer</em>'}</div>`;
+                    content += `<div style="margin-top:5px; padding-top:5px; border-top:1px solid #555;"><strong>A:</strong> ${aText || '<em style="color:#777">Leer</em>'}</div>`;
+                    
+                    tooltip.innerHTML = content;
+                    tooltip.style.display = 'block';
+                });
+
+                // 2. Maus bewegen -> Tooltip folgt Maus
+                card.addEventListener('mousemove', (e) => {
+                    // Tooltip etwas versetzt positionieren, damit er nicht unter der Maus ist
+                    tooltip.style.left = (e.clientX + 15) + 'px';
+                    tooltip.style.top = (e.clientY + 15) + 'px';
+                });
+
+                // 3. Maus raus -> Verstecken
+                card.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
 
                 if (qBlock.classList.contains('is-filled')) {
                     card.classList.add('is-filled');
