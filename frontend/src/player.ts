@@ -33,6 +33,9 @@ let playerMarker: L.Marker | null = null;
 let myPlayerId: string | null = null;
 let currentRoom: string | null = null;
 
+// Wake Lock Variable (für Bildschirm wachhalten)
+let wakeLock: any = null; 
+
 // --- 3. INITIALISIERUNG ---
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -64,6 +67,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fehler beim Parsen der Session", e);
             localStorage.removeItem('jeopardy_session');
         }
+    }
+});
+
+// Event Listener für Wake Lock Re-Acquire (wenn Tab gewechselt wurde)
+document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
     }
 });
 
@@ -140,6 +150,9 @@ socket.on('join_success', (data) => {
     
     // Reset für den Fall eines Rejoins mitten im Spiel
     setBuzzerState('locked');
+
+    // WAKE LOCK AKTIVIEREN
+    requestWakeLock();
 });
 
 socket.on('join_error', (msg) => {
@@ -168,6 +181,8 @@ socket.on('player_won_buzz', (data) => {
     if (data.id === myPlayerId) { 
         statusMsg.innerText = 'DU BIST DRAN!';
         document.body.style.backgroundColor = '#155724'; // Dunkelgrün
+        // Vibrations-Feedback (falls unterstützt)
+        if(navigator.vibrate) navigator.vibrate(200);
     } else {
         statusMsg.innerText = `${data.name} ist dran!`;
         document.body.style.backgroundColor = 'var(--bg-body)';
@@ -259,6 +274,12 @@ socket.on('board_hide_question', () => {
 socket.on('session_ended', () => {
     alert("Der Host hat das Spiel beendet.");
     localStorage.removeItem('jeopardy_session');
+    
+    // Wake Lock freigeben
+    if(wakeLock) {
+        wakeLock.release().then(() => wakeLock = null);
+    }
+    
     location.reload();
 });
 
@@ -284,5 +305,21 @@ function setBuzzerState(state: 'active' | 'locked' | 'waiting') {
         buzzerBtn.style.backgroundColor = 'var(--btn-buzz-locked)';
         buzzerBtn.innerText = "GESPERRT";
         if(statusMsg.innerText === 'LOS!') statusMsg.innerText = 'Gesperrt';
+    }
+}
+
+// Funktion um Screen Lock zu verhindern
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await (navigator as any).wakeLock.request('screen');
+            console.log('Screen Wake Lock aktiv');
+            
+            wakeLock.addEventListener('release', () => {
+                console.log('Screen Wake Lock wurde freigegeben');
+            });
+        }
+    } catch (err) {
+        console.error(`Wake Lock Fehler: ${err}`);
     }
 }
