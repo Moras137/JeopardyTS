@@ -7,277 +7,322 @@
     <style>
         /* --- THEME VARIABLES --- */
         :root {
-            --bg-body: #eee;
-            --bg-card: #fff;
-            --text-main: #000;
+            --bg-body: #f4f4f9;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --text-main: #333;
             --text-muted: #666;
-            --border-color: #ddd;
+            --border-color: #e0e0e0;
             --cat-header-bg: #00008b;
             --cat-header-text: #fff;
-            --btn-q-bg: #007bff;
-            --btn-q-hover: #0056b3;
-            --btn-q-used: #343a40;
-            --shadow: rgba(0,0,0,0.1);
-
-            /* NEUE AKZENTFARBEN FÜR BUTTONS */
+            
+            /* BUTTONS & ACCENTS */
             --color-primary: #007bff;
             --color-success: #28a745;
             --color-danger: #dc3545;
             --color-warning: #ffc107;
             --color-info: #17a2b8;
             --color-secondary: #6c757d;
+            
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
+            --overlay-bg: rgba(0, 0, 0, 0.85);
         }
 
-        /* DARK MODE OVERRIDES */
         [data-theme="dark"] {
             --bg-body: #121212;
-            --bg-card: #1e1e1e;
+            --bg-sidebar: #1e1e1e;
+            --bg-card: #2c2c2c;
             --text-main: #e0e0e0;
             --text-muted: #aaa;
             --border-color: #444;
             --cat-header-bg: #000055;
             --cat-header-text: #ddd;
-            --btn-q-bg: #0d6efd;
-            --btn-q-hover: #0b5ed7;
-            --btn-q-used: #222;
-            --shadow: rgba(0,0,0,0.5);
             
-            /* DARK MODE AKZENTFARBEN */
-            --color-primary: #0d6efd;
-            --color-success: #38c15a;
-            --color-danger: #e35a67;
-            --color-warning: #ffd130;
-            --color-info: #21b8cc;
-            --color-secondary: #7a8288;
+            --color-primary: #3d8bfd;
+            --color-success: #2ea043;
+            --color-danger: #f85149;
+            
+            --shadow: 0 4px 6px rgba(0,0,0,0.5);
+            --overlay-bg: rgba(0, 0, 0, 0.95);
         }
 
-        /* --- STYLES USING VARIABLES --- */
+        * { box-sizing: border-box; }
+
         body { 
-            font-family: sans-serif; 
-            padding: 20px; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; padding: 0;
             background: var(--bg-body); 
             color: var(--text-main);
             display: flex; 
-            height: 95vh; 
-            gap: 20px; 
-            transition: background-color 0.2s ease, color 0.2s ease;
+            height: 100vh; 
+            overflow: hidden; /* Scrollen im Body verhindern */
         }
         
+        /* --- SIDEBAR (Links) --- */
         #sidebar {
-            width: 300px; 
-            background: var(--bg-card); 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 5px var(--shadow); 
-            border: 1px solid var(--border-color);
+            width: 320px;
+            min-width: 320px;
+            background: var(--bg-sidebar); 
+            border-right: 1px solid var(--border-color);
             display: flex; 
             flex-direction: column; 
+            padding: 20px;
+            z-index: 10;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
         }
 
+        .sidebar-section { margin-bottom: 20px; }
+        .sidebar-section.grow { flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .sidebar-section.bottom { margin-top: auto; margin-bottom: 0; padding-top: 20px; border-top: 1px solid var(--border-color); }
+
+        h2, h3 { margin-top: 0; font-size: 1.2rem; color: var(--text-main); }
+        
+        #room-code-box {
+            background: var(--color-primary);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        #room-code-display { font-size: 1.5rem; font-weight: bold; margin: 0; }
+        .room-url { font-size: 0.8rem; color: rgba(255,255,255,0.8); display: block; margin-top: 5px; text-decoration: none;}
+
+        /* Spieler Liste */
         #player-list { 
-            list-style: none; padding: 0; margin: 10px 0; 
-            max-height: 40vh; overflow-y: auto; 
+            list-style: none; padding: 0; margin: 0; 
+            overflow-y: auto; 
+            flex-grow: 1;
+            padding-right: 5px; /* Platz für Scrollbar */
         }
         .player-item { 
-            padding: 8px; 
-            border-bottom: 1px solid var(--border-color); 
+            padding: 10px; 
+            background: var(--bg-body);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border-color);
             display: flex; justify-content: space-between; align-items: center; 
         }
-        .player-item .score { font-weight: bold; }
+        .player-item .score { font-weight: bold; font-size: 1.1rem; }
 
-        #controls { 
-            flex-grow: 1; 
-            background: var(--bg-card); 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 5px var(--shadow);
-            border: 1px solid var(--border-color);
-            display: none; 
-            flex-direction: column; 
+        /* Musik Controls Compact */
+        #music-controls {
+            background: var(--bg-body);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .music-row { display: flex; justify-content: space-between; align-items: center; }
+
+        /* --- MAIN CONTENT (Rechts) --- */
+        #main-area {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: auto; /* Grid soll scrollen können wenn nötig */
+            position: relative;
+        }
+
+        #host-grid { 
+            display: flex; 
+            gap: 15px; 
+            /* Grid zentrieren wenn Platz da ist */
+            margin: 0 auto;
+            max-width: 100%;
         }
         
-        #host-grid { 
-            display: flex; gap: 10px; overflow-x: auto; 
-            margin-bottom: 20px; padding-bottom: 10px; 
-            border-bottom: 2px solid var(--border-color); 
+        .host-col { 
+            flex: 1; 
+            min-width: 140px; 
+            display: flex; flex-direction: column; gap: 8px; 
         }
-        .host-col { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 5px; }
         
         .host-cat-title { 
-            font-weight: bold; text-align: center; margin-bottom: 5px; 
+            font-weight: bold; text-align: center; 
             background: var(--cat-header-bg); 
             color: var(--cat-header-text); 
-            padding: 5px; border-radius: 4px; 
+            padding: 10px; border-radius: 4px; 
+            box-shadow: 0 2px 4px var(--shadow);
+            min-height: 50px; display: flex; align-items: center; justify-content: center;
         }
         
         .q-btn {
-            padding: 15px 10px; 
-            background: var(--btn-q-bg); 
-            color: white; 
-            font-size: 1.2rem; font-weight: bold; 
-            border: none; cursor: pointer; border-radius: 4px;
-            transition: transform 0.2s ease, background-color 0.2s ease;
+            padding: 15px; 
+            background: var(--bg-card);
+            color: var(--color-primary); 
+            border: 2px solid var(--color-primary);
+            font-size: 1.5rem; font-weight: bold; 
+            cursor: pointer; border-radius: 4px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px var(--shadow);
         }
-        .q-btn:hover:not(.used) { background: var(--btn-q-hover); }
-        .q-btn.used { background: var(--btn-q-used); text-decoration: line-through; opacity: 0.7; cursor: default;}
+        .q-btn:hover:not(.used) { background: var(--color-primary); color: white; transform: translateY(-2px); }
+        .q-btn.used { 
+            background: transparent; color: var(--text-muted); border-color: var(--border-color); 
+            text-decoration: line-through; opacity: 0.5; cursor: default; box-shadow: none;
+        }
 
-        /* Steuerung & Buttons */
+        /* --- OVERLAY FÜR AKTIVE FRAGE (Modal) --- */
         #active-question-section { 
-            margin-top: 20px; padding: 15px; 
-            border: 2px dashed var(--border-color); 
-            border-radius: 8px;
-            display: none; 
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--overlay-bg);
+            backdrop-filter: blur(5px); /* Glas-Effekt */
+            z-index: 1000;
+            display: none; /* Standardmäßig aus */
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
         }
 
-        /* NEUE ALLGEMEINE BUTTON KLASSEN */
-        .host-btn {
-            border: none; 
-            color: white; 
-            padding: 10px 20px; 
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-            font-weight: bold;
+        .question-modal-content {
+            background: var(--bg-card);
+            width: 90%; max-width: 800px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            animation: fadeIn 0.3s ease-out;
+            max-height: 90vh;
         }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        .modal-header {
+            background: var(--bg-body);
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h4 { margin: 0; font-size: 1.2rem; color: var(--text-muted); }
+        .modal-points { font-weight: bold; color: var(--color-primary); font-size: 1.2rem; }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            background: var(--bg-body);
+            border-top: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 10px;
+        }
+
+        /* --- BUTTONS --- */
+        .host-btn {
+            border: none; color: white; padding: 10px 18px; 
+            border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem;
+            transition: opacity 0.2s;
+            display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+        }
+        .host-btn:hover { opacity: 0.9; }
+        .btn-full { width: 100%; margin-top: 5px; }
 
         .btn-primary { background: var(--color-primary); }
-        .btn-primary:hover { background: #0056b3; }
-
         .btn-success { background: var(--color-success); }
-        .btn-success:hover { background: #1e7e34; }
-
         .btn-danger { background: var(--color-danger); }
-        .btn-danger:hover { background: #bd2130; }
-
-        .btn-warning { background: var(--color-warning); color: black; }
-        .btn-warning:hover { background: #e0a800; }
-
+        .btn-warning { background: var(--color-warning); color: #000; }
         .btn-info { background: var(--color-info); }
-        .btn-info:hover { background: #138496; }
-        
         .btn-secondary { background: var(--color-secondary); }
-        .btn-secondary:hover { background: #5a6268; }
-        
-        /* Links & Utility */
-        a { color: var(--color-primary); }
-        
-        /* Theme Toggle Button */
-        .theme-toggle-btn {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1.2rem;
-            margin-top: 10px;
-            align-self: flex-start;
-        }
-        .theme-toggle-btn:hover { background: var(--border-color); }
-        
-        #music-controls {
-            display: none; 
-            flex-direction: column;
-            gap: 10px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            transition: background-color 0.2s, color 0.2s;
-        }
 
-        #music-title {
-            color: var(--text-main);
-            font-weight: bold;
+        /* Toggle Button */
+        .icon-btn {
+            background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-main);
+            padding: 5px; border-radius: 4px;
         }
+        .icon-btn:hover { background: var(--border-color); }
 
-        /* Der Play-Button */
-        #btn-music-toggle {
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            font-size: 1.5rem;
-            width: 40px; 
-            height: 40px; 
-            border-radius: 50%;
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            color: var(--text-main);
-            transition: background-color 0.2s, color 0.2s;
-        }
-
-        #btn-music-toggle:hover {
-            background: var(--border-color);
-        }
-
-        #btn-music-toggle.is-playing {
-            background: rgba(40, 167, 69, 0.2);
-            color: var(--color-success);
-        }
-
-        .music-volume-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
+        /* Media Queries */
+        @media (max-width: 900px) {
+            #sidebar { width: 250px; min-width: 250px; }
+            .q-btn { font-size: 1.2rem; padding: 10px; }
         }
     </style>
 </head>
 <body>
-    
+
     <div id="sidebar">
-        <h2>Host Steuerung</h2>
-        <p id="room-code-display">Raum: --</p>
-        <p>Board URL: <a id="board-url" href="#" target="_blank">Öffnen</a></p>
-        <button id="toggle-qr-btn" class="host-btn btn-info" style="margin-bottom: 10px;">QR-Code umschalten</button>
-        
-        <div id="music-controls">
-            <div style="display:flex; align-items: center; justify-content: space-between;">
-                <span id="music-title">🎵 Musik</span>
-                <button id="btn-music-toggle" title="Play/Pause">▶</button>
+        <div class="sidebar-section">
+            <div id="room-code-box">
+                <div style="font-size: 0.8rem; text-transform: uppercase; opacity: 0.8;">Raum Code</div>
+                <p id="room-code-display">----</p>
+                <a id="board-url" href="#" target="_blank" class="room-url">Board öffnen ↗</a>
             </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <span class="music-volume-label">Lautstärke:</span>
-                <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.3" style="flex-grow: 1; cursor: pointer;">
-            </div>
+            <button id="toggle-qr-btn" class="host-btn btn-info btn-full">QR-Code zeigen</button>
         </div>
 
-        <h3>Spieler (<span id="player-count">0</span>)</h3>
-        <ul id="player-list"></ul>
+        <div class="sidebar-section grow">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h3>Spieler (<span id="player-count">0</span>)</h3>
+            </div>
+            <ul id="player-list">
+                </ul>
+        </div>
 
-        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
-            🌓
-        </button>
-        <button id="exit-quiz-btn" class="host-btn btn-danger" style="margin-top: auto;">Session beenden</button>
-        
+        <div class="sidebar-section bottom">
+            <div id="music-controls" style="display:none;">
+                <div class="music-row">
+                    <span style="font-weight:bold; font-size:0.9rem;">🎵 Hintergrundmusik</span>
+                    <button id="btn-music-toggle" class="icon-btn" title="Play/Pause">▶</button>
+                </div>
+                <div class="music-row">
+                    <span style="font-size:0.8rem;">Vol:</span>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.3" style="width: 100px;">
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content: space-between; margin-top: 15px;">
+                <button id="theme-toggle-btn" class="icon-btn" title="Darkmode">🌓</button>
+                <button id="exit-quiz-btn" class="host-btn btn-danger" style="font-size: 0.8rem; padding: 5px 10px;">Beenden</button>
+            </div>
+        </div>
     </div>
 
-    <div id="controls">
+    <div id="main-area">
         <div id="host-grid">
             </div>
+    </div>
 
-        <div id="active-question-section">
-            <h4 id="question-title">-- Aktive Frage --</h4>
-            <div id="question-display"></div>
-            <div id="answer-display"></div>
-            
-            <div id="buzz-winner-section">
-                <span>**BUZZ!** Gewinner: <span id="buzz-winner-name"></span></span>
-                <div style="margin-top: 10px; display: flex; gap: 10px;">
-                    <button id="correct-btn" class="host-btn btn-success">Richtig (+Punkte)</button>
-                    <button id="incorrect-btn" class="host-btn btn-danger">Falsch (-Punkte)</button>
-                    <button id="unlock-buzzers-btn" class="host-btn btn-warning" style="display: none;">Buzzer wieder aktivieren</button>
-                </div>
+    <div id="active-question-section">
+        <div class="question-modal-content">
+            <div class="modal-header">
+                <h4 id="question-title">Kategorie - Punkte</h4>
+                <button id="btn-close-modal-top" class="icon-btn" style="font-size:1.5rem;">&times;</button>
             </div>
 
-            <div id="map-mode-controls">
-                <span>**MAP MODUS** | <span id="map-submitted-count">0/0</span> Tipps</span>
-                <div style="margin-top: 10px; display: flex; gap: 10px;">
-                    <button id="resolve-map-btn" class="host-btn btn-primary">Map auflösen</button>
-                </div>
+            <div class="modal-body">
+                <div id="question-display" style="font-size: 1.2rem; margin-bottom: 20px;"></div>
+                <hr style="border:0; border-top:1px dashed var(--border-color); margin: 15px 0;">
+                <div id="answer-display" style="font-size: 1.1rem; color: var(--text-muted);"></div>
             </div>
 
-            <button id="close-question-btn" class="host-btn btn-secondary" style="margin-top: 15px;">Frage schließen & Reset</button>
+            <div class="modal-footer">
+                
+                <div id="buzz-winner-section" style="width: 100%; display:none; background: rgba(255, 193, 7, 0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid var(--color-warning);">
+                    <div style="text-align: center; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px;">
+                        🚨 GEBUZZERT: <span id="buzz-winner-name" style="color: var(--color-primary); font-size: 1.4rem;">Name</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button id="correct-btn" class="host-btn btn-success">Richtig ✅</button>
+                        <button id="incorrect-btn" class="host-btn btn-danger">Falsch ❌</button>
+                    </div>
+                </div>
+
+                <button id="unlock-buzzers-btn" class="host-btn btn-warning" style="display:none;">🔓 Buzzer freigeben</button>
+
+                <div id="map-mode-controls" style="display:none; align-items: center; gap: 15px;">
+                    <span style="font-weight:bold;">Map: <span id="map-submitted-count">0/0</span> abgegeben</span>
+                    <button id="resolve-map-btn" class="host-btn btn-primary">Auflösen</button>
+                </div>
+
+                <div style="margin-left: auto;">
+                    <button id="close-question-btn" class="host-btn btn-secondary">Frage schließen</button>
+                </div>
+            </div>
         </div>
     </div>
 

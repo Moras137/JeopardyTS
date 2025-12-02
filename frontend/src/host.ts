@@ -7,21 +7,20 @@ let currentGame: IGame | null = null;
 let players: Record<string, IPlayer> = {};
 let activeQuestion: IQuestion | null = null;
 let activePlayerId: string | null = null;
-// Die globale Variable 'isPlaying' wurde entfernt, da sie in 'initMusic' von einer lokalen Variable überschattet wurde und ungenutzt war.
 
 // --- DOM ELEMENTE ---
-const controlsDiv = document.getElementById('controls') as HTMLDivElement;
 const hostGrid = document.getElementById('host-grid') as HTMLDivElement;
-const sidebar = document.getElementById('sidebar') as HTMLDivElement;
 const roomCodeDisplay = document.getElementById('room-code-display') as HTMLParagraphElement;
 const boardUrl = document.getElementById('board-url') as HTMLAnchorElement;
 const playerCountSpan = document.getElementById('player-count') as HTMLSpanElement;
 const playerListUl = document.getElementById('player-list') as HTMLUListElement;
 
+// Overlay / Modal Elemente
 const activeQSection = document.getElementById('active-question-section') as HTMLDivElement;
 const qTitle = document.getElementById('question-title') as HTMLHeadingElement;
 const qDisplay = document.getElementById('question-display') as HTMLDivElement;
 const aDisplay = document.getElementById('answer-display') as HTMLDivElement;
+const btnCloseModalTop = document.getElementById('btn-close-modal-top') as HTMLButtonElement; // NEU
 
 const buzzWinnerSection = document.getElementById('buzz-winner-section') as HTMLDivElement;
 const buzzWinnerName = document.getElementById('buzz-winner-name') as HTMLSpanElement;
@@ -29,6 +28,7 @@ const correctBtn = document.getElementById('correct-btn') as HTMLButtonElement;
 const incorrectBtn = document.getElementById('incorrect-btn') as HTMLButtonElement;
 const unlockBuzzersBtn = document.getElementById('unlock-buzzers-btn') as HTMLButtonElement;
 const closeQuestionBtn = document.getElementById('close-question-btn') as HTMLButtonElement;
+
 const toggleQRBtn = document.getElementById('toggle-qr-btn') as HTMLButtonElement;
 const exitQuizBtn = document.getElementById('exit-quiz-btn') as HTMLButtonElement;
 
@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedSession) {
         try {
             const data = JSON.parse(savedSession);
-            // Rejoin versuchen statt neu erstellen
             socket.emit('host_rejoin_session', data.roomCode);
             return; 
         } catch (e) {
@@ -64,15 +63,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Steuerung Button Listener
-correctBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId }));
-incorrectBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId }));
-unlockBuzzersBtn.addEventListener('click', () => socket.emit('host_unlock_buzzers'));
-closeQuestionBtn.addEventListener('click', () => socket.emit('host_close_question'));
-toggleQRBtn.addEventListener('click', () => socket.emit('host_toggle_qr'));
-resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
-themeToggleBtn.addEventListener('click', toggleTheme);
+if(correctBtn) correctBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId }));
+if(incorrectBtn) incorrectBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId }));
+if(unlockBuzzersBtn) unlockBuzzersBtn.addEventListener('click', () => socket.emit('host_unlock_buzzers'));
 
-exitQuizBtn.addEventListener('click', () => {
+// Beide Schließen-Buttons machen das Gleiche
+const handleClose = () => socket.emit('host_close_question');
+if(closeQuestionBtn) closeQuestionBtn.addEventListener('click', handleClose);
+if(btnCloseModalTop) btnCloseModalTop.addEventListener('click', handleClose);
+
+if(toggleQRBtn) toggleQRBtn.addEventListener('click', () => socket.emit('host_toggle_qr'));
+if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
+if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
+
+if(exitQuizBtn) exitQuizBtn.addEventListener('click', () => {
     if(confirm("Session wirklich beenden?")) {
         socket.emit('host_end_session');
         window.location.href = '/create.html';
@@ -85,47 +89,34 @@ toggleTheme();
 
 socket.on('session_created', (code) => {
     setupSessionUI(code);
-    
-    // In LocalStorage speichern
     const gameId = new URLSearchParams(window.location.search).get('gameId');
     if (gameId) {
         localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: code, gameId }));
         socket.emit('host_start_game', gameId);
     }
-    
 });
 
-// B) Rejoin erfolgreich
 socket.on('session_rejoined', (data: { roomCode: string, gameId: string }) => {
-    console.log("Erfolgreich rejoined!");
     setupSessionUI(data.roomCode);
-    
-    // Sicherheitshalber Storage erneuern
     localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: data.roomCode, gameId: data.gameId }));
 });
 
 socket.on('host_session_restored', (data: any) => {
-    console.log("Session wiederhergestellt:", data);
-
-    // 1. Basis-Infos setzen
     roomCode = data.roomCode;
     currentGame = data.game;
     players = data.players;
     
-    if(roomCodeDisplay) roomCodeDisplay.innerText = `Raum: ${roomCode}`;
+    if(roomCodeDisplay) roomCodeDisplay.innerText = roomCode || '--';
 
-    // 2. Grid neu aufbauen
     renderGameGrid(data.game);
-    
-    // 3. Spielerliste aktualisieren
     renderPlayerList();
     
-    // 4. Aktive Frage wiederherstellen (falls gerade eine lief)
     if (data.activeQuestion) {
         activeQuestion = data.activeQuestion;
         
-        // Direkte Logik zum Wiederherstellen der Frage (ersetzt die unnötige renderActiveQuestion Funktion)
-        activeQSection.style.display = 'block';
+        // CSS Change: Flex für Overlay
+        activeQSection.style.display = 'flex'; 
+        
         qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
         qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
         aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
@@ -141,7 +132,9 @@ socket.on('host_session_restored', (data: any) => {
         } else {
             buzzWinnerSection.style.display = 'none';
             mapModeControls.style.display = 'none';
+            // Logik ob Buzzer aktiv oder nicht
             unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+            
             if (data.buzzWinnerId) {
                  buzzWinnerName.innerText = players[data.buzzWinnerId]?.name || 'Spieler';
                  buzzWinnerSection.style.display = 'block';
@@ -149,32 +142,24 @@ socket.on('host_session_restored', (data: any) => {
         }
         
     } else {
-        // Falls keine Frage aktiv, Sektion verstecken
         activeQSection.style.display = 'none';
     }
 
-    // 5. WICHTIG: Bereits gespielte Fragen ausgrauen
     if (data.usedQuestions && Array.isArray(data.usedQuestions)) {
         data.usedQuestions.forEach((item: {catIndex: number, qIndex: number}) => {
             markQuestionAsUsed(item.catIndex, item.qIndex);
         });
     }
     
-    // 6. Musiksteuerung initialisieren
     initMusic(data.game);
 });
 
-// C) Rejoin fehlgeschlagen (z.B. Server Neustart)
 socket.on('host_rejoin_error', () => {
-    console.warn("Rejoin fehlgeschlagen - Session nicht gefunden.");
     localStorage.removeItem('jeopardy_host_session');
-    
-    // Versuche neu zu erstellen, falls wir noch auf der URL sind
     const gameId = new URLSearchParams(window.location.search).get('gameId');
     if (gameId) {
         socket.emit('host_create_session', gameId);
     } else {
-        alert("Sitzung abgelaufen. Bitte neu starten.");
         window.location.href = '/create.html';
     }
 });
@@ -204,7 +189,6 @@ socket.on('player_won_buzz', (data) => {
     });
 });
 
-// Wir nutzen die Funktion als Handler für das Server-Event
 socket.on('update_host_controls', updateHostControls);
 
 socket.on('host_update_map_status', (data) => {
@@ -212,48 +196,37 @@ socket.on('host_update_map_status', (data) => {
 });
 
 socket.on('host_restore_active_question', (data) => {
-    console.log("Stelle aktive Frage wieder her:", data);
-    
-    // UI auf "Frage aktiv" schalten
     activeQuestion = data.question;
-    activeQSection.style.display = 'block';
-    qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
+    // CSS Change: Flex für Overlay
+    activeQSection.style.display = 'flex';
     
-    // Inhalte rendern
+    qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
     qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
     aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
 
-    // Button als "used" markieren
     const btn = document.getElementById(`q-btn-${data.catIndex}-${data.qIndex}`);
     if (btn) btn.classList.add('used');
 
-    // Map Modus Controls prüfen
     if (data.question.type === 'map') {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'flex';
         unlockBuzzersBtn.style.display = 'none';
-        
-        // Zähler aktualisieren
         mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
     } else {
-        // Standard Modus
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
-        
-        if (data.buzzersActive) {
-            unlockBuzzersBtn.style.display = 'none'; // Läuft schon
-        } else {
-            unlockBuzzersBtn.style.display = 'block'; // Manuell freigeben
-        }
+        unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
     }
 });
 
+socket.on('board_hide_question', () => {
+     activeQSection.style.display = 'none';
+});
 
 // --- HELPER FUNKTION ---
 
 function updateHostControls(data: { buzzWinnerId?: string | null, buzzWinnerName?: string, mapMode?: boolean, submittedCount?: number }) {
     
-    // 1. Buzzer Gewinner Logik
     if (data.buzzWinnerId) {
         activePlayerId = data.buzzWinnerId;
         buzzWinnerName.innerText = data.buzzWinnerName || 'Spieler';
@@ -262,46 +235,41 @@ function updateHostControls(data: { buzzWinnerId?: string | null, buzzWinnerName
         mapModeControls.style.display = 'none';
 
     } else if (data.buzzWinnerId === null) {
-        // Reset
         activePlayerId = null;
         buzzWinnerSection.style.display = 'none';
+        // Wenn Map Modus AUS ist und KEIN Gewinner da ist -> Zeige "Buzzer freigeben" 
+        // (außer wir sind gerade im Map Modus, aber das prüft der Block unten)
         unlockBuzzersBtn.style.display = 'block';
     }
 
-    // 2. Map Modus Logik
     if (data.mapMode !== undefined) {
-        activePlayerId = null; // Kein Buzzer-Gewinner im Map Modus
+        activePlayerId = null; 
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = data.mapMode ? 'flex' : 'none';
         
-        if (!data.mapMode) {
+        if (data.mapMode) {
             unlockBuzzersBtn.style.display = 'none';
         }
     }
 
-    // 3. Zähler Update
     if (data.submittedCount !== undefined) {
         mapSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
     }
 }
-// --- 2. RENDER FUNKTIONEN ---
 
 function renderGameGrid(game: IGame) {
     hostGrid.innerHTML = '';
     
-    // Grid Spalten (Kategorien)
     game.categories.forEach((cat, catIndex) => {
         const col = document.createElement('div');
         col.className = 'host-col';
         col.innerHTML = `<div class="host-cat-title">${cat.name}</div>`;
 
-        // Fragen-Buttons
         cat.questions.forEach((q, qIndex) => {
             const btn = document.createElement('button');
             btn.className = `q-btn`;
             btn.innerText = q.points.toString();
             btn.id = `q-btn-${catIndex}-${qIndex}`;
-
             btn.addEventListener('click', () => handleQuestionClick(q, catIndex, qIndex));
             col.appendChild(btn);
         });
@@ -313,17 +281,14 @@ function renderGameGrid(game: IGame) {
 function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: number) {
     if (!roomCode) return;
     
-    // 1. Frage als aktiv setzen
     activeQuestion = question;
-    activeQSection.style.display = 'block';
+    activeQSection.style.display = 'flex'; // Overlay zeigen
     qTitle.innerText = `${currentGame?.categories[catIndex].name} - ${question.points} Punkte`;
     qDisplay.innerHTML = renderQuestionContent(question, 'question');
     aDisplay.innerHTML = renderQuestionContent(question, 'answer');
     
-    // 2. Zustand auf dem Board aktualisieren
     socket.emit('host_pick_question', { catIndex, qIndex, question });
     
-    // 3. UI updaten (Map oder Buzzer)
     if (question.type === 'map') {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'flex';
@@ -332,7 +297,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
-        // Buzzer Unlock erfolgt durch Server nach 'host_pick_question'
+        unlockBuzzersBtn.style.display = 'none'; // Server unlockt automatisch
     }
 
     markQuestionAsUsed(catIndex, qIndex);
@@ -346,9 +311,8 @@ function renderPlayerList() {
     activePlayers.sort((a, b) => b.score - a.score).forEach(p => {
         const item = document.createElement('li');
         item.className = 'player-item';
-        item.style.color = p.color; // Farbe anzeigen
         item.innerHTML = `
-            <span>${p.name}</span>
+            <span style="color:${p.color}; font-weight:bold;">${p.name}</span>
             <span class="score">${p.score}</span>
         `;
         playerListUl.appendChild(item);
@@ -359,60 +323,44 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
     const text = part === 'question' ? q.questionText : q.answerText;
     const path = part === 'question' ? q.mediaPath : q.answerMediaPath;
 
-    let html = `<p>${text}</p>`;
+    let html = `<p>${text || ''}</p>`;
 
     if (path) {
         const lowerPath = path.toLowerCase();
         let mediaHtml = '';
 
         if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
-            mediaHtml = `<audio controls src="${path}" style="width: 100%; max-width: 300px; display: block; margin: 10px auto;">
-                            Dein Browser unterstützt kein Audio.
-                         </audio>`;
+            mediaHtml = `<audio controls src="${path}" style="width: 100%;">Dein Browser unterstützt kein Audio.</audio>`;
         } else if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
-            mediaHtml = `<video controls src="${path}" style="max-height: 200px; max-width: 100%; display: block; margin: 10px auto;">
-                            Dein Browser unterstützt kein Video.
-                         </video>`;
+            mediaHtml = `<video controls src="${path}" style="max-height: 300px; width:100%; object-fit:contain;">Dein Browser unterstützt kein Video.</video>`;
         } else {
-            // Standardmäßig als Bild annehmen
-            mediaHtml = `<img src="${path}" style="max-width: 100%; max-height: 200px; display: block; margin: 10px auto;" alt="Medien">`;
+            mediaHtml = `<img src="${path}" style="max-height: 300px; width:100%; object-fit:contain;" alt="Medien">`;
         }
         
         html += mediaHtml;
     }
     
     if (part === 'answer') {
-        // Nutze CSS Variable für die Erfolgsfarbe
         html = `<p style="color: var(--color-success); font-weight: bold;">Lösung: ${text}</p>` + html;
         if (q.type === 'map' && q.location) {
-            // Nutze CSS Variable für gedämpften Text
-            html += `<p style="font-style: italic; color: var(--text-muted);">Ziel: LAT ${q.location.lat.toFixed(4)}, LNG ${q.location.lng.toFixed(4)}</p>`;
+            html += `<p style="font-style: italic; font-size: 0.9rem; color: var(--text-muted);">Ziel: LAT ${q.location.lat.toFixed(4)}, LNG ${q.location.lng.toFixed(4)}</p>`;
         }
     }
 
     return html;
 }
 
-
 function setupSessionUI(code: string) {
     roomCode = code;
-    roomCodeDisplay.innerText = `Raum: ${code}`;
-    controlsDiv.style.display = 'flex';
+    roomCodeDisplay.innerText = code;
     
     const boardUrlValue = `${window.location.origin}/board.html?room=${code}`;
     boardUrl.href = boardUrlValue;
-    boardUrl.innerText = boardUrlValue;
 }
 
 function initTheme() {
-    // Prüfen, ob schon eine Einstellung gespeichert ist
     const storedTheme = localStorage.getItem('quiz_theme');
-    
-    if (storedTheme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-        document.documentElement.removeAttribute('data-theme');
-    }
+    if (storedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
 }
 
 function toggleTheme() {
@@ -429,64 +377,31 @@ function toggleTheme() {
 }
 
 async function initMusic(game: IGame) {
-
     if (!game.backgroundMusicPath) return;
+
+    const controlsDiv = document.getElementById('music-controls');
+    if(controlsDiv) controlsDiv.style.display = 'flex';
 
     const toggleBtn = document.getElementById('btn-music-toggle');
     const volSlider = document.getElementById('music-volume') as HTMLInputElement;
     const gameId = game._id || ""; 
     let isPlaying = false; 
 
-    if(controlsDiv) {
-        controlsDiv.style.display = 'flex'; // Flexbox für unser neues Layout
+    if(toggleBtn) {
+        toggleBtn.onclick = () => {
+            isPlaying = !isPlaying;
+            toggleBtn.innerText = isPlaying ? "⏸" : "▶";
+            socket.emit('music_control', { gameId: gameId, action: isPlaying ? 'play' : 'pause' });
+        };
     }
-
-    if (game.backgroundMusicPath) {
-        // Controls anzeigen
-        const controlsDiv = document.getElementById('music-controls');
-        if(controlsDiv) controlsDiv.style.display = 'flex';
-
-        // 1. Play/Pause Button
-        if(toggleBtn) {
-            toggleBtn.onclick = () => {
-                isPlaying = !isPlaying;
-                
-                // Icon wechseln und Klasse setzen
-                toggleBtn.innerText = isPlaying ? "⏸" : "▶";
-                if(isPlaying) {
-                    toggleBtn.classList.add('is-playing');
-                } else {
-                    toggleBtn.classList.remove('is-playing');
-                }
-
-                // Befehl an Server senden
-                socket.emit('music_control', {
-                    gameId: gameId, 
-                    action: isPlaying ? 'play' : 'pause'
-                });
-            };
-        }
-
-        // 2. Lautstärke Slider
-        if(volSlider) {
-            volSlider.oninput = () => {
-                const vol = parseFloat(volSlider.value);
-                
-                // Befehl an Server senden
-                socket.emit('music_control', {
-                    gameId: gameId,
-                    action: 'volume',
-                    value: vol
-                });
-            };
-        }
+    if(volSlider) {
+        volSlider.oninput = () => {
+            socket.emit('music_control', { gameId: gameId, action: 'volume', value: parseFloat(volSlider.value) });
+        };
     }
 }
 
 function markQuestionAsUsed(catIndex: number, qIndex: number) {
     const btn = document.getElementById(`q-btn-${catIndex}-${qIndex}`);
-    if (btn) {
-        btn.classList.add('used');
-        //btn.disabled = true; // Optional: Button auch deaktivieren
-    }
+    if (btn) btn.classList.add('used');
 }
