@@ -26,6 +26,9 @@ const qrOverlay = document.getElementById('qr-overlay') as HTMLDivElement;
 const qrCanvas = document.getElementById('qrcode-canvas') as HTMLCanvasElement;
 const joinUrlSpan = document.getElementById('join-url') as HTMLSpanElement;
 const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
+const introOverlay = document.getElementById('intro-overlay') as HTMLDivElement;
+const introMain = document.getElementById('intro-main-text') as HTMLDivElement;
+const introSub = document.getElementById('intro-sub-text') as HTMLDivElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -38,6 +41,30 @@ if (roomCode) {
 }
 
 // --- SOCKET EVENTS ---
+
+socket.on('board_show_intro', (data) => {
+    const { text, subtext, type } = data;
+
+    if (type === 'end') {
+        // Intro vorbei -> Grid zeigen
+        introOverlay.style.display = 'none';
+        return;
+    }
+
+    // Intro anzeigen
+    introOverlay.style.display = 'flex';
+    
+    // Reset Animation durch kurzes Entfernen der Klasse
+    introMain.classList.remove('slide-in');
+    void introMain.offsetWidth; // Trigger Reflow
+    introMain.classList.add('slide-in');
+
+    introMain.innerText = text;
+    introSub.innerText = subtext || '';
+
+    // Optional: Soundeffekt für jeden Schritt abspielen
+    // const sfx = new Audio('/sounds/swoosh.mp3'); sfx.play();
+});
 
 socket.on('board_init_game', (game: IGame) => {
     console.log("Spieldaten empfangen:", game);
@@ -95,6 +122,8 @@ socket.on('board_show_question', (data) => {
 
 socket.on('board_reveal_answer', () => {
     if (!currentQuestion) return;
+
+    questionText.style.display = 'none';
 
     // Antwort Text anzeigen
     answerTextDiv.innerHTML = `<span style="color:var(--text-success); font-size:0.5em; display:block;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;

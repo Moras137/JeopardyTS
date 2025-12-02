@@ -9,19 +9,29 @@ let activeQuestion: IQuestion | null = null;
 let activePlayerId: string | null = null;
 
 // --- DOM ELEMENTE ---
-const hostGrid = document.getElementById('host-grid') as HTMLDivElement;
+// Sidebar & Info
 const roomCodeDisplay = document.getElementById('room-code-display') as HTMLParagraphElement;
 const boardUrl = document.getElementById('board-url') as HTMLAnchorElement;
 const playerCountSpan = document.getElementById('player-count') as HTMLSpanElement;
 const playerListUl = document.getElementById('player-list') as HTMLUListElement;
+
+// Buttons in Sidebar
+const btnIntroNext = document.getElementById('btn-intro-next') as HTMLButtonElement; // NEU: Intro
+const toggleQRBtn = document.getElementById('toggle-qr-btn') as HTMLButtonElement;
+const themeToggleBtn = document.getElementById('theme-toggle-btn') as HTMLButtonElement;
+const exitQuizBtn = document.getElementById('exit-quiz-btn') as HTMLButtonElement;
+
+// Main Area
+const hostGrid = document.getElementById('host-grid') as HTMLDivElement;
 
 // Overlay / Modal Elemente
 const activeQSection = document.getElementById('active-question-section') as HTMLDivElement;
 const qTitle = document.getElementById('question-title') as HTMLHeadingElement;
 const qDisplay = document.getElementById('question-display') as HTMLDivElement;
 const aDisplay = document.getElementById('answer-display') as HTMLDivElement;
-const btnCloseModalTop = document.getElementById('btn-close-modal-top') as HTMLButtonElement; // NEU
+const btnCloseModalTop = document.getElementById('btn-close-modal-top') as HTMLButtonElement; 
 
+// Controls im Modal
 const buzzWinnerSection = document.getElementById('buzz-winner-section') as HTMLDivElement;
 const buzzWinnerName = document.getElementById('buzz-winner-name') as HTMLSpanElement;
 const correctBtn = document.getElementById('correct-btn') as HTMLButtonElement;
@@ -29,15 +39,12 @@ const incorrectBtn = document.getElementById('incorrect-btn') as HTMLButtonEleme
 const unlockBuzzersBtn = document.getElementById('unlock-buzzers-btn') as HTMLButtonElement;
 const closeQuestionBtn = document.getElementById('close-question-btn') as HTMLButtonElement;
 
-const toggleQRBtn = document.getElementById('toggle-qr-btn') as HTMLButtonElement;
-const exitQuizBtn = document.getElementById('exit-quiz-btn') as HTMLButtonElement;
-
 const mapModeControls = document.getElementById('map-mode-controls') as HTMLDivElement;
 const mapSubmittedCount = document.getElementById('map-submitted-count') as HTMLSpanElement;
 const resolveMapBtn = document.getElementById('resolve-map-btn') as HTMLButtonElement;
-const themeToggleBtn = document.getElementById('theme-toggle-btn') as HTMLButtonElement;
 
-// --- INIT & EVENT LISTENER (Statische Elemente) ---
+
+// --- INIT & EVENT LISTENER ---
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Prüfen auf gespeicherte Session
@@ -62,19 +69,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Steuerung Button Listener
+// Event Listener
 if(correctBtn) correctBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId }));
 if(incorrectBtn) incorrectBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId }));
 if(unlockBuzzersBtn) unlockBuzzersBtn.addEventListener('click', () => socket.emit('host_unlock_buzzers'));
 
-// Beide Schließen-Buttons machen das Gleiche
+// Schließen der Frage
 const handleClose = () => socket.emit('host_close_question');
 if(closeQuestionBtn) closeQuestionBtn.addEventListener('click', handleClose);
 if(btnCloseModalTop) btnCloseModalTop.addEventListener('click', handleClose);
 
+// Sidebar Actions
 if(toggleQRBtn) toggleQRBtn.addEventListener('click', () => socket.emit('host_toggle_qr'));
 if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
 if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
+
+// NEU: Intro Button
+if(btnIntroNext) {
+    btnIntroNext.addEventListener('click', () => {
+        socket.emit('host_next_intro');
+    });
+}
 
 if(exitQuizBtn) exitQuizBtn.addEventListener('click', () => {
     if(confirm("Session wirklich beenden?")) {
@@ -83,9 +98,9 @@ if(exitQuizBtn) exitQuizBtn.addEventListener('click', () => {
     }
 });
 
-toggleTheme();
+toggleTheme(); // Theme init
 
-// --- 1. SOCKET EVENTS (Server Antworten) ---
+// --- SOCKET EVENTS ---
 
 socket.on('session_created', (code) => {
     setupSessionUI(code);
@@ -96,7 +111,7 @@ socket.on('session_created', (code) => {
     }
 });
 
-socket.on('session_rejoined', (data: { roomCode: string, gameId: string }) => {
+socket.on('session_rejoined', (data) => {
     setupSessionUI(data.roomCode);
     localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: data.roomCode, gameId: data.gameId }));
 });
@@ -111,6 +126,7 @@ socket.on('host_session_restored', (data: any) => {
     renderGameGrid(data.game);
     renderPlayerList();
     
+    // Frage wiederherstellen
     if (data.activeQuestion) {
         activeQuestion = data.activeQuestion;
         
@@ -140,7 +156,6 @@ socket.on('host_session_restored', (data: any) => {
                  buzzWinnerSection.style.display = 'block';
             }
         }
-        
     } else {
         activeQSection.style.display = 'none';
     }
@@ -189,6 +204,7 @@ socket.on('player_won_buzz', (data) => {
     });
 });
 
+// WICHTIG: Hier kommt auch das Update für den Intro-Button an
 socket.on('update_host_controls', updateHostControls);
 
 socket.on('host_update_map_status', (data) => {
@@ -197,8 +213,7 @@ socket.on('host_update_map_status', (data) => {
 
 socket.on('host_restore_active_question', (data) => {
     activeQuestion = data.question;
-    // CSS Change: Flex für Overlay
-    activeQSection.style.display = 'flex';
+    activeQSection.style.display = 'flex'; // Overlay zeigen
     
     qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
     qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
@@ -223,25 +238,49 @@ socket.on('board_hide_question', () => {
      activeQSection.style.display = 'none';
 });
 
-// --- HELPER FUNKTION ---
+// --- HELPER FUNKTIONEN ---
 
-function updateHostControls(data: { buzzWinnerId?: string | null, buzzWinnerName?: string, mapMode?: boolean, submittedCount?: number }) {
+function updateHostControls(data: any) {
     
-    if (data.buzzWinnerId) {
-        activePlayerId = data.buzzWinnerId;
-        buzzWinnerName.innerText = data.buzzWinnerName || 'Spieler';
-        buzzWinnerSection.style.display = 'block';
-        unlockBuzzersBtn.style.display = 'none';
-        mapModeControls.style.display = 'none';
-
-    } else if (data.buzzWinnerId === null) {
-        activePlayerId = null;
-        buzzWinnerSection.style.display = 'none';
-        // Wenn Map Modus AUS ist und KEIN Gewinner da ist -> Zeige "Buzzer freigeben" 
-        // (außer wir sind gerade im Map Modus, aber das prüft der Block unten)
-        unlockBuzzersBtn.style.display = 'block';
+    // 1. INTRO LOGIK
+    if (data.nextIntroStep !== undefined) {
+        if (data.nextIntroStep === null) {
+            if(btnIntroNext) btnIntroNext.style.display = 'none';
+        } else {
+            if(btnIntroNext) {
+                btnIntroNext.style.display = 'block';
+                btnIntroNext.innerText = "▶ " + data.nextIntroStep;
+                // Farbe ändern wenn es "Zum Spielbrett" ist
+                if(data.nextIntroStep.includes('Spielbrett')) {
+                     btnIntroNext.className = "host-btn btn-success btn-full";
+                } else {
+                     btnIntroNext.className = "host-btn btn-warning btn-full";
+                     // Style für Border zurücksetzen falls nötig
+                     btnIntroNext.style.border = "2px solid white";
+                }
+            }
+        }
     }
 
+    // 2. BUZZER LOGIK
+    if (data.buzzWinnerId !== undefined) {
+        if (data.buzzWinnerId) {
+            activePlayerId = data.buzzWinnerId;
+            buzzWinnerName.innerText = data.buzzWinnerName || 'Spieler';
+            buzzWinnerSection.style.display = 'block';
+            unlockBuzzersBtn.style.display = 'none';
+            mapModeControls.style.display = 'none';
+        } else {
+            activePlayerId = null;
+            buzzWinnerSection.style.display = 'none';
+            // Nur anzeigen, wenn NICHT MapMode und Frage offen
+            if(activeQSection.style.display === 'flex' && mapModeControls.style.display === 'none') {
+                unlockBuzzersBtn.style.display = 'block';
+            }
+        }
+    }
+
+    // 3. MAP LOGIK
     if (data.mapMode !== undefined) {
         activePlayerId = null; 
         buzzWinnerSection.style.display = 'none';
@@ -252,6 +291,7 @@ function updateHostControls(data: { buzzWinnerId?: string | null, buzzWinnerName
         }
     }
 
+    // 4. MAP COUNTS
     if (data.submittedCount !== undefined) {
         mapSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
     }
@@ -306,7 +346,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
 function renderPlayerList() {
     playerListUl.innerHTML = '';
     const activePlayers = Object.values(players).filter(p => p.active);
-    playerCountSpan.innerText = activePlayers.length.toString();
+    if(playerCountSpan) playerCountSpan.innerText = activePlayers.length.toString();
 
     activePlayers.sort((a, b) => b.score - a.score).forEach(p => {
         const item = document.createElement('li');
@@ -352,10 +392,10 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
 
 function setupSessionUI(code: string) {
     roomCode = code;
-    roomCodeDisplay.innerText = code;
+    if(roomCodeDisplay) roomCodeDisplay.innerText = code;
     
     const boardUrlValue = `${window.location.origin}/board.html?room=${code}`;
-    boardUrl.href = boardUrlValue;
+    if(boardUrl) boardUrl.href = boardUrlValue;
 }
 
 function initTheme() {

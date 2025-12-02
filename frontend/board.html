@@ -217,9 +217,58 @@
             align-items: center; 
             justify-content: center; 
         }
+
+        /* --- INTRO OVERLAY --- */
+        #intro-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(circle, #000044 0%, #000000 100%);
+            z-index: 2000; /* Ganz oben */
+            display: none; /* Standardmäßig aus */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+        }
+
+        /* Animationen für Text */
+        .slide-in {
+            animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(50px) scale(0.8); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        #intro-main-text {
+            font-size: 8rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #ffcc00;
+            text-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+            margin: 0;
+            padding: 20px;
+            line-height: 1;
+        }
+
+        #intro-sub-text {
+            font-size: 3rem;
+            color: #aaa;
+            margin-top: 20px;
+            font-weight: 300;
+            letter-spacing: 5px;
+        }
     </style>
 </head>
 <body>
+    <div id="intro-overlay">
+        <div id="intro-main-text">TITEL</div>
+        <div id="intro-sub-text">Untertitel</div>
+    </div>
+
     <audio id="board-bg-music" loop></audio>
     
     <div id="game-grid">

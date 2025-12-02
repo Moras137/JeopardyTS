@@ -63,6 +63,7 @@ export interface ISession {
     activeQuestionPoints: number;
     mapGuesses: Record<string, { lat: number; lng: number }>;
     usedQuestions: { catIndex: number, qIndex: number }[];
+    introIndex: number;
 }
 
 // --- SOCKET EVENTS ---
@@ -98,6 +99,7 @@ export interface ServerToClientEvents {
     music_control: (data: { action: 'play' | 'pause' | 'volume', value?: number }) => void;
     server_network_info: (data: { ip: string, port: number }) => void;
     load_game_on_board: (data: { game: IGame, usedQuestions: { catIndex: number, qIndex: number }[] }) => void;
+    board_show_intro: (data: { text: string, subtext?: string, type: 'title' | 'category' | 'end' }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -116,4 +118,5 @@ export interface ClientToServerEvents {
     host_end_session: () => void;
     host_start_game: (gameId: string) => void;
     music_control: (data: { gameId: string, action: 'play' | 'pause' | 'volume', value?: number }) => void;
+    host_next_intro: () => void;
 }

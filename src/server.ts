@@ -313,7 +313,8 @@ io.on('connection', (socket) => {
             activeQuestion: null,
             activeQuestionPoints: 0,
             mapGuesses: {},
-            usedQuestions: []
+            usedQuestions: [],
+            introIndex: -2
         };
         socket.join(roomCode);
         socket.emit('session_created', roomCode);
@@ -594,6 +595,46 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (info && info.isPlayer && info.playerId) {
             info.session.players[info.playerId].active = false;
+        }
+    });
+
+    socket.on('host_next_intro', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+        const { session, code } = info;
+
+        // Status weiterschalten
+        session.introIndex++;
+
+        // 1. Titel anzeigen (Index -1)
+        if (session.introIndex === -1) {
+            io.to(code).emit('board_show_intro', { 
+                text: session.game.title, 
+                subtext: "Willkommen zum Quiz!",
+                type: 'title' 
+            });
+            // Host Button Update
+            socket.emit('update_host_controls', { nextIntroStep: `Kategorie 1: ${session.game.categories[0]?.name || 'Ende'}` });
+        }
+        // 2. Kategorien anzeigen (Index 0 bis n)
+        else if (session.introIndex >= 0 && session.introIndex < session.game.categories.length) {
+            const cat = session.game.categories[session.introIndex];
+            io.to(code).emit('board_show_intro', { 
+                text: cat.name, 
+                subtext: `Kategorie ${session.introIndex + 1}`,
+                type: 'category' 
+            });
+            
+            // Vorschau für den Host Button für den NÄCHSTEN Klick
+            const nextCat = session.game.categories[session.introIndex + 1];
+            const nextLabel = nextCat ? `Kategorie ${session.introIndex + 2}: ${nextCat.name}` : "Zum Spielbrett";
+            socket.emit('update_host_controls', { nextIntroStep: nextLabel });
+        }
+        // 3. Intro Ende -> Grid zeigen
+        else {
+            io.to(code).emit('board_show_intro', { text: '', type: 'end' }); // Overlay weg
+            // Reset intro index damit man es nicht aus Versehen nochmal startet, oder Logik anpassen
+            socket.emit('update_host_controls', { nextIntroStep: null }); // Button ausblenden
         }
     });
 });
