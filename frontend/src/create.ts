@@ -290,93 +290,100 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const type = qData.type ?? 'standard';
     
     const qText = qData.questionText ?? '';
-    const aText = qData.answerText ?? '';
+    const points = qData.points ?? 100;
+    const negPoints = qData.negativePoints ?? 50;
     const media = qData.mediaPath ?? '';
-    const answerMedia = qData.answerMediaPath ?? '';
+    
+    const aText = qData.answerText ?? ''; 
+    const estAns = qData.estimationAnswer ?? '';
+    const listItems = qData.listItems ? qData.listItems.join('\n') : ''; 
     
     const lat = qData.location?.lat ?? '';
     const lng = qData.location?.lng ?? '';
     const isCustom = qData.location?.isCustomMap ?? false;
     const customPath = qData.location?.customMapPath ?? '';
-    
-    const existingQuestionsCount = qContainer.querySelectorAll('.question-block').length;
-    const defaultPoints = (existingQuestionsCount + 1) * 100;
-    const defaultNegPoints = (existingQuestionsCount + 1) * 50;
 
-    const points = qData.points ?? defaultPoints;
-    const negPoints = qData.negativePoints ?? defaultNegPoints;
-    
+    // --- HTML STRUKTUR MIT CSS KLASSE STATT INLINE STYLE ---
     const html = `
-    <div class="question-block type-${type}" id="block-${qId}" data-points="${points}">
-        <div style="margin-bottom:10px; border-bottom:1px solid #ddd;">
-            <label>Fragentyp</label>
+    <div class="question-block type-${type}" id="block-${qId}">
+        <div style="margin-bottom:10px; border-bottom:1px solid #ddd; padding-bottom:5px;">
+            <label style="font-weight:bold;">Fragetyp:</label>
             <select class="q-type-select" onchange="changeQuestionType(this, '${qId}')">
-                <option value="standard" ${type === 'standard' ? 'selected' : ''}>Standard</option>
-                <option value="map" ${type === 'map' ? 'selected' : ''}>Karte</option>
+                <option value="standard" ${type === 'standard' ? 'selected' : ''}>Standard (Buzzer)</option>
+                <option value="map" ${type === 'map' ? 'selected' : ''}>Map (Karte)</option>
+                <option value="estimate" ${type === 'estimate' ? 'selected' : ''}>Schätzfrage (Zahl)</option>
+                <option value="list" ${type === 'list' ? 'selected' : ''}>Liste (Begriffe aufdecken)</option>
+                <option value="pixel" ${type === 'pixel' ? 'selected' : ''}>Pixel-Puzzle (Bild)</option>
+                <option value="freetext" ${type === 'freetext' ? 'selected' : ''}>Freie Antwort (Punktevergabe)</option>
             </select>
         </div>
 
-        <label>Punkte:</label>
-        <input type="number" class="q-points" value="${points}" oninput="checkQuestionFilled(this)">
-        <label>Minus-Punkte:</label>
-        <input type="number" class="q-negative-points" value="${negPoints}">
+        <div style="display:flex; gap:10px;">
+            <div style="flex:1"><label>Punkte:</label><input type="number" class="q-points" value="${points}"></div>
+            <div style="flex:1"><label>Minus:</label><input type="number" class="q-negative-points" value="${negPoints}"></div>
+        </div>
 
-        <label>Frage:</label>
-        <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)">
+        <label>Fragetext / Kategorie für Hinweise:</label>
+        <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)" placeholder="z.B. 'Errate den Schauspieler' oder Frage...">
 
-        <label>Medien (Frage):</label>
+        <label>Frage-Medien (Bild/Audio/Video):</label>
         <input type="file" onchange="uploadFile(this, 'preview-q-${qId}', 'media-${qId}')">
         <div id="preview-q-${qId}">${generateMediaPreviewHtml(media)}</div>
         <input type="hidden" class="q-media-path" id="media-${qId}" value="${media}">
 
-        <div class="standard-answer-section" style="display:${type==='standard'?'block':'none'}">
-            <label>Antwort (Text):</label>
-            <input type="text" class="q-answer" value="${aText}" oninput="checkQuestionFilled(this)">
+        <div class="type-section section-list list-hint-box" style="display:none;">
+            <label style="font-weight:bold;">Hinweise/Begriffe (Einer pro Zeile):</label>
+            <textarea class="q-list-items" rows="4" placeholder="Begriff 1\nBegriff 2\nBegriff 3">${listItems}</textarea>
+            <small>Diese Begriffe werden nacheinander aufgedeckt.</small>
+        </div>
+
+        <div class="type-section section-standard section-pixel section-freetext section-list" style="display:none;">
+            <label>Richtige Lösung (Text):</label>
+            <input type="text" class="q-answer" value="${aText}" oninput="checkQuestionFilled(this)" placeholder="Die richtige Antwort">
             
-            <div style="margin-top: 10px; padding-top: 5px;">
-                <label>Medien (Antwort)</label>
+            <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
+                <label>Lösung-Medien (Optional):</label>
                 <input type="file" onchange="uploadFile(this, 'preview-ans-${qId}', 'media-ans-${qId}')">
-                
-                <div id="preview-ans-${qId}">
-                    ${generateMediaPreviewHtml(answerMedia)}
-                </div>
-                
-                <input type="hidden" class="q-answer-media-path" id="media-ans-${qId}" value="${answerMedia}">
+                <div id="preview-ans-${qId}">${generateMediaPreviewHtml(qData.answerMediaPath || '')}</div>
+                <input type="hidden" class="q-answer-media-path" id="media-ans-${qId}" value="${qData.answerMediaPath || ''}">
             </div>
         </div>
 
-        <div class="map-answer-section" style="display:${type==='map'?'block':'none'}">
+        <div class="type-section section-estimate" style="display:none;">
+            <label>Lösung (Zahl):</label>
+            <input type="number" class="q-estimate-ans" value="${estAns}" oninput="checkQuestionFilled(this)" placeholder="z.B. 1995">
+        </div>
+
+        <div class="type-section section-map" style="display:none;">
              <div class="map-controls">
                 <select onchange="toggleMapSource('${qId}', this.value)">
                     <option value="osm" ${!isCustom ? 'selected' : ''}>Weltkarte</option>
-                    <option value="custom" ${isCustom ? 'selected' : ''}>Bild hochladen</option>
+                    <option value="custom" ${isCustom ? 'selected' : ''}>Eigenes Bild</option>
                 </select>
                 <div id="custom-upload-${qId}" style="display:${isCustom?'block':'none'}">
                     <input type="file" onchange="uploadCustomMap(this, '${qId}')">
                 </div>
              </div>
-             
              <div id="map-${qId}" class="map-editor-container"></div>
-             <p style="font-size:0.8rem">Klicke auf die Karte um das Ziel zu setzen.</p>
-
              <input type="hidden" class="q-lat" id="lat-${qId}" value="${lat}">
              <input type="hidden" class="q-lng" id="lng-${qId}" value="${lng}">
              <input type="hidden" class="q-is-custom" id="is-custom-${qId}" value="${isCustom}">
              <input type="hidden" class="q-custom-path" id="custom-path-${qId}" value="${customPath}">
              
-             <label>Ortsname (Lösung):</label>
+             <label>Ortsname (Anzeige bei Lösung):</label>
              <input type="text" class="q-answer-map" value="${aText}" oninput="checkQuestionFilled(this)">
         </div>
     </div>`;
 
     qContainer.insertAdjacentHTML('beforeend', html);
+    
+    const select = document.querySelector(`#block-${qId} .q-type-select`) as HTMLSelectElement;
+    changeQuestionType(select, qId);
 
     if (type === 'map') {
         setTimeout(() => initMap(qId, Number(lat), Number(lng), isCustom, customPath), 100);
     }
-    
-    const newBlock = document.getElementById(`block-${qId}`);
-    if(newBlock) checkQuestionFilled(newBlock);
+    checkQuestionFilled(document.getElementById(`block-${qId}`));
 }
 
 // --- 3. MAP LOGIK (Leaflet) ---
@@ -475,10 +482,8 @@ window.uploadCustomMap = async (input, qId) => {
 // --- 4. SPEICHERN & LADEN ---
 
 async function saveGame() {
-    const bgInput = document.getElementById('background-path') as HTMLInputElement;
-    const bgPath = bgInput?.value || '';
-    const musicInput = document.getElementById('background-music-path') as HTMLInputElement;
-    const musicPath = musicInput ? musicInput.value : '';
+    const bgPath = (document.getElementById('background-path') as HTMLInputElement).value;
+    const musicPath = (document.getElementById('background-music-path') as HTMLInputElement).value;
     const cats: ICategory[] = [];
 
     document.querySelectorAll('.category').forEach(catDiv => {
@@ -491,58 +496,52 @@ async function saveGame() {
             const negPoints = parseInt((qBlock.querySelector('.q-negative-points') as HTMLInputElement).value) || 0;
             const text = (qBlock.querySelector('.q-text') as HTMLInputElement).value;
             const media = (qBlock.querySelector('.q-media-path') as HTMLInputElement).value;
-            const answerMediaInput = qBlock.querySelector('.q-answer-media-path') as HTMLInputElement;
-            const answerMedia = answerMediaInput ? answerMediaInput.value : '';
-
+            
+            // Initialwerte
             let answerText = '';
+            let estAns: number | undefined = undefined;
+            let listItems: string[] = [];
             let loc = undefined;
-            let mapWidth = 0;
-            let mapHeight = 0;
+            let answerMedia = '';
 
-            if (type === 'map') {
-                answerText = (qBlock.querySelector('.q-answer-map') as HTMLInputElement).value;
-                const lat = (qBlock.querySelector('#lat-' + qBlock.id.split('-')[1]) as HTMLInputElement).value;
-                const lng = (qBlock.querySelector('#lng-' + qBlock.id.split('-')[1]) as HTMLInputElement).value;
-                const isCustom = (qBlock.querySelector('#is-custom-' + qBlock.id.split('-')[1]) as HTMLInputElement).value === 'true';
-                const customPath = (qBlock.querySelector('#custom-path-' + qBlock.id.split('-')[1]) as HTMLInputElement).value;
-
-                if (isCustom && customPath) {
-                    const img = new Image();
-                    img.src = customPath;
-                    mapWidth = img.width || 1000;
-                    mapHeight = img.height || 1000;
-                }
-
-                if (lat && lng) {
-                    loc = { 
-                        lat: parseFloat(lat), 
-                        lng: parseFloat(lng), 
-                        isCustomMap: isCustom, 
-                        customMapPath: customPath,
-                        mapWidth: mapWidth,
-                        mapHeight: mapHeight
-                    };
-                }
-            } else {
+            // Daten extrahieren
+            if (type === 'standard' || type === 'pixel' || type === 'freetext' || type === 'list') {
+                // Antwortfeld wird hier genutzt
                 answerText = (qBlock.querySelector('.q-answer') as HTMLInputElement).value;
+                answerMedia = (qBlock.querySelector('.q-answer-media-path') as HTMLInputElement).value;
+            }
+            
+            // Spezifische Felder
+            if (type === 'estimate') {
+                estAns = parseFloat((qBlock.querySelector('.q-estimate-ans') as HTMLInputElement).value);
+            } 
+            else if (type === 'list') {
+                const raw = (qBlock.querySelector('.q-list-items') as HTMLTextAreaElement).value;
+                listItems = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            } 
+            else if (type === 'map') {
+                answerText = (qBlock.querySelector('.q-answer-map') as HTMLInputElement).value; // Map hat eigenes Antwortfeld
+                const lat = (qBlock.querySelector('.q-lat') as HTMLInputElement).value;
+                const lng = (qBlock.querySelector('.q-lng') as HTMLInputElement).value;
+                const isCustom = (qBlock.querySelector('.q-is-custom') as HTMLInputElement).value === 'true';
+                const customPath = (qBlock.querySelector('.q-custom-path') as HTMLInputElement).value;
+                
+                if(lat && lng) {
+                    loc = { lat: parseFloat(lat), lng: parseFloat(lng), isCustomMap: isCustom, customMapPath: customPath, mapWidth: 1000, mapHeight: 1000 };
+                }
             }
             
             questions.push({
-                type, 
-                points, 
-                negativePoints: negPoints,
+                type, points, negativePoints: negPoints,
                 questionText: text, 
                 answerText,
-                mediaPath: media || '', 
-                hasMedia: !!media, 
-                mediaType: 'none',
-                answerMediaPath: answerMedia || '', 
-                hasAnswerMedia: !!answerMedia,
-                answerMediaType: 'none',
+                estimationAnswer: estAns,
+                listItems: listItems, // Gespeichert als listItems
+                mediaPath: media || '', hasMedia: !!media, mediaType: 'none',
+                answerMediaPath: answerMedia || '', hasAnswerMedia: !!answerMedia, answerMediaType: 'none',
                 location: loc
             });
         });
-
         cats.push({ name, questions });
     });
 
@@ -730,17 +729,24 @@ function changeQuestionType(select: HTMLSelectElement, qId: string) {
     const type = select.value;
     
     block.className = `question-block type-${type}`;
-    const stdSec = block.querySelector('.standard-answer-section') as HTMLElement;
-    const mapSec = block.querySelector('.map-answer-section') as HTMLElement;
-    
-    if (type === 'map') {
-        stdSec.style.display = 'none';
-        mapSec.style.display = 'block';
+    block.querySelectorAll('.type-section').forEach((el) => (el as HTMLElement).style.display = 'none');
+
+    // Sichtbarkeiten steuern
+    if (type === 'standard' || type === 'pixel' || type === 'freetext') {
+        // Standard Antwortfeld
+        block.querySelectorAll('.section-standard').forEach(el => (el as HTMLElement).style.display = 'block');
+    } 
+    else if (type === 'list') {
+        block.querySelectorAll('.section-list').forEach(el => (el as HTMLElement).style.display = 'block');
+    } 
+    else if (type === 'estimate') {
+        (block.querySelector('.section-estimate') as HTMLElement).style.display = 'block';
+    } 
+    else if (type === 'map') {
+        (block.querySelector('.section-map') as HTMLElement).style.display = 'block';
         initMap(qId);
-    } else {
-        stdSec.style.display = 'block';
-        mapSec.style.display = 'none';
     }
+    
     checkQuestionFilled(select);
 }
 window.changeQuestionType = changeQuestionType;

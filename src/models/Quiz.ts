@@ -12,6 +12,13 @@ const questionSchema = new Schema<IQuestion>({
         mapWidth: { type: Number }, 
         mapHeight: { type: Number }
     },
+
+    estimationAnswer: { type: Number },
+    listItems: { type: [String], default: [] },
+    pixelConfig: {
+        blurStrength: { type: Number }
+    },
+
     points: { type: Number, default: 100 },
     negativePoints: { type: Number, default: 0 }, 
     questionText: { type: String, default: '' }, 

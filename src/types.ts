@@ -1,4 +1,4 @@
-export type QuestionType = 'standard' | 'map';
+export type QuestionType = 'standard' | 'map' | 'estimate' | 'list' | 'pixel' | 'freetext';
 export type MediaType = 'none' | 'image' | 'video' | 'audio';
 
 export interface ILocation {
@@ -18,6 +18,12 @@ export interface IQuestion {
     questionText: string;
     answerText: string;
     
+    estimationAnswer?: number;  // Für Schätzfragen
+    listItems?: string[];    // Für Listen-Fragen
+    pixelConfig?: {             // Für Pixel-Fragen 
+        blurStrength?: number;
+    };
+
     answerMediaPath: string;
     hasAnswerMedia: boolean;
     answerMediaType: MediaType;
@@ -62,8 +68,10 @@ export interface ISession {
     activeQuestion: IQuestion | null;
     activeQuestionPoints: number;
     mapGuesses: Record<string, { lat: number; lng: number }>;
+    estimateGuesses: Record<string, number>; 
     usedQuestions: { catIndex: number, qIndex: number }[];
     introIndex: number;
+    listRevealedCount: number;
 }
 
 // --- SOCKET EVENTS ---
@@ -93,6 +101,7 @@ export interface ServerToClientEvents {
     board_hide_question: () => void;
     board_toggle_qr: () => void;
     board_reveal_map_results: (data: any) => void;
+    board_reveal_list_item: (index: number) => void;
     session_ended: () => void;
     load_game_on_host: (game: IGame) => void;
     host_restore_active_question: (data: { question: IQuestion, catIndex: number, qIndex: number, buzzersActive: boolean,mapGuessesCount: number }) => void;
@@ -119,4 +128,5 @@ export interface ClientToServerEvents {
     host_start_game: (gameId: string) => void;
     music_control: (data: { gameId: string, action: 'play' | 'pause' | 'volume', value?: number }) => void;
     host_next_intro: () => void;
+    host_reveal_next_list_item: () => void;
 }

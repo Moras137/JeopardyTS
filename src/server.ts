@@ -313,6 +313,8 @@ io.on('connection', (socket) => {
             activeQuestion: null,
             activeQuestionPoints: 0,
             mapGuesses: {},
+            estimateGuesses: {},
+            listRevealedCount: -1, 
             usedQuestions: [],
             introIndex: -2
         };
@@ -324,7 +326,7 @@ io.on('connection', (socket) => {
         const session = sessions[roomCode];
 
         if (session) {
-            session.hostSocketId = socket.id; // Neuen Socket zuweisen
+            session.hostSocketId = socket.id;
             socket.join(roomCode);
             
             syncSessionState(session, socket.id, 'host');
