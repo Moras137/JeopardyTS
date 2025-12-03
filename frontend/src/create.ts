@@ -591,7 +591,6 @@ function renderSidebarList(filterTerm: string) {
     );
 
     if (filtered.length === 0) {
-        gameListDiv.innerHTML = '<div style="padding:10px; color:grey; font-style:italic;">Kein Quiz gefunden.</div>';
         return;
     }
 
@@ -605,8 +604,10 @@ function renderSidebarList(filterTerm: string) {
             item.classList.add('active');
         }
 
+        item.onclick = () => loadGame(g._id!);
+
         item.innerHTML = `
-            <span onclick="loadGame('${g._id}')" style="flex-grow:1; overflow:hidden; text-overflow:ellipsis;">
+            <span style="flex-grow:1; overflow:hidden; text-overflow:ellipsis;">
                 ${g.title || 'Ohne Titel'}
             </span>
             <button onclick="event.stopPropagation(); startGame('${g._id}')" class="sidebar-play-btn" title="Spiel starten">▶</button>
