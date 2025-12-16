@@ -472,8 +472,10 @@ io.on('connection', (socket) => {
         (session as any).activeQIndex = data.qIndex;
         (session as any).mapResolved = false;
         
+        session.listRevealedCount = -1;
+
         if (!info.session.usedQuestions) {
-                info.session.usedQuestions = [];
+            info.session.usedQuestions = [];
         }
         
         const alreadyUsed = info.session.usedQuestions.some(
@@ -495,13 +497,43 @@ io.on('connection', (socket) => {
                 location: data.question.location,
                 points: data.question.points
             });
+        
+        } else if (data.question.type === 'list') {
+            // NEU: Liste
+            session.buzzersActive = true; // Bei Listen darf man meist sofort buzzern
+            io.to(session.hostSocketId).emit('update_host_controls', { 
+                buzzWinnerId: null, 
+                mapMode: false,
+                listMode: true,           // Flag für Host UI
+                listRevealedCount: -1 
+            });
+            // Spieler bekommen nur "Neue Frage" (Text)
+            io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
+            io.to(code).emit('buzzers_unlocked');
         } else {
             session.buzzersActive = true;
             io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null, mapMode: false });
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
             io.to(code).emit('buzzers_unlocked');
         }
-        io.to(code).emit('board_show_question', data);
+        io.to(code).emit('board_show_question', { ...data, currentListIndex: session.listRevealedCount });
+    });
+
+    socket.on('host_reveal_next_list_item', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+        const { session, code } = info;
+
+        // Prüfen, ob wir gerade wirklich eine Listen-Frage spielen
+        if (session.activeQuestion?.type === 'list') {
+            session.listRevealedCount++;
+            
+            // 1. Befehl an das Board: "Zeige Item X"
+            io.to(code).emit('board_reveal_list_item', session.listRevealedCount);
+            
+            // 2. Bestätigung an Host: "Wir sind bei Item X" (damit der Button Status updatet)
+            socket.emit('update_host_controls', { listRevealedCount: session.listRevealedCount });
+        }
     });
 
     socket.on('player_submit_map_guess', (coords) => {

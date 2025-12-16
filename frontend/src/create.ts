@@ -303,6 +303,8 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const isCustom = qData.location?.isCustomMap ?? false;
     const customPath = qData.location?.customMapPath ?? '';
 
+    const pxDuration = qData.pixelConfig?.resolutionDuration ?? 15;
+
     // --- HTML STRUKTUR MIT CSS KLASSE STATT INLINE STYLE ---
     const html = `
     <div class="question-block type-${type}" id="block-${qId}">
@@ -503,6 +505,7 @@ async function saveGame() {
             let listItems: string[] = [];
             let loc = undefined;
             let answerMedia = '';
+            let pixelConf = undefined;
 
             // Daten extrahieren
             if (type === 'standard' || type === 'pixel' || type === 'freetext' || type === 'list') {
@@ -530,6 +533,13 @@ async function saveGame() {
                     loc = { lat: parseFloat(lat), lng: parseFloat(lng), isCustomMap: isCustom, customMapPath: customPath, mapWidth: 1000, mapHeight: 1000 };
                 }
             }
+            else if (type === 'pixel') {
+                const dur = parseInt((qBlock.querySelector('.q-pixel-duration') as HTMLInputElement).value) || 15;
+                pixelConf = {
+                    resolutionDuration: dur,
+                    effectType: 'pixelate'
+                };
+            }
             
             questions.push({
                 type, points, negativePoints: negPoints,
@@ -539,7 +549,8 @@ async function saveGame() {
                 listItems: listItems, // Gespeichert als listItems
                 mediaPath: media || '', hasMedia: !!media, mediaType: 'none',
                 answerMediaPath: answerMedia || '', hasAnswerMedia: !!answerMedia, answerMediaType: 'none',
-                location: loc
+                location: loc,
+                pixelConfig: pixelConf
             });
         });
         cats.push({ name, questions });

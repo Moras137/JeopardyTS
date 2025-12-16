@@ -16,7 +16,9 @@ const questionSchema = new Schema<IQuestion>({
     estimationAnswer: { type: Number },
     listItems: { type: [String], default: [] },
     pixelConfig: {
-        blurStrength: { type: Number }
+        blurStrength: { type: Number, default: 0 },
+        resolutionDuration: { type: Number, default: 15 }, 
+        effectType: { type: String, default: 'pixelate' }
     },
 
     points: { type: Number, default: 100 },

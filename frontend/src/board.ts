@@ -29,6 +29,7 @@ const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
 const introOverlay = document.getElementById('intro-overlay') as HTMLDivElement;
 const introMain = document.getElementById('intro-main-text') as HTMLDivElement;
 const introSub = document.getElementById('intro-sub-text') as HTMLDivElement;
+const listContainer = document.getElementById('list-container') as HTMLDivElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -95,6 +96,8 @@ socket.on('board_show_question', (data) => {
     mediaContainer.innerHTML = "";
     mediaContainer.style.display = 'none';
     mapDiv.style.display = 'none';
+    listContainer.style.display = 'none';
+    listContainer.innerHTML = '';
     answerTextDiv.style.display = 'none';
     answerTextDiv.innerHTML = "";
     
@@ -105,7 +108,17 @@ socket.on('board_show_question', (data) => {
         mapDiv.style.display = 'block';
         // Leaflet braucht sichtbaren Container, daher kurzer Timeout
         setTimeout(() => initMap(question), 100);
-    } 
+    } else if (question.type === 'list') {
+        // NEU: List Modus
+        listContainer.style.display = 'block';
+        
+        // Falls wir reconnecten und schon Items offen sind:
+        if (data.currentListIndex !== undefined && data.currentListIndex >= 0 && question.listItems) {
+            for (let i = 0; i <= data.currentListIndex; i++) {
+                addListItemToBoard(question.listItems[i]);
+            }
+        }
+    }
     // --- MEDIA FRAGE ---
     else if (question.mediaPath) {
         renderMedia(question.mediaPath, mediaContainer, false);
@@ -118,6 +131,15 @@ socket.on('board_show_question', (data) => {
     if(card) card.classList.add('played');
 
     adjustFontSize(questionText);
+});
+
+socket.on('board_reveal_list_item', (index: number) => {
+    if (!currentQuestion || !currentQuestion.listItems) return;
+    
+    const itemText = currentQuestion.listItems[index];
+    if (itemText) {
+        addListItemToBoard(itemText);
+    }
 });
 
 socket.on('board_reveal_answer', () => {
@@ -438,4 +460,14 @@ function adjustFontSize(element: HTMLElement) {
         size -= 0.5;
         element.style.fontSize = size + 'vh';
     }
+}
+
+function addListItemToBoard(text: string) {
+    const div = document.createElement('div');
+    div.className = 'list-item-card';
+    div.innerText = text;
+    listContainer.appendChild(div);
+    
+    // Auto-Scroll nach unten, falls Liste lang wird
+    listContainer.scrollTop = listContainer.scrollHeight;
 }

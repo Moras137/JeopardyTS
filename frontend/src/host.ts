@@ -43,6 +43,10 @@ const mapModeControls = document.getElementById('map-mode-controls') as HTMLDivE
 const mapSubmittedCount = document.getElementById('map-submitted-count') as HTMLSpanElement;
 const resolveMapBtn = document.getElementById('resolve-map-btn') as HTMLButtonElement;
 
+const listModeControls = document.getElementById('list-mode-controls') as HTMLDivElement;
+const listItemsPreview = document.getElementById('list-items-preview') as HTMLDivElement;
+const btnRevealList = document.getElementById('btn-reveal-list') as HTMLButtonElement;
+
 
 // --- INIT & EVENT LISTENER ---
 
@@ -83,6 +87,7 @@ if(btnCloseModalTop) btnCloseModalTop.addEventListener('click', handleClose);
 if(toggleQRBtn) toggleQRBtn.addEventListener('click', () => socket.emit('host_toggle_qr'));
 if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
 if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
+if(btnRevealList) btnRevealList.addEventListener('click', () => {socket.emit('host_reveal_next_list_item');});
 
 // NEU: Intro Button
 if(btnIntroNext) {
@@ -227,6 +232,14 @@ socket.on('host_restore_active_question', (data) => {
         mapModeControls.style.display = 'flex';
         unlockBuzzersBtn.style.display = 'none';
         mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
+    } else if (data.question.type === 'list') {
+        listModeControls.style.display = 'block';
+        mapModeControls.style.display = 'none';
+        
+        if (data.question.listItems) {
+            const idx = (data as any).listRevealedCount ?? -1;
+            updateListPreview(data.question.listItems, idx);
+        }
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
@@ -280,6 +293,23 @@ function updateHostControls(data: any) {
         }
     }
 
+    if (data.listMode !== undefined) {
+        // Umschalten der Ansicht
+        listModeControls.style.display = data.listMode ? 'block' : 'none';
+        mapModeControls.style.display = 'none';
+        
+        // Wenn Liste aktiv, Buzzer Buttons meist anzeigen (da parallel gebuzzert wird)
+        if (data.listMode && !activePlayerId) {
+            unlockBuzzersBtn.style.display = 'block';
+            buzzWinnerSection.style.display = 'none';
+        }
+    }
+
+    // Wenn ein Update zum Zähler kommt (oder beim Restore)
+    if (data.listRevealedCount !== undefined && activeQuestion?.listItems) {
+        updateListPreview(activeQuestion.listItems, data.listRevealedCount);
+    }
+
     // 3. MAP LOGIK
     if (data.mapMode !== undefined) {
         activePlayerId = null; 
@@ -295,6 +325,31 @@ function updateHostControls(data: any) {
     if (data.submittedCount !== undefined) {
         mapSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
     }
+}
+
+function updateListPreview(items: string[], revealedIndex: number) {
+    if (!listItemsPreview) return;
+    let html = '<ol style="padding-left:20px; margin:0;">';
+    items.forEach((item, idx) => {
+        // Styles: Aufgedeckt = Fett/Schwarz, Verdeckt = Grau
+        const style = idx <= revealedIndex ? 'font-weight:bold; color:black;' : 'color:#999;';
+        const status = idx === revealedIndex ? ' (AKTUELL)' : '';
+        html += `<li style="${style}">${item}${status}</li>`;
+    });
+    html += '</ol>';
+    
+    // Button Text anpassen
+    if (revealedIndex >= items.length - 1) {
+        btnRevealList.innerText = "Alle aufgedeckt";
+        btnRevealList.disabled = true;
+        btnRevealList.classList.add('used');
+    } else {
+        btnRevealList.innerText = "Nächsten Hinweis zeigen";
+        btnRevealList.disabled = false;
+        btnRevealList.classList.remove('used');
+    }
+    
+    listItemsPreview.innerHTML = html;
 }
 
 function renderGameGrid(game: IGame) {
@@ -329,11 +384,22 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     
     socket.emit('host_pick_question', { catIndex, qIndex, question });
     
+    mapModeControls.style.display = 'none';
+    listModeControls.style.display = 'none';
+    buzzWinnerSection.style.display = 'none';
+
     if (question.type === 'map') {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'flex';
         mapSubmittedCount.innerText = `0/${Object.keys(players).length}`;
         unlockBuzzersBtn.style.display = 'none';
+    } else if (question.type === 'list') {
+        listModeControls.style.display = 'block';
+        unlockBuzzersBtn.style.display = 'block'; // Buzzer sind an
+        
+        if (question.listItems) {
+            updateListPreview(question.listItems, -1); // Noch nichts aufgedeckt
+        }
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';

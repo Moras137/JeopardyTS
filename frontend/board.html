@@ -261,6 +261,23 @@
             font-weight: 300;
             letter-spacing: 5px;
         }
+        .list-item-card {
+            background: #fff;
+            color: #000;
+            font-size: 3rem;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            animation: popIn 0.5s ease;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -278,6 +295,7 @@
     <div id="question-overlay">
         <div id="media-container"></div>
         <div id="q-map"></div>
+        <div id="list-container" style="display:none; width: 80%; margin-bottom: 20px;"></div>
         <div id="question-text"></div>
         <div id="answer-text"></div>
     </div>

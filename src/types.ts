@@ -20,8 +20,10 @@ export interface IQuestion {
     
     estimationAnswer?: number;  // Für Schätzfragen
     listItems?: string[];    // Für Listen-Fragen
-    pixelConfig?: {             // Für Pixel-Fragen 
-        blurStrength?: number;
+    pixelConfig?: {             
+        blurStrength?: number;      // (Legacy/Optional)
+        resolutionDuration?: number;// Dauer in Sekunden bis zur vollständigen Auflösung
+        effectType?: 'pixelate' | 'blur'; // Art des Effekts
     };
 
     answerMediaPath: string;
@@ -96,7 +98,7 @@ export interface ServerToClientEvents {
     join_error: (msg: string) => void;
     player_start_map_guess: (data: { questionText: string, location?: ILocation, points: number }) => void;
     player_new_question: (data: { text: string, points: number }) => void;
-    board_show_question: (data: { catIndex: number, qIndex: number, question: IQuestion }) => void;
+    board_show_question: (data: { catIndex: number, qIndex: number, question: IQuestion, currentListIndex?: number }) => void;
     board_reveal_answer: () => void;
     board_hide_question: () => void;
     board_toggle_qr: () => void;
