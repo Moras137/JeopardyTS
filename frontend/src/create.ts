@@ -1127,8 +1127,8 @@ function previewPixelEffect(qId: string) {
             // --- EFFEKT 2: TWIST ---
             else if (effectType === 'twist') {
                 const maxTwist = 50; 
-                const currentTwist = maxTwist * (1 - progress) * (1 - progress);
-
+                //const currentTwist = maxTwist * (1 - progress) * (1 - progress);
+                const currentTwist = maxTwist * Math.pow(1 - progress, 4);
                 if (currentTwist < 0.05) {
                     ctx.drawImage(offCanvas, 0, 0);
                 } else {
