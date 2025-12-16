@@ -23,7 +23,7 @@ export interface IQuestion {
     pixelConfig?: {             
         blurStrength?: number;      // (Legacy/Optional)
         resolutionDuration?: number;// Dauer in Sekunden bis zur vollständigen Auflösung
-        effectType?: 'pixelate' | 'blur'; // Art des Effekts
+        effectType?: 'pixelate' | 'twist' | 'shuffle';
     };
 
     answerMediaPath: string;

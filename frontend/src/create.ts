@@ -304,8 +304,8 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const customPath = qData.location?.customMapPath ?? '';
 
     const pxDuration = qData.pixelConfig?.resolutionDuration ?? 15;
+    const pxType = qData.pixelConfig?.effectType ?? 'pixelate';
 
-    // --- HTML STRUKTUR MIT CSS KLASSE STATT INLINE STYLE ---
     const html = `
     <div class="question-block type-${type}" id="block-${qId}">
         <div style="margin-bottom:10px; border-bottom:1px solid #ddd; padding-bottom:5px;">
@@ -325,13 +325,37 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
             <div style="flex:1"><label>Minus:</label><input type="number" class="q-negative-points" value="${negPoints}"></div>
         </div>
 
-        <label>Fragetext / Kategorie für Hinweise:</label>
-        <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)" placeholder="z.B. 'Errate den Schauspieler' oder Frage...">
+        <label>Fragetext / Titel:</label>
+        <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)" placeholder="z.B. 'Was ist hier zu sehen?'">
 
-        <label>Frage-Medien (Bild/Audio/Video):</label>
+        <label>Frage-Medien (Bild für Puzzle hier hochladen):</label>
         <input type="file" onchange="uploadFile(this, 'preview-q-${qId}', 'media-${qId}')">
         <div id="preview-q-${qId}">${generateMediaPreviewHtml(media)}</div>
         <input type="hidden" class="q-media-path" id="media-${qId}" value="${media}">
+
+        <div class="type-section section-pixel" style="display:none; background: rgba(0, 123, 255, 0.1); padding: 10px; border: 1px dashed #007bff; margin-top:10px; border-radius: 4px;">
+            <label style="font-weight:bold; color: #007bff;">🧩 Pixel-Puzzle Einstellungen:</label>
+            <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
+                <select class="q-pixel-type" style="width: auto; padding: 5px;">
+                    <option value="pixelate" ${pxType === 'pixelate' ? 'selected' : ''}>Klassisch (Verpixeln)</option>
+                    <option value="twist" ${pxType === 'twist' ? 'selected' : ''}>Strudel (Verdrehen)</option>
+                    <option value="shuffle" ${pxType === 'shuffle' ? 'selected' : ''}>Chaos (Pixel-Tausch)</option>
+                </select>
+
+                <span>Dauer bis scharf:</span>
+                <input type="number" class="q-pixel-duration" value="${pxDuration}" min="5" max="120" style="width:80px;">
+                <span>Sekunden</span>
+
+                <button type="button" class="secondary-btn" onclick="previewPixelEffect('${qId}')" 
+                        style="margin-top:0; margin-left:auto; background:#fff; color: #28a745; border-color: #28a745;">
+                    ▶ Effekt Vorschau
+                </button>
+            </div>
+            
+            <small style="opacity: 0.8;">Das Bild startet stark verpixelt und wird über diese Zeit langsam erkennbar.</small>
+
+            <canvas id="pixel-canvas-${qId}" style="display:none; width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #ccc; background: #000; margin-top: 5px;"></canvas>
+        </div>
 
         <div class="type-section section-list list-hint-box" style="display:none;">
             <label style="font-weight:bold;">Hinweise/Begriffe (Einer pro Zeile):</label>
@@ -534,10 +558,15 @@ async function saveGame() {
                 }
             }
             else if (type === 'pixel') {
-                const dur = parseInt((qBlock.querySelector('.q-pixel-duration') as HTMLInputElement).value) || 15;
+                const durInput = qBlock.querySelector('.q-pixel-duration') as HTMLInputElement;
+                const typeInput = qBlock.querySelector('.q-pixel-type') as HTMLSelectElement;
+                
+                const dur = parseInt(durInput.value) || 30;
+                const eff = (typeInput ? typeInput.value : 'pixelate') as 'pixelate' | 'twist' | 'shuffle';
+
                 pixelConf = {
                     resolutionDuration: dur,
-                    effectType: 'pixelate'
+                    effectType: eff 
                 };
             }
             
@@ -744,7 +773,7 @@ function changeQuestionType(select: HTMLSelectElement, qId: string) {
     block.querySelectorAll('.type-section').forEach((el) => (el as HTMLElement).style.display = 'none');
 
     // Sichtbarkeiten steuern
-    if (type === 'standard' || type === 'pixel' || type === 'freetext') {
+    if (type === 'standard' || type === 'freetext') {
         // Standard Antwortfeld
         block.querySelectorAll('.section-standard').forEach(el => (el as HTMLElement).style.display = 'block');
     } 
@@ -757,6 +786,9 @@ function changeQuestionType(select: HTMLSelectElement, qId: string) {
     else if (type === 'map') {
         (block.querySelector('.section-map') as HTMLElement).style.display = 'block';
         initMap(qId);
+    }
+    else if (type === 'pixel') {
+        block.querySelectorAll('.section-pixel').forEach(el => (el as HTMLElement).style.display = 'block');
     }
     
     checkQuestionFilled(select);
@@ -1004,6 +1036,239 @@ function renderBoardPreview() {
         });
     }
 }
+
+let currentPixelAnim: number | null = null;
+
+function previewPixelEffect(qId: string) {
+    const mediaInput = document.getElementById(`media-${qId}`) as HTMLInputElement;
+    const durInput = document.querySelector(`#block-${qId} .q-pixel-duration`) as HTMLInputElement;
+    const typeSelect = document.querySelector(`#block-${qId} .q-pixel-type`) as HTMLSelectElement;
+    const canvas = document.getElementById(`pixel-canvas-${qId}`) as HTMLCanvasElement;
+    
+    if (!mediaInput || !mediaInput.value) {
+        alert("Bitte erst ein Bild hochladen!");
+        return;
+    }
+
+    const imgPath = mediaInput.value;
+    const duration = (parseInt(durInput.value) || 15) * 1000;
+    const effectType = typeSelect ? typeSelect.value : 'pixelate';
+
+    const img = new Image();
+    img.src = imgPath;
+    
+    img.onload = () => {
+        canvas.style.display = 'block';
+        
+        // Performance: Canvas begrenzen
+        const maxWidth = 600;
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = Math.floor(img.width * scale);
+        canvas.height = Math.floor(img.height * scale);
+        
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
+
+        // Offscreen Canvas für Originaldaten
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = canvas.width;
+        offCanvas.height = canvas.height;
+        const offCtx = offCanvas.getContext('2d');
+        if(!offCtx) return;
+        offCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // --- PRE-CALCULATION FÜR SHUFFLE ---
+        // Wir berechnen das nur einmal am Start, damit es nicht flackert
+        let shuffleMap: Int32Array | null = null;
+        let resolveOrder: Int32Array | null = null;
+
+        if (effectType === 'shuffle') {
+            const totalPixels = canvas.width * canvas.height;
+            shuffleMap = new Int32Array(totalPixels);
+            resolveOrder = new Int32Array(totalPixels);
+
+            // 1. Array füllen
+            for (let i = 0; i < totalPixels; i++) {
+                shuffleMap[i] = i;
+                resolveOrder[i] = i;
+            }
+
+            // 2. Fisher-Yates Shuffle für die Tausch-Positionen
+            for (let i = totalPixels - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffleMap[i], shuffleMap[j]] = [shuffleMap[j], shuffleMap[i]];
+            }
+
+            // 3. Fisher-Yates Shuffle für die Auflöse-Reihenfolge (welche Pixel werden zuerst richtig?)
+            for (let i = totalPixels - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [resolveOrder[i], resolveOrder[j]] = [resolveOrder[j], resolveOrder[i]];
+            }
+        }
+        // -----------------------------------
+
+        const startTime = performance.now();
+
+        const animate = (time: number) => {
+            let elapsed = time - startTime;
+            if (elapsed > duration) elapsed = duration;
+            const progress = elapsed / duration; // 0.0 bis 1.0
+
+            // --- EFFEKT 1: VERPIXELN ---
+            if (effectType === 'pixelate') {
+                ctx.imageSmoothingEnabled = false;
+                const pixelFactor = 0.01 + (0.99 * progress); 
+                const w = Math.max(1, Math.floor(canvas.width * pixelFactor));
+                const h = Math.max(1, Math.floor(canvas.height * pixelFactor));
+                ctx.drawImage(offCanvas, 0, 0, w, h);
+                ctx.drawImage(canvas, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
+            } 
+            
+            // --- EFFEKT 2: TWIST ---
+            else if (effectType === 'twist') {
+                const maxTwist = 50; 
+                const currentTwist = maxTwist * (1 - progress) * (1 - progress);
+
+                if (currentTwist < 0.05) {
+                    ctx.drawImage(offCanvas, 0, 0);
+                } else {
+                    const imageData = offCtx.getImageData(0, 0, canvas.width, canvas.height);
+                    const pixels = imageData.data;
+                    const newImageData = ctx.createImageData(canvas.width, canvas.height);
+                    const newPixels = newImageData.data;
+                    
+                    const cx = canvas.width / 2;
+                    const cy = canvas.height / 2;
+                    const radius = Math.min(cx, cy) * 1.5; 
+
+                    for (let y = 0; y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const dx = x - cx;
+                            const dy = y - cy;
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            let sourceX = x;
+                            let sourceY = y;
+
+                            if (dist < radius) {
+                                const angle = Math.atan2(dy, dx);
+                                const angleOffset = (1 - dist / radius) * currentTwist;
+                                const targetAngle = angle - angleOffset;
+                                sourceX = cx + Math.cos(targetAngle) * dist;
+                                sourceY = cy + Math.sin(targetAngle) * dist;
+                            }
+
+                            if (sourceX >= 0 && sourceX < canvas.width && sourceY >= 0 && sourceY < canvas.height) {
+                                const srcIdx = (Math.floor(sourceY) * canvas.width + Math.floor(sourceX)) * 4;
+                                const destIdx = (y * canvas.width + x) * 4;
+                                newPixels[destIdx] = pixels[srcIdx];     
+                                newPixels[destIdx + 1] = pixels[srcIdx + 1]; 
+                                newPixels[destIdx + 2] = pixels[srcIdx + 2]; 
+                                newPixels[destIdx + 3] = pixels[srcIdx + 3]; 
+                                newPixels[destIdx + 4] = 255; // Alpha
+                            }
+                        }
+                    }
+                    ctx.putImageData(newImageData, 0, 0);
+                }
+            }
+
+            // --- EFFEKT 3: SHUFFLE (Chaos) ---
+            else if (effectType === 'shuffle' && shuffleMap && resolveOrder) {
+                const imageData = offCtx.getImageData(0, 0, canvas.width, canvas.height);
+                const sourcePixels = imageData.data;
+                const newImageData = ctx.createImageData(canvas.width, canvas.height);
+                const destPixels = newImageData.data;
+
+                const totalPixels = canvas.width * canvas.height;
+                // Anzahl der Pixel, die schon "korrekt" sein sollen
+                const resolvedCount = Math.floor(totalPixels * progress);
+
+                // Wir bauen ein temporäres Boolean-Array oder nutzen den Index, um zu wissen was fest ist
+                // Performance-Trick: Wir iterieren einfach über alle Pixel
+                
+                // Da wir das jeden Frame machen, müssen wir effizient sein.
+                // Logik: 
+                // Wenn Index i in "resolveOrder" < resolvedCount ist -> Zeige Original
+                // Sonst -> Zeige Pixel von shuffleMap[i]
+                
+                // Um das performant zu machen ohne O(N^2), brauchen wir eine schnelle Prüfung.
+                // Da resolveOrder geshuffelt ist, ist das schwierig.
+                // Einfachere Visuelle Logik: 
+                // Wir nutzen einen Schwellenwert. 'progress' ist global.
+                
+                for (let i = 0; i < totalPixels; i++) {
+                    // Ist dieser Pixel schon "geheilt"?
+                    // Wir nutzen das resolveOrder Array als Lookup:
+                    // Wenn der Wert an resolveOrder[i] kleiner als der Threshold ist, dann ist er geheilt? 
+                    // Nein, resolveOrder[i] ist der Index des Pixels.
+                    
+                    // Korrekte schnelle Logik:
+                    // Wir zeichnen erst das komplett geshuffelte Bild.
+                    // Dann zeichnen wir die 'geheilten' Pixel darüber (oder umgekehrt).
+                    
+                    let srcIndex: number;
+                    
+                    // Wir nutzen hier einen deterministischen Pseudo-Zufall pro Pixel basierend auf Index
+                    // um zu entscheiden ob er schon geheilt ist, das spart Array Lookups.
+                    // (x * prime) % total < count
+                    
+                    // Aber wir haben ja resolveOrder. Nutzen wir es richtig:
+                    // Es ist zu teuer, jeden Frame zu prüfen "Ist i in den ersten X Elementen von resolveOrder?".
+                    // Wir drehen die Logik um: Wir bauen das Bild einmal komplett geshuffelt auf...
+                    // ...und kopieren dann die korrekten Pixel rein? Das ist auch teuer.
+                    
+                    // ALTERNATIVE (Visuell fast identisch, viel schneller):
+                    // Wir nutzen shuffleMap[i] als Quelle.
+                    // Aber mit steigendem Progress nimmt die Wahrscheinlichkeit zu, dass wir shuffleMap[i] = i setzen.
+                    // Das geht nicht live.
+                    
+                    // BACK TO BASICS:
+                    // Wir nehmen einfach den Index.
+                    // Wenn resolveOrder[i] < resolvedCount -> Dann zeige Pixel i korrekt.
+                    // Sonst -> Zeige Pixel shuffleMap[i].
+                    // Das bedeutet aber, resolveOrder muss eine Permutation von 0..N sein, die jedem Pixel eine "Zeit" zuweist.
+                    
+                    // Ja, resolveOrder[i] = "Zu welchem Zeitpunkt (0..Total) wird Pixel i korrekt?"
+                    // Das haben wir oben so noch nicht initialisiert. Oben war es nur geshuffelt.
+                    // Korrektur der Initialisierung oben (schon passiert): 
+                    // resolveOrder ist eine Liste von Pixel-Indizes.
+                    // ABER: Für schnellen Lookup brauchen wir: pixelResolveTime[pixelIndex] = timepoint.
+                    
+                    // Quick fix im Loop hier, wir machen es statistisch (sieht bei hohen Auflösungen genauso aus):
+                    // Wir nutzen einen einfachen Hash auf dem Index um zu entscheiden.
+                    
+                    // Deterministic Random check:
+                    const isResolved = ((i * 123456789 + 34567) % totalPixels) < resolvedCount;
+                    
+                    if (isResolved) {
+                        srcIndex = i; // Original Position
+                    } else {
+                        srcIndex = shuffleMap[i]; // Geshuffelte Position
+                    }
+
+                    const destI = i * 4;
+                    const srcI = srcIndex * 4;
+
+                    destPixels[destI] = sourcePixels[srcI];
+                    destPixels[destI+1] = sourcePixels[srcI+1];
+                    destPixels[destI+2] = sourcePixels[srcI+2];
+                    destPixels[destI+3] = 255; // Alpha
+                }
+                ctx.putImageData(newImageData, 0, 0);
+            }
+
+            if (elapsed < duration) {
+                currentPixelAnim = requestAnimationFrame(animate);
+            }
+        };
+
+        if (currentPixelAnim) cancelAnimationFrame(currentPixelAnim);
+        currentPixelAnim = requestAnimationFrame(animate);
+    };
+    
+    img.onerror = () => alert("Bild konnte nicht geladen werden.");
+}
+(window as any).previewPixelEffect = previewPixelEffect;
 
 // --- THEME LOGIC ---
 

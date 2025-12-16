@@ -18,7 +18,7 @@ const questionSchema = new Schema<IQuestion>({
     pixelConfig: {
         blurStrength: { type: Number, default: 0 },
         resolutionDuration: { type: Number, default: 15 }, 
-        effectType: { type: String, default: 'pixelate' }
+        effectType: { type: String, default: 'pixelate', enum: ['pixelate', 'twist', 'shuffle'] }
     },
 
     points: { type: Number, default: 100 },
