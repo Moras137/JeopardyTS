@@ -117,7 +117,7 @@ socket.on('board_show_question', (data) => {
         setTimeout(() => initMap(question), 100);
     } else if (question.type === 'list') {
         // NEU: List Modus
-        listContainer.style.display = 'block';
+        listContainer.style.display = 'flex';
         
         // Falls wir reconnecten und schon Items offen sind:
         if (data.currentListIndex !== undefined && data.currentListIndex >= 0 && question.listItems) {
