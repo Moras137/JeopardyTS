@@ -13,6 +13,8 @@ let mapInstance: L.Map | null = null;
 let qrCodeVisible = false;
 let serverAddress = window.location.hostname; 
 let serverPort = window.location.port;
+let currentPixelAnim: number | null = null;
+let pixelControlCalls: { pause: () => void, resume: () => void } | null = null;
 
 // --- DOM ELEMENTE ---
 const gameGrid = document.getElementById('game-grid') as HTMLDivElement;
@@ -42,6 +44,11 @@ if (roomCode) {
 }
 
 // --- SOCKET EVENTS ---
+socket.on('board_control_pixel_puzzle', (action) => {
+    if (!pixelControlCalls) return;
+    if (action === 'pause') pixelControlCalls.pause();
+    if (action === 'resume') pixelControlCalls.resume();
+});
 
 socket.on('board_show_intro', (data) => {
     const { text, subtext, type } = data;
@@ -119,6 +126,11 @@ socket.on('board_show_question', (data) => {
             }
         }
     }
+    else if (question.type === 'pixel' && question.mediaPath) {
+        // Starte den Effekt im Media Container
+        startPixelPuzzle(question);
+    }
+
     // --- MEDIA FRAGE ---
     else if (question.mediaPath) {
         renderMedia(question.mediaPath, mediaContainer, false);
@@ -155,6 +167,11 @@ socket.on('board_reveal_answer', () => {
     if (currentQuestion.type === 'map' && currentQuestion.location) {
         // Karte bleibt sichtbar, Marker kommen via 'board_reveal_map_results'
     } 
+
+    if (currentPixelAnim) {
+        cancelAnimationFrame(currentPixelAnim);
+        currentPixelAnim = null;
+    }
     // --- STANDARD ANTWORT MEDIA ---
     else {
         // Map weg
@@ -163,6 +180,11 @@ socket.on('board_reveal_answer', () => {
 
         // Medien Container leeren & Antwort-Medien zeigen
         mediaContainer.innerHTML = '';
+
+        if (currentQuestion.type === 'pixel' && currentQuestion.mediaPath) {
+             renderMedia(currentQuestion.mediaPath, mediaContainer, false);
+        }
+
         if (currentQuestion.answerMediaPath) {
             renderMedia(currentQuestion.answerMediaPath, mediaContainer, true); // Autoplay
         } else {
@@ -470,4 +492,154 @@ function addListItemToBoard(text: string) {
     
     // Auto-Scroll nach unten, falls Liste lang wird
     listContainer.scrollTop = listContainer.scrollHeight;
+}
+
+function startPixelPuzzle(question: IQuestion) {
+    mediaContainer.style.display = 'block';
+    mediaContainer.innerHTML = ''; 
+
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '60vh'; 
+    canvas.style.objectFit = 'contain';
+    mediaContainer.appendChild(canvas);
+
+    const img = new Image();
+    img.src = question.mediaPath;
+
+    img.onload = () => {
+        const maxWidth = 1920; 
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = Math.floor(img.width * scale);
+        canvas.height = Math.floor(img.height * scale);
+
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
+
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = canvas.width;
+        offCanvas.height = canvas.height;
+        const offCtx = offCanvas.getContext('2d');
+        if(!offCtx) return;
+        offCtx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const totalDuration = (question.pixelConfig?.resolutionDuration || 30) * 1000;
+        const effectType = question.pixelConfig?.effectType || 'pixelate';
+
+        // Shuffle Setup (wie zuvor)
+        let shuffleMap: Int32Array | null = null;
+        if (effectType === 'shuffle') {
+            const totalPixels = canvas.width * canvas.height;
+            shuffleMap = new Int32Array(totalPixels);
+            for (let i = 0; i < totalPixels; i++) shuffleMap[i] = i;
+            for (let i = totalPixels - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffleMap[i], shuffleMap[j]] = [shuffleMap[j], shuffleMap[i]];
+            }
+        }
+
+        // --- PAUSE / RESUME LOGIK ---
+        let startTime = performance.now();
+        let pausedTime = 0;
+        let isPaused = false;
+        let lastPauseStart = 0;
+
+        // Exportiere die Steuerungs-Funktionen für den Socket-Listener
+        pixelControlCalls = {
+            pause: () => {
+                if (!isPaused) {
+                    isPaused = true;
+                    lastPauseStart = performance.now();
+                    cancelAnimationFrame(currentPixelAnim!);
+                }
+            },
+            resume: () => {
+                if (isPaused) {
+                    isPaused = false;
+                    // Die Zeit, die wir pausiert haben, zur "Startzeit" addieren, 
+                    // damit der Fortschritt dort weitermacht wo er aufhörte.
+                    const pauseDuration = performance.now() - lastPauseStart;
+                    startTime += pauseDuration;
+                    currentPixelAnim = requestAnimationFrame(animate);
+                }
+            }
+        };
+
+        const animate = (time: number) => {
+            if (isPaused) return;
+
+            let elapsed = time - startTime;
+            if (elapsed > totalDuration) elapsed = totalDuration;
+            const progress = elapsed / totalDuration;
+
+            // --- RENDERING (Logik wie zuvor) ---
+            if (effectType === 'pixelate') {
+                ctx.imageSmoothingEnabled = false;
+                const pixelFactor = 0.005 + (0.995 * progress);
+                const w = Math.max(1, Math.floor(canvas.width * pixelFactor));
+                const h = Math.max(1, Math.floor(canvas.height * pixelFactor));
+                ctx.drawImage(offCanvas, 0, 0, w, h);
+                ctx.drawImage(canvas, 0, 0, w, h, 0, 0, canvas.width, canvas.height);
+            } 
+            else if (effectType === 'twist') {
+                const maxTwist = 150; 
+                const currentTwist = maxTwist * Math.pow(1 - progress, 4);
+
+                if (currentTwist < 0.05) {
+                    ctx.drawImage(offCanvas, 0, 0);
+                } else {
+                    const imageData = offCtx.getImageData(0, 0, canvas.width, canvas.height);
+                    const pixels = imageData.data;
+                    const newImageData = ctx.createImageData(canvas.width, canvas.height);
+                    const newPixels = newImageData.data;
+                    const cx = canvas.width / 2;
+                    const cy = canvas.height / 2;
+                    const radius = Math.min(cx, cy) * 1.5; 
+
+                    for (let y = 0; y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const dx = x - cx; const dy = y - cy;
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            if (dist < radius) {
+                                const angle = Math.atan2(dy, dx);
+                                const angleOffset = (1 - dist / radius) * currentTwist;
+                                const targetAngle = angle - angleOffset;
+                                const sourceX = cx + Math.cos(targetAngle) * dist;
+                                const sourceY = cy + Math.sin(targetAngle) * dist;
+                                if (sourceX >= 0 && sourceX < canvas.width && sourceY >= 0 && sourceY < canvas.height) {
+                                    const srcIdx = (Math.floor(sourceY) * canvas.width + Math.floor(sourceX)) * 4;
+                                    const destIdx = (y * canvas.width + x) * 4;
+                                    newPixels[destIdx] = pixels[srcIdx]; newPixels[destIdx + 1] = pixels[srcIdx + 1]; newPixels[destIdx + 2] = pixels[srcIdx + 2]; newPixels[destIdx + 3] = pixels[srcIdx + 3]; newPixels[destIdx + 4] = 255;
+                                }
+                            }
+                        }
+                    }
+                    ctx.putImageData(newImageData, 0, 0);
+                }
+            } 
+            else if (effectType === 'shuffle' && shuffleMap) {
+                const imageData = offCtx.getImageData(0, 0, canvas.width, canvas.height);
+                const sourcePixels = imageData.data;
+                const newImageData = ctx.createImageData(canvas.width, canvas.height);
+                const destPixels = newImageData.data;
+                const totalPixels = canvas.width * canvas.height;
+                const threshold = progress;
+
+                for (let i = 0; i < totalPixels; i++) {
+                    const isResolved = ((i * 0.61803398875) % 1) < threshold; 
+                    let srcIndex = isResolved ? i : shuffleMap[i];
+                    const destI = i * 4; const srcI = srcIndex * 4;
+                    destPixels[destI] = sourcePixels[srcI]; destPixels[destI+1] = sourcePixels[srcI+1]; destPixels[destI+2] = sourcePixels[srcI+2]; destPixels[destI+3] = 255;
+                }
+                ctx.putImageData(newImageData, 0, 0);
+            }
+
+            if (elapsed < totalDuration) {
+                currentPixelAnim = requestAnimationFrame(animate);
+            }
+        };
+        
+        if(currentPixelAnim) cancelAnimationFrame(currentPixelAnim);
+        currentPixelAnim = requestAnimationFrame(animate);
+    };
 }

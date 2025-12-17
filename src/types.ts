@@ -111,6 +111,7 @@ export interface ServerToClientEvents {
     server_network_info: (data: { ip: string, port: number }) => void;
     load_game_on_board: (data: { game: IGame, usedQuestions: { catIndex: number, qIndex: number }[] }) => void;
     board_show_intro: (data: { text: string, subtext?: string, type: 'title' | 'category' | 'end' }) => void;
+    board_control_pixel_puzzle: (action: 'pause' | 'resume') => void;
 }
 
 export interface ClientToServerEvents {
@@ -131,4 +132,5 @@ export interface ClientToServerEvents {
     music_control: (data: { gameId: string, action: 'play' | 'pause' | 'volume', value?: number }) => void;
     host_next_intro: () => void;
     host_reveal_next_list_item: () => void;
+    host_control_pixel_puzzle: (action: 'pause' | 'resume') => void;
 }

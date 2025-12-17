@@ -435,6 +435,10 @@ io.on('connection', (socket) => {
             io.to(code).emit('buzzers_locked');
             io.to(code).emit('player_won_buzz', { id: playerId, name: session.players[playerId].name });
             io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: playerId, buzzWinnerName: session.players[playerId].name });
+
+            if (session.activeQuestion?.type === 'pixel') {
+                io.to(code).emit('board_control_pixel_puzzle', 'pause');
+            }
         }
     });
 
@@ -583,6 +587,13 @@ io.on('connection', (socket) => {
     socket.on('host_toggle_qr', () => {
         const info = getSessionBySocketId(socket.id);
         if(info) io.to(info.code).emit('board_toggle_qr');
+    });
+
+    socket.on('host_control_pixel_puzzle', (action) => {
+        const info = getSessionBySocketId(socket.id);
+        if (info) {
+            io.to(info.code).emit('board_control_pixel_puzzle', action);
+        }
     });
 
     socket.on('host_unlock_buzzers', () => {

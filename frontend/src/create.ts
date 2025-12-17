@@ -17,6 +17,7 @@ declare global {
         loadGame: (id: string) => void;
         toggleTheme: () => void;
         loadGameTiles: () => void;
+        removeQuestionMedia: (qId: string, target: 'question' | 'answer') => void;
     }
 }
 
@@ -172,10 +173,14 @@ clearForm();
 // --- 1. GLOBALE FUNKTIONEN ---
 
 async function uploadFile(inputElement: HTMLInputElement, previewId: string, hiddenInputId: string) {
-    const statusEl = inputElement.nextElementSibling as HTMLElement;
+    let statusEl = inputElement.nextElementSibling as HTMLElement;
     const previewContainer = document.getElementById(previewId) as HTMLDivElement;
     const hiddenInput = document.getElementById(hiddenInputId) as HTMLInputElement;
     
+    if (statusEl && statusEl.tagName === 'BUTTON') {
+        statusEl = statusEl.nextElementSibling as HTMLElement;
+    }
+
     const file = inputElement.files?.[0];
     if (!file) return;
 
@@ -329,7 +334,11 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
         <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)" placeholder="z.B. 'Was ist hier zu sehen?'">
 
         <label>Frage-Medien (Bild für Puzzle hier hochladen):</label>
-        <input type="file" onchange="uploadFile(this, 'preview-q-${qId}', 'media-${qId}')">
+        <div style="display:flex; align-items:center; gap: 10px;">
+            <input type="file" id="file-upload-${qId}" onchange="uploadFile(this, 'preview-q-${qId}', 'media-${qId}')" style="flex-grow:1;">
+            <button type="button" class="sidebar-delete-btn" onclick="removeQuestionMedia('${qId}', 'question')" title="Medien entfernen" style="font-size: 1.5rem;">🗑</button>
+            <span class="upload-status" style="font-size: 0.9rem; margin-left: 5px; min-width: 50px;"></span>
+        </div>
         <div id="preview-q-${qId}">${generateMediaPreviewHtml(media)}</div>
         <input type="hidden" class="q-media-path" id="media-${qId}" value="${media}">
 
@@ -369,7 +378,11 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
             
             <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
                 <label>Lösung-Medien (Optional):</label>
-                <input type="file" onchange="uploadFile(this, 'preview-ans-${qId}', 'media-ans-${qId}')">
+                <div style="display:flex; align-items:center; gap: 10px;">
+                    <input type="file" id="file-upload-ans-${qId}" onchange="uploadFile(this, 'preview-ans-${qId}', 'media-ans-${qId}')" style="flex-grow:1;">
+                    <button type="button" class="sidebar-delete-btn" onclick="removeQuestionMedia('${qId}', 'answer')" title="Medien entfernen" style="font-size: 1.5rem;">🗑</button>
+                    <span class="upload-status" style="font-size: 0.9rem; margin-left: 5px; min-width: 50px;"></span>
+                </div>
                 <div id="preview-ans-${qId}">${generateMediaPreviewHtml(qData.answerMediaPath || '')}</div>
                 <input type="hidden" class="q-answer-media-path" id="media-ans-${qId}" value="${qData.answerMediaPath || ''}">
             </div>
@@ -1397,6 +1410,34 @@ function filterAndRenderTiles(searchTerm: string) {
         dashboardGrid.appendChild(tile);
     });
 }
+
+function removeQuestionMedia(qId: string, target: 'question' | 'answer') {
+    let hiddenInputId = '';
+    let previewId = '';
+    let fileInputId = '';
+
+    // Wir definieren die IDs explizit, um Verwirrung durch Prefix-Logik zu vermeiden
+    if (target === 'question') {
+        hiddenInputId = `media-${qId}`;
+        previewId = `preview-q-${qId}`;      // WICHTIG: Das 'q' fehlte in der Logik
+        fileInputId = `file-upload-${qId}`;
+    } else {
+        hiddenInputId = `media-ans-${qId}`;
+        previewId = `preview-ans-${qId}`;
+        fileInputId = `file-upload-ans-${qId}`;
+    }
+    
+    const hiddenInput = document.getElementById(hiddenInputId) as HTMLInputElement;
+    const previewDiv = document.getElementById(previewId) as HTMLDivElement;
+    const fileInput = document.getElementById(fileInputId) as HTMLInputElement;
+
+    // Werte zurücksetzen
+    if (hiddenInput) hiddenInput.value = '';
+    if (previewDiv) previewDiv.innerHTML = '';
+    if (fileInput) fileInput.value = '';
+}
+// Funktion global verfügbar machen für onclick im HTML
+(window as any).removeQuestionMedia = removeQuestionMedia;
 
 initTheme();
 

@@ -47,6 +47,9 @@ const listModeControls = document.getElementById('list-mode-controls') as HTMLDi
 const listItemsPreview = document.getElementById('list-items-preview') as HTMLDivElement;
 const btnRevealList = document.getElementById('btn-reveal-list') as HTMLButtonElement;
 
+const pixelModeControls = document.getElementById('pixel-mode-controls') as HTMLDivElement;
+const btnPixelPause = document.getElementById('btn-pixel-pause') as HTMLButtonElement;
+const btnPixelResume = document.getElementById('btn-pixel-resume') as HTMLButtonElement;
 
 // --- INIT & EVENT LISTENER ---
 
@@ -88,6 +91,9 @@ if(toggleQRBtn) toggleQRBtn.addEventListener('click', () => socket.emit('host_to
 if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
 if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
 if(btnRevealList) btnRevealList.addEventListener('click', () => {socket.emit('host_reveal_next_list_item');});
+
+if(btnPixelPause) btnPixelPause.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'pause'));
+if(btnPixelResume) btnPixelResume.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'resume'));
 
 // NEU: Intro Button
 if(btnIntroNext) {
@@ -240,6 +246,10 @@ socket.on('host_restore_active_question', (data) => {
             const idx = (data as any).listRevealedCount ?? -1;
             updateListPreview(data.question.listItems, idx);
         }
+    } else if (data.question.type === 'pixel') {
+        listModeControls.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
@@ -393,6 +403,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
         mapModeControls.style.display = 'flex';
         mapSubmittedCount.innerText = `0/${Object.keys(players).length}`;
         unlockBuzzersBtn.style.display = 'none';
+        pixelModeControls.style.display = 'none';
     } else if (question.type === 'list') {
         listModeControls.style.display = 'block';
         unlockBuzzersBtn.style.display = 'block'; // Buzzer sind an
@@ -400,10 +411,25 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
         if (question.listItems) {
             updateListPreview(question.listItems, -1); // Noch nichts aufgedeckt
         }
+        pixelModeControls.style.display = 'none';
+    } else if (question.type === 'pixel') {
+        // NEU: Pixel Puzzle Handling
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none';
+        pixelModeControls.style.display = 'flex';
+        
+        // Buzzer sind aktiv!
+        unlockBuzzersBtn.style.display = 'block';
+        
+        // Optional: Hinweis im Titel ergänzen
+        qTitle.innerText += " (PIXEL PUZZLE)";
+        
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
-        unlockBuzzersBtn.style.display = 'none'; // Server unlockt automatisch
+        unlockBuzzersBtn.style.display = 'none';
+        pixelModeControls.style.display = 'none';
     }
 
     markQuestionAsUsed(catIndex, qIndex);
