@@ -112,6 +112,9 @@ export interface ServerToClientEvents {
     load_game_on_board: (data: { game: IGame, usedQuestions: { catIndex: number, qIndex: number }[] }) => void;
     board_show_intro: (data: { text: string, subtext?: string, type: 'title' | 'category' | 'end' }) => void;
     board_control_pixel_puzzle: (action: 'pause' | 'resume') => void;
+    player_start_estimate: (data: { text: string, points: number }) => void;
+    host_update_estimate_status: (data: { submittedCount: number, totalPlayers: number }) => void;
+    board_reveal_estimate_results: (data: { correctAnswer: number, guesses: { playerId: string, name: string, value: number, diff: number, isWinner: boolean }[] }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -133,4 +136,6 @@ export interface ClientToServerEvents {
     host_next_intro: () => void;
     host_reveal_next_list_item: () => void;
     host_control_pixel_puzzle: (action: 'pause' | 'resume') => void;
+    player_submit_estimate: (value: number) => void;
+    host_resolve_estimate: () => void;
 }

@@ -32,6 +32,7 @@ const introOverlay = document.getElementById('intro-overlay') as HTMLDivElement;
 const introMain = document.getElementById('intro-main-text') as HTMLDivElement;
 const introSub = document.getElementById('intro-sub-text') as HTMLDivElement;
 const listContainer = document.getElementById('list-container') as HTMLDivElement;
+const estimateResultsDiv = document.getElementById('estimate-results') as HTMLDivElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -107,6 +108,8 @@ socket.on('board_show_question', (data) => {
     listContainer.innerHTML = '';
     answerTextDiv.style.display = 'none';
     answerTextDiv.innerHTML = "";
+    estimateResultsDiv.style.display = 'none';
+    estimateResultsDiv.innerHTML = '';
     
     questionText.innerText = question.questionText;
 
@@ -350,6 +353,36 @@ socket.on('server_network_info', (data: { ip: string, port: number }) => {
     serverAddress = data.ip;
     serverPort = data.port.toString();
     generateQrCode(); 
+});
+
+socket.on('board_reveal_estimate_results', (data) => {
+    questionText.style.display = 'none'; // Fragetext ausblenden oder klein machen
+    answerTextDiv.innerHTML = `LÖSUNG: <span style="color:#ffcc00; font-size:1.5em;">${data.correctAnswer}</span>`;
+    answerTextDiv.style.display = 'block';
+    
+    estimateResultsDiv.style.display = 'block';
+    estimateResultsDiv.innerHTML = '';
+
+    // Liste bauen
+    data.guesses.forEach((g, index) => {
+        const row = document.createElement('div');
+        row.className = `estimate-result-row ${g.isWinner ? 'estimate-winner' : ''}`;
+        
+        // Verzögerte Animation für Spannung (je weiter unten/besser, desto später?) 
+        // Oder einfach von oben nach unten.
+        row.style.animationDelay = `${index * 0.2}s`;
+
+        const diffDisplay = g.diff % 1 === 0 ? g.diff : g.diff.toFixed(2);
+        
+        row.innerHTML = `
+            <span>${index + 1}. ${g.name}</span>
+            <div style="display:flex; gap:20px;">
+                <span>Tipp: ${g.value}</span>
+                <span style="font-size:0.8em; opacity:0.8;">(Abw: ${diffDisplay})</span>
+            </div>
+        `;
+        estimateResultsDiv.appendChild(row);
+    });
 });
 
 // --- HELPER FUNKTIONEN ---

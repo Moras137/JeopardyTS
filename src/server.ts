@@ -514,6 +514,24 @@ io.on('connection', (socket) => {
             // Spieler bekommen nur "Neue Frage" (Text)
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
             io.to(code).emit('buzzers_unlocked');
+        } else if (data.question.type === 'estimate') {
+            // NEU: Schätzfrage Initialisierung
+            session.buzzersActive = false;
+            session.estimateGuesses = {}; // Reset
+            
+            io.to(session.hostSocketId).emit('update_host_controls', { 
+                buzzWinnerId: null, 
+                mapMode: false, 
+                listMode: false,
+                estimateMode: true, // Flag für Host UI
+                submittedCount: 0
+            });
+
+            // Spieler erhalten Eingabemaske
+            io.to(code).emit('player_start_estimate', { 
+                text: data.question.questionText, 
+                points: data.question.points 
+            });
         } else {
             session.buzzersActive = true;
             io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null, mapMode: false });
@@ -681,6 +699,67 @@ io.on('connection', (socket) => {
             // Reset intro index damit man es nicht aus Versehen nochmal startet, oder Logik anpassen
             socket.emit('update_host_controls', { nextIntroStep: null }); // Button ausblenden
         }
+    });
+    socket.on('player_submit_estimate', (val) => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isPlayer || !info.playerId) return;
+        const { session } = info;
+
+        // Speichern
+        session.estimateGuesses[info.playerId] = val;
+
+        // Host updaten
+        const count = Object.keys(session.estimateGuesses).length;
+        const total = Object.keys(session.players).length;
+        io.to(session.hostSocketId).emit('host_update_estimate_status', { submittedCount: count, totalPlayers: total });
+    });
+
+    socket.on('host_resolve_estimate', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+        const { session, code } = info;
+
+        const correctAnswer = session.activeQuestion?.estimationAnswer;
+        if (correctAnswer === undefined || correctAnswer === null) return;
+
+        // Berechnen
+        const results = [];
+        let minDiff = Infinity;
+
+        for (const pid in session.estimateGuesses) {
+            const guess = session.estimateGuesses[pid];
+            const diff = Math.abs(guess - correctAnswer);
+            const player = session.players[pid];
+            
+            if (diff < minDiff) minDiff = diff;
+
+            results.push({
+                playerId: pid,
+                name: player.name,
+                value: guess,
+                diff: diff,
+                isWinner: false
+            });
+        }
+
+        // Gewinner markieren & Punkte vergeben
+        results.forEach(r => {
+            if (Math.abs(r.diff - minDiff) < 0.0001) { // Floating point safe check
+                r.isWinner = true;
+                if (session.players[r.playerId]) {
+                    session.players[r.playerId].score += session.activeQuestionPoints;
+                }
+            }
+        });
+
+        // Sortieren: Beste zuerst
+        results.sort((a, b) => a.diff - b.diff);
+
+        // An Board senden
+        io.to(code).emit('board_reveal_estimate_results', { correctAnswer, guesses: results });
+        
+        // Scores updaten
+        io.to(code).emit('update_scores', session.players);
     });
 });
 

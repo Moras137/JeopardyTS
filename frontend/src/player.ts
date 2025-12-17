@@ -20,6 +20,12 @@ const statusMsg = document.getElementById('status-message') as HTMLDivElement;
 const mapQText = document.getElementById('map-q-text') as HTMLSpanElement;
 const confirmGuessBtn = document.getElementById('confirm-guess-btn') as HTMLButtonElement;
 
+const estimateInterface = document.getElementById('estimate-interface') as HTMLDivElement;
+const estimateInput = document.getElementById('estimate-input') as HTMLInputElement;
+const estimateBtn = document.getElementById('submit-estimate-btn') as HTMLButtonElement;
+const estimateQText = document.getElementById('estimate-q-text') as HTMLHeadingElement;
+const estimateWaitMsg = document.getElementById('estimate-wait-msg') as HTMLParagraphElement;
+
 // --- 2. STATE VARIABLEN ---
 let mySocketId: string | null = null;
 let playerName = "";
@@ -124,6 +130,22 @@ confirmGuessBtn.addEventListener('click', () => {
         playerMap.boxZoom.disable();
     }
 });
+
+if(estimateBtn) {
+    estimateBtn.addEventListener('click', () => {
+        const val = parseFloat(estimateInput.value);
+        if (isNaN(val)) {
+            alert("Bitte eine gültige Zahl eingeben.");
+            return;
+        }
+        socket.emit('player_submit_estimate', val);
+        
+        // UI Feedback
+        estimateInput.style.display = 'none';
+        estimateBtn.style.display = 'none';
+        estimateWaitMsg.style.display = 'block';
+    });
+}
 
 // --- 5. SOCKET EVENTS (Server Antworten) ---
 
@@ -269,6 +291,12 @@ socket.on('board_hide_question', () => {
         playerMap.remove();
         playerMap = null;
     }
+
+    estimateInterface.style.display = 'none';
+    estimateInput.value = '';                 
+    estimateBtn.style.display = 'block';      
+    estimateInput.style.display = 'block';    
+    estimateWaitMsg.style.display = 'none';
 });
 
 socket.on('session_ended', () => {
@@ -288,6 +316,23 @@ socket.on('player_new_question', (data: { text: string, points: number }) => {
     mapInterface.style.display = 'none';
     gameSection.style.display = 'flex';
     statusMsg.innerText = "Frage aktiv!";
+    document.body.style.backgroundColor = 'var(--bg-body)';
+    estimateInterface.style.display = 'none';
+});
+
+socket.on('player_start_estimate', (data) => {
+    // UI Reset
+    gameSection.style.display = 'none';
+    mapInterface.style.display = 'none';
+    estimateInterface.style.display = 'flex';
+    
+    estimateQText.innerText = data.text;
+    estimateInput.value = '';
+    
+    estimateInput.style.display = 'block';
+    estimateBtn.style.display = 'block';
+    estimateWaitMsg.style.display = 'none';
+    
     document.body.style.backgroundColor = 'var(--bg-body)';
 });
 

@@ -214,6 +214,18 @@
         <button id="confirm-guess-btn">TIPP ABSENDEN</button>
     </div>
 
+    <div id="estimate-interface" style="display: none; flex-direction: column; height: 100vh; width: 100vw; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+        <h2 id="estimate-q-text" style="margin-bottom: 20px;">Schätzfrage...</h2>
+        
+        <input type="number" id="estimate-input" class="input-field" placeholder="Deine Zahl" step="any" style="font-size: 2rem; padding: 20px;">
+        
+        <button id="submit-estimate-btn" class="action-btn" style="background: var(--btn-confirm); margin-top: 20px;">ABSCHICKEN</button>
+        
+        <p id="estimate-wait-msg" style="display:none; color: var(--btn-buzz-wait); font-size: 1.2rem; margin-top: 20px;">
+            Gesendet! Warte auf Auflösung...
+        </p>
+    </div>
+
     <script type="module" src="./src/player.ts"></script>
 </body>
 </html>

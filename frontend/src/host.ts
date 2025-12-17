@@ -51,6 +51,10 @@ const pixelModeControls = document.getElementById('pixel-mode-controls') as HTML
 const btnPixelPause = document.getElementById('btn-pixel-pause') as HTMLButtonElement;
 const btnPixelResume = document.getElementById('btn-pixel-resume') as HTMLButtonElement;
 
+const estimateModeControls = document.getElementById('estimate-mode-controls') as HTMLDivElement;
+const estimateSubmittedCount = document.getElementById('estimate-submitted-count') as HTMLSpanElement;
+const resolveEstimateBtn = document.getElementById('resolve-estimate-btn') as HTMLButtonElement;
+
 // --- INIT & EVENT LISTENER ---
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -94,6 +98,8 @@ if(btnRevealList) btnRevealList.addEventListener('click', () => {socket.emit('ho
 
 if(btnPixelPause) btnPixelPause.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'pause'));
 if(btnPixelResume) btnPixelResume.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'resume'));
+
+if(resolveEstimateBtn) resolveEstimateBtn.addEventListener('click', () => socket.emit('host_resolve_estimate'));
 
 // NEU: Intro Button
 if(btnIntroNext) {
@@ -250,6 +256,13 @@ socket.on('host_restore_active_question', (data) => {
         listModeControls.style.display = 'none';
         mapModeControls.style.display = 'none';
         unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+    } else if (data.question.type === 'estimate') {
+         buzzWinnerSection.style.display = 'none';
+         mapModeControls.style.display = 'none';
+         listModeControls.style.display = 'none';
+         unlockBuzzersBtn.style.display = 'none';
+         estimateModeControls.style.display = 'flex';
+         // Count müsste man eigentlich mitsenden, hier Default 0 oder aus data nehmen wenn du es im Server ergänzt
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
@@ -261,6 +274,9 @@ socket.on('board_hide_question', () => {
      activeQSection.style.display = 'none';
 });
 
+socket.on('host_update_estimate_status', (data) => {
+    if(estimateSubmittedCount) estimateSubmittedCount.innerText = `${data.submittedCount}/${data.totalPlayers}`;
+});
 // --- HELPER FUNKTIONEN ---
 
 function updateHostControls(data: any) {
@@ -334,6 +350,16 @@ function updateHostControls(data: any) {
     // 4. MAP COUNTS
     if (data.submittedCount !== undefined) {
         mapSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
+    }
+
+    if (data.estimateMode !== undefined) {
+        activePlayerId = null;
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'none'; // Keine Buzzer bei Schätzfragen
+        
+        estimateModeControls.style.display = data.estimateMode ? 'flex' : 'none';
     }
 }
 

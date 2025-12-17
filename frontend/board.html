@@ -335,6 +335,32 @@
             0% { transform: scale(0.5); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
+
+        .estimate-result-row {
+        background: #fff;
+        color: #000;
+        margin-bottom: 10px;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        opacity: 0;
+        animation: slideInResult 0.5s forwards;
+    }
+    
+    .estimate-winner {
+        background: #28a745;
+        color: white;
+        border: 3px solid #ffcc00;
+        transform: scale(1.05);
+    }
+
+    @keyframes slideInResult {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
     </style>
 </head>
 <body>
@@ -354,7 +380,7 @@
         <div id="media-container"></div>
         <div id="q-map"></div>
         <div id="list-container"></div>
-
+        <div id="estimate-results" style="display:none; width: 80%; margin-top: 20px;"></div>
         <div id="answer-text"></div>
     </div>
 
