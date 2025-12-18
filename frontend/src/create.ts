@@ -423,8 +423,6 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                         
                         <div id="suggestions-${qId}" class="autocomplete-list" style="display:none;"></div>
                     </div>
-
-                    <button type="button" class="secondary-btn" onclick="searchAddress('${qId}')">🔍</button>
                 </div>
 
                 <div id="custom-upload-${qId}" style="display:${isCustom?'block':'none'}; margin-top:5px;">
