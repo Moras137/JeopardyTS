@@ -18,6 +18,10 @@ declare global {
         toggleTheme: () => void;
         loadGameTiles: () => void;
         removeQuestionMedia: (qId: string, target: 'question' | 'answer') => void;
+        searchAddress: (qId: string) => void;
+        updateMapFromCoords: (qId: string) => void; 
+        handleAddressInput: (qId: string) => void;
+        selectAddress: (qId: string, lat: string, lon: string, name: string) => void;
     }
 }
 
@@ -80,6 +84,14 @@ document.getElementById('numQuestions')?.addEventListener('change', updateQuizSt
 
 document.getElementById('boardBackgroundUpload')?.addEventListener('change', function(this: HTMLInputElement) {
     uploadFile(this, 'preview-background', 'background-path');
+});
+
+document.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('.autocomplete-wrapper')) {
+        document.querySelectorAll('.autocomplete-list').forEach(el => {
+            (el as HTMLElement).style.display = 'none';
+        });
+    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -396,21 +408,47 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
         <div class="type-section section-map" style="display:none;">
              <div class="map-controls">
                 <select onchange="toggleMapSource('${qId}', this.value)">
-                    <option value="osm" ${!isCustom ? 'selected' : ''}>Weltkarte</option>
+                    <option value="osm" ${!isCustom ? 'selected' : ''}>Weltkarte (OSM)</option>
                     <option value="custom" ${isCustom ? 'selected' : ''}>Eigenes Bild</option>
                 </select>
-                <div id="custom-upload-${qId}" style="display:${isCustom?'block':'none'}">
+                
+                <div id="osm-search-${qId}" style="display:${!isCustom ? 'flex' : 'none'}; gap:5px; margin-top:5px; align-items:flex-start;">
+                    
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="addr-search-${qId}" 
+                               placeholder="Adresse tippen (z.B. Berlin)..." 
+                               autocomplete="off"
+                               oninput="handleAddressInput('${qId}')"
+                               onkeydown="if(event.key === 'Enter') searchAddress('${qId}')">
+                        
+                        <div id="suggestions-${qId}" class="autocomplete-list" style="display:none;"></div>
+                    </div>
+
+                    <button type="button" class="secondary-btn" onclick="searchAddress('${qId}')">🔍</button>
+                </div>
+
+                <div id="custom-upload-${qId}" style="display:${isCustom?'block':'none'}; margin-top:5px;">
                     <input type="file" onchange="uploadCustomMap(this, '${qId}')">
                 </div>
              </div>
+
              <div id="map-${qId}" class="map-editor-container"></div>
-             <input type="hidden" class="q-lat" id="lat-${qId}" value="${lat}">
-             <input type="hidden" class="q-lng" id="lng-${qId}" value="${lng}">
-             <input type="hidden" class="q-is-custom" id="is-custom-${qId}" value="${isCustom}">
-             <input type="hidden" class="q-custom-path" id="custom-path-${qId}" value="${customPath}">
+             
+             <div class="map-coords-bar">
+                <label style="margin:0;">Lat:</label>
+                <input type="number" class="q-lat" id="lat-${qId}" value="${lat}" step="any" placeholder="Breitengrad" 
+                    style="margin:0; width: 120px;" onchange="updateMapFromCoords('${qId}')">
+                
+                <label style="margin:0;">Lng:</label>
+                <input type="number" class="q-lng" id="lng-${qId}" value="${lng}" step="any" placeholder="Längengrad" 
+                    style="margin:0; width: 120px;" onchange="updateMapFromCoords('${qId}')">
+                
+                <input type="hidden" class="q-is-custom" id="is-custom-${qId}" value="${isCustom}">
+                <input type="hidden" class="q-custom-path" id="custom-path-${qId}" value="${customPath}">
+            </div>
              
              <label>Ortsname (Anzeige bei Lösung):</label>
-             <input type="text" class="q-answer-map" value="${aText}" oninput="checkQuestionFilled(this)">
+             <input type="text" class="q-answer-map" value="${aText}" oninput="checkQuestionFilled(this)" placeholder="z.B. 'Eiffelturm'">
         </div>
     </div>`;
 
@@ -495,6 +533,9 @@ window.toggleMapSource = (qId, source) => {
     (document.getElementById(`custom-upload-${qId}`) as HTMLElement).style.display = isCustom ? 'block' : 'none';
     (document.getElementById(`is-custom-${qId}`) as HTMLInputElement).value = isCustom.toString();
     
+    const searchBar = document.getElementById(`osm-search-${qId}`);
+    if(searchBar) searchBar.style.display = isCustom ? 'none' : 'flex';
+
     (document.getElementById(`lat-${qId}`) as HTMLInputElement).value = '';
     const path = (document.getElementById(`custom-path-${qId}`) as HTMLInputElement).value;
     
@@ -1438,6 +1479,154 @@ function removeQuestionMedia(qId: string, target: 'question' | 'answer') {
 }
 // Funktion global verfügbar machen für onclick im HTML
 (window as any).removeQuestionMedia = removeQuestionMedia;
+
+async function searchAddress(qId: string) {
+    const input = document.getElementById(`addr-search-${qId}`) as HTMLInputElement;
+    const query = input.value;
+    if (!query) return;
+
+    try {
+        // Nutzung der OpenStreetMap Nominatim API (Kostenlos für moderate Nutzung)
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+
+            // Inputs updaten
+            (document.getElementById(`lat-${qId}`) as HTMLInputElement).value = lat.toString();
+            (document.getElementById(`lng-${qId}`) as HTMLInputElement).value = lon.toString();
+
+            // Map updaten
+            updateMapFromCoords(qId);
+            
+            // Optional: Den gefundenen Namen als Antwortvorschlag setzen
+            const nameInput = document.querySelector(`#block-${qId} .q-answer-map`) as HTMLInputElement;
+            if(!nameInput.value) {
+                nameInput.value = data[0].display_name.split(',')[0]; // Nur den ersten Teil nehmen
+                checkQuestionFilled(nameInput);
+            }
+        } else {
+            alert("Ort nicht gefunden.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Fehler bei der Adresssuche.");
+    }
+}
+
+function updateMapFromCoords(qId: string) {
+    const latInput = document.getElementById(`lat-${qId}`) as HTMLInputElement;
+    const lngInput = document.getElementById(`lng-${qId}`) as HTMLInputElement;
+    
+    const lat = parseFloat(latInput.value);
+    const lng = parseFloat(lngInput.value);
+
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    const map = mapInstances[qId]; // Zugriff auf die globale Map-Instanz-Liste
+    if (map) {
+        // Marker entfernen/neu setzen geht am einfachsten über simulierten Click oder Marker-Management
+        // Da setupMapClick existiert, nutzen wir einfach Leaflet direkt:
+        
+        // Wir müssen den alten Marker finden oder löschen. 
+        // Da wir keine Referenz gespeichert haben, löschen wir alle Layer die Marker sind (außer Tiles)
+        map.eachLayer((layer: any) => {
+            if (layer instanceof L.Marker) {
+                map.removeLayer(layer);
+            }
+        });
+
+        L.marker([lat, lng]).addTo(map);
+        map.setView([lat, lng], 13);
+        
+        checkQuestionFilled(latInput);
+    }
+}
+
+(window as any).searchAddress = searchAddress;
+(window as any).updateMapFromCoords = updateMapFromCoords;
+
+let debounceTimer: number | null = null;
+
+function handleAddressInput(qId: string) {
+    const input = document.getElementById(`addr-search-${qId}`) as HTMLInputElement;
+    const list = document.getElementById(`suggestions-${qId}`) as HTMLDivElement;
+    const query = input.value.trim();
+
+    // Liste leeren/verstecken wenn leer
+    if (query.length < 3) {
+        list.innerHTML = '';
+        list.style.display = 'none';
+        return;
+    }
+
+    // Debounce: Nicht bei jedem Tastenschlag sofort suchen, sondern kurz warten
+    if (debounceTimer) clearTimeout(debounceTimer);
+
+    debounceTimer = window.setTimeout(async () => {
+        try {
+            // Nominatim API mit addressdetails für schönere Anzeige
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
+            const res = await fetch(url);
+            const data = await res.json();
+
+            list.innerHTML = '';
+            
+            if (data.length > 0) {
+                list.style.display = 'block';
+                data.forEach((item: any) => {
+                    const div = document.createElement('div');
+                    div.className = 'autocomplete-item';
+                    // Display Name kürzen/verschönern wenn nötig
+                    div.innerText = item.display_name;
+                    
+                    // Klick-Event
+                    div.onclick = () => {
+                        selectAddress(qId, item.lat, item.lon, item.display_name);
+                    };
+                    
+                    list.appendChild(div);
+                });
+            } else {
+                list.style.display = 'none';
+            }
+        } catch (e) {
+            console.error("Autocomplete Fehler:", e);
+        }
+    }, 400); // 400ms warten
+}
+
+function selectAddress(qId: string, lat: string, lon: string, displayName: string) {
+    // 1. Werte in die Inputs schreiben
+    (document.getElementById(`lat-${qId}`) as HTMLInputElement).value = lat;
+    (document.getElementById(`lng-${qId}`) as HTMLInputElement).value = lon;
+    
+    // 2. Suchfeld aktualisieren (damit man sieht, was gewählt wurde)
+    const searchInput = document.getElementById(`addr-search-${qId}`) as HTMLInputElement;
+    searchInput.value = displayName;
+
+    // 3. Optional: Den Namen auch als Lösungsvorschlag übernehmen, falls leer
+    const nameInput = document.querySelector(`#block-${qId} .q-answer-map`) as HTMLInputElement;
+    if (nameInput && !nameInput.value) {
+        // Wir nehmen nur den ersten Teil der Adresse (z.B. "Brandenburger Tor")
+        nameInput.value = displayName.split(',')[0];
+        checkQuestionFilled(nameInput);
+    }
+
+    // 4. Liste verstecken
+    const list = document.getElementById(`suggestions-${qId}`) as HTMLDivElement;
+    list.style.display = 'none';
+    list.innerHTML = '';
+
+    // 5. Map aktualisieren (bestehende Funktion nutzen)
+    updateMapFromCoords(qId);
+}
+
+(window as any).handleAddressInput = handleAddressInput;
+(window as any).selectAddress = selectAddress;
 
 initTheme();
 
