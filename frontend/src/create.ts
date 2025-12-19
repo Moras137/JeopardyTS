@@ -71,6 +71,10 @@ const btnBackDash = document.getElementById('btn-back-dashboard') as HTMLButtonE
 const searchInput = document.getElementById('dashboard-search') as HTMLInputElement;
 const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
 
+// Drag & Drop initialisieren
+    setupDragAndDrop('drop-zone-bg', 'boardBackgroundUpload');
+    setupDragAndDrop('drop-zone-music', 'backgroundMusicUpload');
+
 // --- INIT ---
 document.getElementById('btn-save')?.addEventListener('click', saveGame);
 document.getElementById('btn-remove-bg')?.addEventListener('click', removeBackground);
@@ -729,13 +733,13 @@ async function loadGame(id: string) {
 
         if (game.boardBackgroundPath) {
              const bgInput = document.getElementById('background-path') as HTMLInputElement;
-             const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+             const bgPreviewContainer = document.getElementById('preview-background') as HTMLDivElement; // <--- Container nutzen
              
              if(bgInput) bgInput.value = game.boardBackgroundPath;
              
-             if(bgPreview) {
-                bgPreview.src = game.boardBackgroundPath;
-                bgPreview.style.display = 'block';
+             if(bgPreviewContainer) {
+                const cleanPath = game.boardBackgroundPath.replace(/\\/g, '/');
+                bgPreviewContainer.innerHTML = generateMediaPreviewHtml(cleanPath);
              }
         }
 
@@ -780,14 +784,15 @@ function clearForm() {
 
     const bgInput = document.getElementById('background-path') as HTMLInputElement;
     const bgUpload = document.getElementById('boardBackgroundUpload') as HTMLInputElement;
-    const bgPreview = document.getElementById('background-preview-img') as HTMLImageElement;
+    const bgPreviewContainer = document.getElementById('preview-background') as HTMLDivElement;
     const bgStatus = document.getElementById('background-status');
 
     if (bgInput) bgInput.value = ''; 
     if (bgUpload) bgUpload.value = ''; 
-    if (bgPreview) {
-        bgPreview.src = '';
-        bgPreview.style.display = 'none';
+    
+    if (bgPreviewContainer) {
+        bgPreviewContainer.innerHTML = '';
+        bgPreviewContainer.style.display = 'block';
     }
     
     if (bgStatus) bgStatus.innerText = '';
@@ -1625,6 +1630,54 @@ function selectAddress(qId: string, lat: string, lon: string, displayName: strin
 
 (window as any).handleAddressInput = handleAddressInput;
 (window as any).selectAddress = selectAddress;
+
+function setupDragAndDrop(zoneId: string, inputId: string) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId) as HTMLInputElement;
+
+    if (!zone || !input) return;
+
+    // Klick auf den Container öffnet den Datei-Dialog (User muss nicht genau den Button treffen)
+    zone.addEventListener('click', (e) => {
+        // Verhindern, dass der Klick 2x ausgelöst wird, wenn man direkt auf das Input klickt
+        if (e.target !== input && (e.target as HTMLElement).tagName !== 'BUTTON') {
+            input.click();
+        }
+    });
+
+    // Visuelles Feedback beim Drüberziehen
+    ['dragenter', 'dragover'].forEach(eventName => {
+        zone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('drag-over');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        zone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('drag-over');
+        }, false);
+    });
+
+    // Drop Event
+    zone.addEventListener('drop', (e: any) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+
+        if (files && files.length > 0) {
+            // Die gedroppten Dateien dem Input-Feld zuweisen
+            input.files = files;
+
+            // WICHTIG: Das 'change' Event manuell auslösen, damit deine bestehende
+            // Upload-Logik (uploadFile etc.) anspringt.
+            const event = new Event('change', { bubbles: true });
+            input.dispatchEvent(event);
+        }
+    });
+}
 
 initTheme();
 
