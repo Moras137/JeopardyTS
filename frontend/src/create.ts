@@ -189,35 +189,52 @@ clearForm();
 // --- 1. GLOBALE FUNKTIONEN ---
 
 async function uploadFile(inputElement: HTMLInputElement, previewId: string, hiddenInputId: string) {
-    let statusEl = inputElement.nextElementSibling as HTMLElement;
+    // 1. Status-Element finden (Robust: Sucht im Eltern-Container oder der Drop-Zone)
+    const parent = inputElement.closest('.drag-drop-zone') || inputElement.parentElement;
+    const statusEl = parent?.querySelector('.upload-status') as HTMLElement;
+
+    // 2. Andere Elemente holen
     const previewContainer = document.getElementById(previewId) as HTMLDivElement;
     const hiddenInput = document.getElementById(hiddenInputId) as HTMLInputElement;
     
-    if (statusEl && statusEl.tagName === 'BUTTON') {
-        statusEl = statusEl.nextElementSibling as HTMLElement;
-    }
-
+    // 3. Datei prüfen
     const file = inputElement.files?.[0];
     if (!file) return;
 
+    // 4. Upload vorbereiten
     const formData = new FormData();
     formData.append('mediaFile', file);
 
     try {
-        if(statusEl) statusEl.innerText = "Lade hoch...";
+        // UI Feedback: Start
+        if (statusEl) statusEl.innerText = "Lade hoch...";
         
+        // Request senden
         const res = await fetch('/api/upload', { method: 'POST', body: formData });
         const data = await res.json();
 
-        if(data.success) {
+        if (data.success) {
+            // Erfolgreich: Pfad speichern
             hiddenInput.value = data.filePath;
-            if(statusEl) statusEl.innerText = "Fertig!";
             
-            previewContainer.innerHTML = generateMediaPreviewHtml(data.filePath);
+            // UI Feedback: Ende
+            if (statusEl) statusEl.innerText = "Fertig!";
+            
+            // Vorschau generieren
+            if (previewContainer) {
+                previewContainer.innerHTML = generateMediaPreviewHtml(data.filePath);
+            }
+
+            // Prüfen, ob die Frage damit "vollständig" ist (grüner Haken)
             checkQuestionFilled(hiddenInput); 
+        } else {
+            alert("Upload fehlgeschlagen: " + (data.message || "Unbekannter Fehler"));
+            if (statusEl) statusEl.innerText = "Fehler!";
         }
     } catch (e) {
-        alert("Upload Fehler");
+        console.error(e);
+        alert("Upload Fehler (Netzwerk oder Server)");
+        if (statusEl) statusEl.innerText = "Fehler!";
     }
 }
 window.uploadFile = uploadFile;
@@ -350,11 +367,17 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
         <input type="text" class="q-text" value="${qText}" oninput="checkQuestionFilled(this)" placeholder="z.B. 'Was ist hier zu sehen?'">
 
         <label>Frage-Medien (Bild für Puzzle hier hochladen):</label>
-        <div style="display:flex; align-items:center; gap: 10px;">
-            <input type="file" id="file-upload-${qId}" onchange="uploadFile(this, 'preview-q-${qId}', 'media-${qId}')" style="flex-grow:1;">
-            <button type="button" class="sidebar-delete-btn" onclick="removeQuestionMedia('${qId}', 'question')" title="Medien entfernen" style="font-size: 1.5rem;">🗑</button>
-            <span class="upload-status" style="font-size: 0.9rem; margin-left: 5px; min-width: 50px;"></span>
+        
+        <div id="drop-zone-q-${qId}" class="drag-drop-zone compact">
+            <input type="file" id="file-upload-${qId}" onchange="uploadFile(this, 'preview-q-${qId}', 'media-${qId}')" style="display:none;">
+            <span class="drop-hint">Bild hierher ziehen oder klicken</span>
+            
+            <div style="display:flex; align-items:center; gap:10px; width:100%; justify-content:center;">
+                <span class="upload-status" style="font-size: 0.9rem; min-width: 50px;"></span>
+                <button type="button" class="sidebar-delete-btn" onclick="event.stopPropagation(); removeQuestionMedia('${qId}', 'question')" title="Entfernen">🗑</button>
+            </div>
         </div>
+
         <div id="preview-q-${qId}">${generateMediaPreviewHtml(media)}</div>
         <input type="hidden" class="q-media-path" id="media-${qId}" value="${media}">
 
@@ -394,11 +417,17 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
             
             <div style="margin-top:5px; border-top:1px dashed #ccc; padding-top:5px;">
                 <label>Lösung-Medien (Optional):</label>
-                <div style="display:flex; align-items:center; gap: 10px;">
-                    <input type="file" id="file-upload-ans-${qId}" onchange="uploadFile(this, 'preview-ans-${qId}', 'media-ans-${qId}')" style="flex-grow:1;">
-                    <button type="button" class="sidebar-delete-btn" onclick="removeQuestionMedia('${qId}', 'answer')" title="Medien entfernen" style="font-size: 1.5rem;">🗑</button>
-                    <span class="upload-status" style="font-size: 0.9rem; margin-left: 5px; min-width: 50px;"></span>
+                
+                <div id="drop-zone-ans-${qId}" class="drag-drop-zone compact">
+                    <input type="file" id="file-upload-ans-${qId}" onchange="uploadFile(this, 'preview-ans-${qId}', 'media-ans-${qId}')" style="display:none;">
+                    <span class="drop-hint">Datei hierher ziehen oder klicken</span>
+                    
+                    <div style="display:flex; align-items:center; gap:10px; width:100%; justify-content:center;">
+                        <span class="upload-status" style="font-size: 0.9rem; min-width: 50px;"></span>
+                        <button type="button" class="sidebar-delete-btn" onclick="event.stopPropagation(); removeQuestionMedia('${qId}', 'answer')" title="Entfernen">🗑</button>
+                    </div>
                 </div>
+
                 <div id="preview-ans-${qId}">${generateMediaPreviewHtml(qData.answerMediaPath || '')}</div>
                 <input type="hidden" class="q-answer-media-path" id="media-ans-${qId}" value="${qData.answerMediaPath || ''}">
             </div>
@@ -462,6 +491,12 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     if (type === 'map') {
         setTimeout(() => initMap(qId, Number(lat), Number(lng), isCustom, customPath), 100);
     }
+
+    setTimeout(() => {
+        setupDragAndDrop(`drop-zone-q-${qId}`, `file-upload-${qId}`);
+        setupDragAndDrop(`drop-zone-ans-${qId}`, `file-upload-ans-${qId}`);
+    }, 0);
+
     checkQuestionFilled(document.getElementById(`block-${qId}`));
 }
 
@@ -939,8 +974,36 @@ function handleDragStart(e: DragEvent, cIndex: number, rIndex: number) {
 }
 
 function handleDragOver(e: DragEvent) {
-    if (e.preventDefault) e.preventDefault();
-    e.dataTransfer!.dropEffect = 'move';
+    e.preventDefault(); // Erlaubt das Droppen
+    e.dataTransfer!.dropEffect = 'copy'; // Zeigt "Kopieren" Cursor bei Dateien
+
+    const targetCard = (e.target as HTMLElement).closest('.preview-card') as HTMLElement;
+    if (!targetCard) return false;
+
+    // PRÜFUNG: Ist es eine Datei oder sortieren wir Kacheln?
+    // "Files" ist im types Array, wenn eine Datei vom Desktop gezogen wird.
+    if (e.dataTransfer?.types.includes('Files')) {
+        // --- DATEI MODUS ---
+        const rect = targetCard.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        
+        // Links (0-50%) oder Rechts (50-100%)?
+        if (x < rect.width / 2) {
+            targetCard.classList.add('file-drag-left');
+            targetCard.classList.remove('file-drag-right');
+        } else {
+            targetCard.classList.add('file-drag-right');
+            targetCard.classList.remove('file-drag-left');
+        }
+        
+        // Das normale Sortier-Highlight entfernen, damit es nicht verwirrt
+        targetCard.classList.remove('drag-over');
+        
+    } else {
+        // --- SORTIER MODUS (Bestehender Code) ---
+        targetCard.classList.add('drag-over');
+    }
+    
     return false;
 }
 
@@ -950,17 +1013,50 @@ function handleDragEnter(e: DragEvent) {
 }
 
 function handleDragLeave(e: DragEvent) {
-    const target = (e.target as HTMLElement).closest('.preview-card');
-    if (target) target.classList.remove('drag-over');
+    const targetCard = (e.target as HTMLElement).closest('.preview-card');
+    if (targetCard) {
+        targetCard.classList.remove('drag-over');
+        targetCard.classList.remove('file-drag-left');
+        targetCard.classList.remove('file-drag-right');
+    }
 }
 
-function handleDrop(e: DragEvent, targetCIndex: number, targetRIndex: number) {
+async function handleDrop(e: DragEvent, targetCIndex: number, targetRIndex: number) {
     if (e.stopPropagation) e.stopPropagation();
+    e.preventDefault();
     
-    const targetCard = (e.target as HTMLElement).closest('.preview-card');
-    if (targetCard) targetCard.classList.remove('drag-over');
+    const targetCard = (e.target as HTMLElement).closest('.preview-card') as HTMLElement;
+    if (targetCard) {
+        targetCard.classList.remove('drag-over');
+        targetCard.classList.remove('file-drag-left');
+        targetCard.classList.remove('file-drag-right');
+    }
+    
     if (dragSrcEl) dragSrcEl.classList.remove('dragging');
 
+    // --- FALL 1: DATEI UPLOAD ---
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        // Wir müssen herausfinden, zu welchem qBlock diese Kachel gehört
+        const categories = document.querySelectorAll('.category');
+        const cat = categories[targetCIndex];
+        const questions = cat.querySelectorAll('.question-block');
+        const qBlock = questions[targetRIndex] as HTMLElement;
+
+        if (qBlock) {
+            const rect = targetCard.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const isQuestionMedia = x < rect.width / 2; // Links = Frage, Rechts = Antwort
+
+            // Datei hochladen
+            await uploadFromBoardDrop(e.dataTransfer.files[0], qBlock, isQuestionMedia);
+            
+            // Ansicht aktualisieren (Icons anzeigen)
+            renderBoardPreview();
+        }
+        return false;
+    }
+
+    // --- FALL 2: SORTIEREN (Bestehender Code) ---
     if (dragSrcData && (dragSrcData.cIndex !== targetCIndex || dragSrcData.rIndex !== targetRIndex)) {
         swapQuestionBlocks(dragSrcData.cIndex, dragSrcData.rIndex, targetCIndex, targetRIndex);
     }
@@ -1069,11 +1165,17 @@ function renderBoardPreview() {
                 const typeSelect = qBlock.querySelector('.q-type-select') as HTMLSelectElement;
                 const isMap = typeSelect.value === 'map';
                 
+                const qMedia = (qBlock.querySelector('.q-media-path') as HTMLInputElement)?.value;
+                const aMedia = (qBlock.querySelector('.q-answer-media-path') as HTMLInputElement)?.value;
+
                 card.innerHTML = `
                     <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
                         <span>${points}</span>
                         ${isMap ? '<span style="font-size:0.8rem;">(Map)</span>' : ''}
                     </div>
+
+                    ${qMedia ? '<span class="media-indicator left" title="Frage-Bild vorhanden">📷</span>' : ''}
+                    ${aMedia ? '<span class="media-indicator right" title="Antwort-Bild vorhanden">🎬</span>' : ''}
                 `;
                 
                 card.onclick = (e) => {
@@ -1677,6 +1779,56 @@ function setupDragAndDrop(zoneId: string, inputId: string) {
             input.dispatchEvent(event);
         }
     });
+}
+
+async function uploadFromBoardDrop(file: File, qBlock: HTMLElement, isQuestion: boolean) {
+    const formData = new FormData();
+    formData.append('mediaFile', file);
+    
+    // Visuelles Feedback (optional, z.B. Cursor Wait)
+    document.body.style.cursor = 'wait';
+
+    try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.success) {
+            // Wir suchen die Inputs im qBlock, um sie zu aktualisieren
+            // Hinweis: qBlock ist das Element im "Editor View" (auch wenn es ausgeblendet ist)
+            
+            if (isQuestion) {
+                // Frage-Medien
+                const hiddenInput = qBlock.querySelector('.q-media-path') as HTMLInputElement;
+                const previewDiv = qBlock.querySelector(`div[id^="preview-q-"]`) as HTMLDivElement;
+                
+                if (hiddenInput) hiddenInput.value = data.filePath;
+                if (previewDiv) previewDiv.innerHTML = generateMediaPreviewHtml(data.filePath);
+                
+                // Da wir keine ID haben (prefix Logik), rufen wir checkQuestionFilled auf Block auf
+                checkQuestionFilled(hiddenInput);
+
+            } else {
+                // Antwort-Medien
+                const hiddenInput = qBlock.querySelector('.q-answer-media-path') as HTMLInputElement;
+                const previewDiv = qBlock.querySelector(`div[id^="preview-ans-"]`) as HTMLDivElement;
+                
+                if (hiddenInput) hiddenInput.value = data.filePath;
+                if (previewDiv) previewDiv.innerHTML = generateMediaPreviewHtml(data.filePath);
+            }
+            
+            // Toast / Alert zur Bestätigung
+            const type = isQuestion ? "Frage" : "Antwort";
+            console.log(`${type}-Bild erfolgreich hochgeladen: ${data.filePath}`);
+            
+        } else {
+            alert("Upload fehlgeschlagen: " + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Upload Fehler.");
+    } finally {
+        document.body.style.cursor = 'default';
+    }
 }
 
 initTheme();

@@ -400,6 +400,8 @@
         }
 
         .preview-card {
+            position: relative; 
+            overflow: hidden;
             background: #0000cc;
             color: #ffcc00;
             font-size: 1.5rem;
@@ -441,6 +443,47 @@
             color: white !important;
             border-color: #1e7e34 !important;
         }
+
+        .preview-card::before {
+            content: 'Frage-Bild';
+            position: absolute;
+            top: 0; left: 0; bottom: 0; width: 50%;
+            background: rgba(0, 123, 255, 0.85);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; text-transform: uppercase;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none; /* Klicks gehen durch */
+            z-index: 10;
+        }
+
+        .preview-card::after {
+            content: 'Antwort-Bild';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; width: 50%;
+            background: rgba(40, 167, 69, 0.85);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; text-transform: uppercase;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .preview-card.file-drag-left::before { opacity: 1; }
+        .preview-card.file-drag-right::after { opacity: 1; }
+
+        .media-indicator {
+            position: absolute;
+            bottom: 2px;
+            font-size: 0.8rem;
+            color: white;
+            text-shadow: 0 0 3px black;
+        }
+        .media-indicator.left { left: 5px; }
+        .media-indicator.right { right: 5px; }
 
         /* --- DASHBOARD TILES --- */
         .dashboard-container {
@@ -634,6 +677,24 @@
             font-size: 0.85rem;
             color: var(--text-muted);
             pointer-events: none; /* Damit Klicks durchgehen */
+        }
+
+        /* NEU: Kompakte Version für Frage-Blöcke */
+        .drag-drop-zone.compact {
+            padding: 10px;
+            margin-top: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            border-width: 1px; /* Etwas feinerer Rand */
+            min-height: 60px;
+        }
+
+        .drag-drop-zone.compact .drop-hint {
+            margin-top: 0;
+            font-size: 0.8rem;
         }
     </style>
 </head>
