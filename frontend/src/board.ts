@@ -385,6 +385,10 @@ socket.on('board_reveal_estimate_results', (data) => {
     });
 });
 
+socket.on('board_play_sfx', (type: 'correct' | 'incorrect') => {
+    playSoundEffect(type);
+});
+
 // --- HELPER FUNKTIONEN ---
 
 function renderGrid() {
@@ -675,4 +679,30 @@ function startPixelPuzzle(question: IQuestion) {
         if(currentPixelAnim) cancelAnimationFrame(currentPixelAnim);
         currentPixelAnim = requestAnimationFrame(animate);
     };
+}
+
+function playSoundEffect(type: 'correct' | 'incorrect') {
+    let src = '';
+
+    if (type === 'correct') {
+        // 1. Custom Sound vom Spiel?
+        if (currentGame?.soundCorrectPath) {
+            src = currentGame.soundCorrectPath;
+        } else {
+            // 2. Fallback Standard
+            src = '/sounds/default_correct.mp3'; 
+        }
+    } else {
+        if (currentGame?.soundIncorrectPath) {
+            src = currentGame.soundIncorrectPath;
+        } else {
+            src = '/sounds/default_incorrect.mp3';
+        }
+    }
+
+    if (src) {
+        const audio = new Audio(src);
+        audio.volume = 0.5; // Lautstärke anpassen
+        audio.play().catch(e => console.log("SFX Playback error", e));
+    }
 }

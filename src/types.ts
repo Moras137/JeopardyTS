@@ -45,6 +45,8 @@ export interface IGame {
     title: string;
     boardBackgroundPath?: string;
     backgroundMusicPath?: string;
+    soundCorrectPath?: string;
+    soundIncorrectPath?: string;
     categories: ICategory[];
 }
 
@@ -115,6 +117,7 @@ export interface ServerToClientEvents {
     player_start_estimate: (data: { text: string, points: number }) => void;
     host_update_estimate_status: (data: { submittedCount: number, totalPlayers: number }) => void;
     board_reveal_estimate_results: (data: { correctAnswer: number, guesses: { playerId: string, name: string, value: number, diff: number, isWinner: boolean }[] }) => void;
+    board_play_sfx: (type: 'correct' | 'incorrect') => void;
 }
 
 export interface ClientToServerEvents {

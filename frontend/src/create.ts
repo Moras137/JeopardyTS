@@ -71,9 +71,12 @@ const btnBackDash = document.getElementById('btn-back-dashboard') as HTMLButtonE
 const searchInput = document.getElementById('dashboard-search') as HTMLInputElement;
 const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
 
-// Drag & Drop initialisieren
-    setupDragAndDrop('drop-zone-bg', 'boardBackgroundUpload');
-    setupDragAndDrop('drop-zone-music', 'backgroundMusicUpload');
+
+setupDragAndDrop('drop-zone-bg', 'boardBackgroundUpload');
+setupDragAndDrop('drop-zone-music', 'backgroundMusicUpload');
+
+setupDragAndDrop('drop-zone-sfx-correct', 'upload-sfx-correct');
+setupDragAndDrop('drop-zone-sfx-incorrect', 'upload-sfx-incorrect');
 
 // --- INIT ---
 document.getElementById('btn-save')?.addEventListener('click', saveGame);
@@ -88,6 +91,13 @@ document.getElementById('numQuestions')?.addEventListener('change', updateQuizSt
 
 document.getElementById('boardBackgroundUpload')?.addEventListener('change', function(this: HTMLInputElement) {
     uploadFile(this, 'preview-background', 'background-path');
+});
+
+document.getElementById('upload-sfx-correct')?.addEventListener('change', function(this: HTMLInputElement) {
+        uploadFile(this, 'preview-sfx-correct', 'path-sfx-correct');
+    });
+document.getElementById('upload-sfx-incorrect')?.addEventListener('change', function(this: HTMLInputElement) {
+    uploadFile(this, 'preview-sfx-incorrect', 'path-sfx-incorrect');
 });
 
 document.addEventListener('click', (e) => {
@@ -601,6 +611,8 @@ window.uploadCustomMap = async (input, qId) => {
 async function saveGame() {
     const bgPath = (document.getElementById('background-path') as HTMLInputElement).value;
     const musicPath = (document.getElementById('background-music-path') as HTMLInputElement).value;
+    const sfxCorrect = (document.getElementById('path-sfx-correct') as HTMLInputElement).value;
+    const sfxIncorrect = (document.getElementById('path-sfx-incorrect') as HTMLInputElement).value;
     const cats: ICategory[] = [];
 
     document.querySelectorAll('.category').forEach(catDiv => {
@@ -680,6 +692,8 @@ async function saveGame() {
         title: titleInput.value,
         boardBackgroundPath: bgPath,
         backgroundMusicPath: musicPath,
+        soundCorrectPath: sfxCorrect,     
+        soundIncorrectPath: sfxIncorrect,
         categories: cats
     };
     if (editingGameId) game._id = editingGameId;
@@ -784,6 +798,16 @@ async function loadGame(id: string) {
             updateMusicPreview(''); 
         }
 
+        const sfxCorrInput = document.getElementById('path-sfx-correct') as HTMLInputElement;
+        const sfxCorrPrev = document.getElementById('preview-sfx-correct') as HTMLDivElement;
+        sfxCorrInput.value = game.soundCorrectPath || '';
+        sfxCorrPrev.innerHTML = generateMediaPreviewHtml(game.soundCorrectPath || '');
+
+        const sfxIncorrInput = document.getElementById('path-sfx-incorrect') as HTMLInputElement;
+        const sfxIncorrPrev = document.getElementById('preview-sfx-incorrect') as HTMLDivElement;
+        sfxIncorrInput.value = game.soundIncorrectPath || '';
+        sfxIncorrPrev.innerHTML = generateMediaPreviewHtml(game.soundIncorrectPath || '');
+
         container.innerHTML = '';
         if (game.categories && Array.isArray(game.categories) && game.categories.length > 0) {
              game.categories.forEach(cat => {
@@ -845,7 +869,8 @@ function clearForm() {
         musicPreview.src = '';
         musicPreview.style.display = 'none';
     }
-
+    clearSfx('correct');
+    clearSfx('incorrect');
     updateQuizStructure();
 }
 
@@ -1830,6 +1855,17 @@ async function uploadFromBoardDrop(file: File, qBlock: HTMLElement, isQuestion: 
         document.body.style.cursor = 'default';
     }
 }
+
+function clearSfx(type: 'correct' | 'incorrect') {
+    const hidden = document.getElementById(`path-sfx-${type}`) as HTMLInputElement;
+    const preview = document.getElementById(`preview-sfx-${type}`) as HTMLDivElement;
+    const upload = document.getElementById(`upload-sfx-${type}`) as HTMLInputElement;
+    
+    hidden.value = '';
+    preview.innerHTML = '';
+    upload.value = '';
+}
+(window as any).clearSfx = clearSfx;
 
 initTheme();
 

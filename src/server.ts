@@ -167,6 +167,9 @@ async function cleanupUnusedFiles() {
             if (game.boardBackgroundPath) usedFiles.add(path.basename(game.boardBackgroundPath));
             if (game.backgroundMusicPath) usedFiles.add(path.basename(game.backgroundMusicPath));
             
+            if (game.soundCorrectPath) usedFiles.add(path.basename(game.soundCorrectPath));
+            if (game.soundIncorrectPath) usedFiles.add(path.basename(game.soundIncorrectPath));
+
             game.categories.forEach(cat => {
                 cat.questions.forEach(q => {
                     if (q.mediaPath) usedFiles.add(path.basename(q.mediaPath));
@@ -273,6 +276,8 @@ app.delete('/api/games/:id', async (req, res) => {
             game.categories.forEach(c => c.questions.forEach(q => {
                 if(q.mediaPath) files.push(q.mediaPath);
                 if(q.answerMediaPath) files.push(q.answerMediaPath);
+                if (game.soundCorrectPath) files.push(game.soundCorrectPath);
+                if (game.soundIncorrectPath) files.push(game.soundIncorrectPath);
             }));
             await Promise.all(files.map(deleteMediaFile));
             await GameModel.findByIdAndDelete(id);
@@ -459,6 +464,7 @@ io.on('connection', (socket) => {
                 io.to(code).emit('buzzers_unlocked');
                 io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
             }
+            io.to(code).emit('board_play_sfx', data.action);
             io.to(code).emit('update_scores', session.players);
         }
     });

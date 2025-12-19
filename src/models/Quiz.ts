@@ -42,6 +42,8 @@ const gameSchema = new Schema<IGame>({
     title: { type: String, required: true }, 
     boardBackgroundPath: { type: String, default: '' },
     backgroundMusicPath: { type: String, default: '' },
+    soundCorrectPath: { type: String, default: '' },
+    soundIncorrectPath: { type: String, default: '' },
     categories: [categorySchema]
 });
 
