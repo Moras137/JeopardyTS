@@ -76,6 +76,7 @@ export interface ISession {
     usedQuestions: { catIndex: number, qIndex: number }[];
     introIndex: number;
     listRevealedCount: number;
+    freetextAnswers: Record<string, string>;
 }
 
 // --- SOCKET EVENTS ---
@@ -118,6 +119,9 @@ export interface ServerToClientEvents {
     host_update_estimate_status: (data: { submittedCount: number, totalPlayers: number }) => void;
     board_reveal_estimate_results: (data: { correctAnswer: number, guesses: { playerId: string, name: string, value: number, diff: number, isWinner: boolean }[] }) => void;
     board_play_sfx: (type: 'correct' | 'incorrect') => void;
+    player_start_freetext: (data: { text: string, points: number }) => void;
+    board_show_freetext_results: (data: { answers: { playerId: string, name: string, text: string }[] }) => void;
+    board_freetext_mark_correct: (playerId: string) => void; 
 }
 
 export interface ClientToServerEvents {
@@ -141,4 +145,6 @@ export interface ClientToServerEvents {
     host_control_pixel_puzzle: (action: 'pause' | 'resume') => void;
     player_submit_estimate: (value: number) => void;
     host_resolve_estimate: () => void;
+    player_submit_freetext: (text: string) => void;
+    host_resolve_freetext: () => void;
 }

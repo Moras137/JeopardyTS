@@ -321,7 +321,8 @@ io.on('connection', (socket) => {
             estimateGuesses: {},
             listRevealedCount: -1, 
             usedQuestions: [],
-            introIndex: -2
+            introIndex: -2,
+            freetextAnswers: {}
         };
         socket.join(roomCode);
         socket.emit('session_created', roomCode);
@@ -456,12 +457,23 @@ io.on('connection', (socket) => {
         if (player) {
             if (data.action === 'correct') {
                 player.score += session.activeQuestionPoints;
-                io.to(code).emit('board_reveal_answer');
+                if (session.activeQuestion?.type === 'freetext') {
+                    io.to(code).emit('board_freetext_mark_correct', data.playerId);
+                } else {
+                    io.to(code).emit('board_reveal_answer');
+                }
                 io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
             } else {
                 player.score -= session.activeQuestionPoints;
                 session.buzzersActive = true;
-                io.to(code).emit('buzzers_unlocked');
+
+                // io.to(code).emit('board_freetext_mark_incorrect', data.playerId);
+                
+                if (session.activeQuestion?.type !== 'freetext') {
+                     session.buzzersActive = true;
+                     io.to(code).emit('buzzers_unlocked');
+                }
+
                 io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
             }
             io.to(code).emit('board_play_sfx', data.action);
@@ -538,7 +550,27 @@ io.on('connection', (socket) => {
                 text: data.question.questionText, 
                 points: data.question.points 
             });
-        } else {
+        } else if (data.question.type === 'freetext') {
+            session.buzzersActive = false;
+            session.freetextAnswers = {}; // Reset
+            
+            // Host UI Update
+            io.to(session.hostSocketId).emit('update_host_controls', { 
+                buzzWinnerId: null, 
+                mapMode: false, 
+                listMode: false,
+                estimateMode: false,
+                freetextMode: true, // Flag für Host UI (dass er "Antworten zeigen" Button sieht)
+                submittedCount: 0
+            });
+
+            // Spieler erhalten Eingabefeld
+            io.to(code).emit('player_start_freetext', { 
+                text: data.question.questionText, 
+                points: data.question.points 
+            });
+        } 
+        else {
             session.buzzersActive = true;
             io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null, mapMode: false });
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
@@ -605,6 +637,46 @@ io.on('connection', (socket) => {
 
         io.to(code).emit('board_reveal_map_results', { results, players: session.players, target });
         io.to(code).emit('update_scores', session.players);
+    });
+
+    socket.on('player_submit_freetext', (text) => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isPlayer || !info.playerId) return;
+        const { session } = info;
+
+        // Speichern
+        if (!session.freetextAnswers) session.freetextAnswers = {};
+        session.freetextAnswers[info.playerId] = text;
+
+        // Host updaten (Anzahl eingegangen)
+        const count = Object.keys(session.freetextAnswers).length;
+        const total = Object.keys(session.players).length;
+        
+        // Wir nutzen einfach das existierende Event für Estimates oder Maps auch hier
+        // oder ein generisches update
+        io.to(session.hostSocketId).emit('host_update_estimate_status', { submittedCount: count, totalPlayers: total });
+    });
+
+    socket.on('host_resolve_freetext', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+        const { session, code } = info;
+
+        // Daten für Board aufbereiten
+        const answers = [];
+        for (const pid in session.freetextAnswers) {
+            const player = session.players[pid];
+            if (player) {
+                answers.push({
+                    playerId: pid,
+                    name: player.name,
+                    text: session.freetextAnswers[pid]
+                });
+            }
+        }
+
+        // An Board senden
+        io.to(code).emit('board_show_freetext_results', { answers });
     });
 
     // Weitere einfache Handler

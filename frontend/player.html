@@ -229,6 +229,18 @@
         </p>
     </div>
 
+    <div id="freetext-interface" style="display: none; flex-direction: column; height: 100vh; width: 100vw; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+        <h2 id="freetext-q-text" style="margin-bottom: 20px;">Frage...</h2>
+        
+        <textarea id="freetext-input" class="input-field" placeholder="Deine Antwort..." rows="4" style="height: auto; font-family: sans-serif; resize: none;"></textarea>
+        
+        <button id="submit-freetext-btn" class="action-btn" style="background: var(--btn-confirm); margin-top: 20px;">ABSCHICKEN</button>
+        
+        <p id="freetext-wait-msg" style="display:none; color: var(--btn-buzz-wait); font-size: 1.2rem; margin-top: 20px;">
+            Gesendet! Warte auf Auflösung...
+        </p>
+    </div>
+
     <script type="module" src="./src/player.ts"></script>
 </body>
 </html>

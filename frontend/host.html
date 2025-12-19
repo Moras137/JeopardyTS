@@ -301,6 +301,11 @@
                 <div id="question-display" style="font-size: 1.2rem; margin-bottom: 20px;"></div>
                 <hr style="border:0; border-top:1px dashed var(--border-color); margin: 15px 0;">
                 <div id="answer-display" style="font-size: 1.1rem; color: var(--text-muted);"></div>
+                
+                <div id="freetext-grading-view" style="display:none; margin-top:20px; border-top:1px solid #eee; padding-top:15px;">
+                    <h5 style="margin:0 0 10px 0;">Antworten bewerten:</h5>
+                    <div id="freetext-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+                </div>
             </div>
 
             <div class="modal-footer">
@@ -342,6 +347,11 @@
                 <div id="estimate-mode-controls" style="display:none; align-items: center; gap: 15px; background: #e3f2fd; padding: 10px; border-radius: 5px; border: 1px solid #90caf9;">
                     <span style="font-weight:bold; color: #0d47a1;">🔢 Schätzen: <span id="estimate-submitted-count">0/0</span></span>
                     <button id="resolve-estimate-btn" class="host-btn btn-primary">Auflösen & Punkte</button>
+                </div>
+                
+                <div id="freetext-mode-controls" style="display:none; align-items: center; gap: 15px; background: #e8f5e9; padding: 10px; border-radius: 5px; border: 1px solid #a5d6a7;">
+                    <span style="font-weight:bold; color: #2e7d32;">✍️ Freitext: <span id="freetext-submitted-count">0/0</span></span>
+                    <button id="resolve-freetext-btn" class="host-btn btn-success">Antworten zeigen</button>
                 </div>
             </div>
         </div>

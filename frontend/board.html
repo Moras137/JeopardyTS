@@ -370,6 +370,52 @@
         from { transform: translateY(20px); opacity: 0; }
         to { transform: translateY(0); opacity: 1; }
     }
+
+    #freetext-container {
+            display: none;
+            width: 90%;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+
+        .freetext-card {
+            background: #fff;
+            color: #000;
+            border-radius: 10px;
+            padding: 15px;
+            width: 300px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            animation: popIn 0.5s ease forwards;
+            border: 4px solid transparent; /* Platzhalter für Rahmen */
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .freetext-card.correct {
+            border-color: #28a745; /* GRÜN */
+            background: #d4edda;
+            transform: scale(1.05);
+        }
+
+        .ft-player-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #555;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+
+        .ft-answer-text {
+            font-size: 1.8rem;
+            font-weight: bold;
+            word-wrap: break-word;
+        }
     </style>
 </head>
 <body>
@@ -389,6 +435,7 @@
         <div id="media-container"></div>
         <div id="q-map"></div>
         <div id="list-container"></div>
+        <div id="freetext-container"></div>
         <div id="estimate-results" style="display:none; width: 80%; margin-top: 20px;"></div>
         <div id="answer-text"></div>
     </div>

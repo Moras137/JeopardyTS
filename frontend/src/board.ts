@@ -33,6 +33,7 @@ const introMain = document.getElementById('intro-main-text') as HTMLDivElement;
 const introSub = document.getElementById('intro-sub-text') as HTMLDivElement;
 const listContainer = document.getElementById('list-container') as HTMLDivElement;
 const estimateResultsDiv = document.getElementById('estimate-results') as HTMLDivElement;
+const freetextContainer = document.getElementById('freetext-container') as HTMLDivElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -70,9 +71,6 @@ socket.on('board_show_intro', (data) => {
 
     introMain.innerText = text;
     introSub.innerText = subtext || '';
-
-    // Optional: Soundeffekt für jeden Schritt abspielen
-    // const sfx = new Audio('/sounds/swoosh.mp3'); sfx.play();
 });
 
 socket.on('board_init_game', (game: IGame) => {
@@ -110,6 +108,8 @@ socket.on('board_show_question', (data) => {
     answerTextDiv.innerHTML = "";
     estimateResultsDiv.style.display = 'none';
     estimateResultsDiv.innerHTML = '';
+    freetextContainer.style.display = 'none';
+    freetextContainer.innerHTML = '';
     
     questionText.innerText = question.questionText;
 
@@ -387,6 +387,34 @@ socket.on('board_reveal_estimate_results', (data) => {
 
 socket.on('board_play_sfx', (type: 'correct' | 'incorrect') => {
     playSoundEffect(type);
+});
+
+socket.on('board_show_freetext_results', (data) => {
+    questionText.style.display = 'none'; // Frage ausblenden für mehr Platz (optional)
+    freetextContainer.style.display = 'flex';
+    freetextContainer.innerHTML = '';
+
+    data.answers.forEach((entry, index) => {
+        const card = document.createElement('div');
+        card.className = 'freetext-card';
+        card.id = `ft-card-${entry.playerId}`; // ID zum Wiederfinden für Punkte
+        card.style.animationDelay = `${index * 0.1}s`; // Schöner Kaskaden-Effekt
+
+        card.innerHTML = `
+            <div class="ft-player-name">${entry.name}</div>
+            <div class="ft-answer-text">${entry.text}</div>
+        `;
+        freetextContainer.appendChild(card);
+    });
+});
+
+socket.on('board_freetext_mark_correct', (playerId: string) => {
+    const card = document.getElementById(`ft-card-${playerId}`);
+    if (card) {
+        card.classList.add('correct');
+        // Optional: Kleiner Konfetti-Effekt oder Haken
+        card.innerHTML += `<div style="position:absolute; top:-10px; right:-10px; font-size:2rem;">✅</div>`;
+    }
 });
 
 // --- HELPER FUNKTIONEN ---

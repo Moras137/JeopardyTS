@@ -55,6 +55,12 @@ const estimateModeControls = document.getElementById('estimate-mode-controls') a
 const estimateSubmittedCount = document.getElementById('estimate-submitted-count') as HTMLSpanElement;
 const resolveEstimateBtn = document.getElementById('resolve-estimate-btn') as HTMLButtonElement;
 
+const freetextModeControls = document.getElementById('freetext-mode-controls') as HTMLDivElement;
+const freetextSubmittedCount = document.getElementById('freetext-submitted-count') as HTMLSpanElement;
+const resolveFreetextBtn = document.getElementById('resolve-freetext-btn') as HTMLButtonElement;
+const freetextGradingView = document.getElementById('freetext-grading-view') as HTMLDivElement;
+const freetextList = document.getElementById('freetext-list') as HTMLDivElement;
+
 // --- INIT & EVENT LISTENER ---
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -100,7 +106,11 @@ if(btnPixelPause) btnPixelPause.addEventListener('click', () => socket.emit('hos
 if(btnPixelResume) btnPixelResume.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'resume'));
 
 if(resolveEstimateBtn) resolveEstimateBtn.addEventListener('click', () => socket.emit('host_resolve_estimate'));
-
+if(resolveFreetextBtn) {
+    resolveFreetextBtn.addEventListener('click', () => {
+        socket.emit('host_resolve_freetext');
+    });
+}
 // NEU: Intro Button
 if(btnIntroNext) {
     btnIntroNext.addEventListener('click', () => {
@@ -263,11 +273,25 @@ socket.on('host_restore_active_question', (data) => {
          unlockBuzzersBtn.style.display = 'none';
          estimateModeControls.style.display = 'flex';
          // Count müsste man eigentlich mitsenden, hier Default 0 oder aus data nehmen wenn du es im Server ergänzt
+    } else if (data.question.type === 'freetext') {
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none';
+        estimateModeControls.style.display = 'none';
+        pixelModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'none';
+        
+        freetextModeControls.style.display = 'flex';
+        // Falls wir Antworten schon haben, könnte man sie hier laden, 
+        // aber meistens passiert das erst nach 'resolve'.
+        // Der Server sendet 'submittedCount' oft separat.
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
         unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
     }
+
+    if (freetextGradingView) freetextGradingView.style.display = 'none';
 });
 
 socket.on('board_hide_question', () => {
@@ -276,6 +300,72 @@ socket.on('board_hide_question', () => {
 
 socket.on('host_update_estimate_status', (data) => {
     if(estimateSubmittedCount) estimateSubmittedCount.innerText = `${data.submittedCount}/${data.totalPlayers}`;
+});
+
+socket.on('board_show_freetext_results', (data) => {
+    // Zeige den Grading-Bereich
+    freetextGradingView.style.display = 'block';
+    freetextList.innerHTML = '';
+
+    data.answers.forEach((entry) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.background = '#f9f9f9';
+        row.style.padding = '10px';
+        row.style.border = '1px solid #ddd';
+        row.style.borderRadius = '5px';
+        row.id = `grading-row-${entry.playerId}`;
+
+        row.innerHTML = `
+            <div style="flex-grow:1;">
+                <div style="font-weight:bold; font-size:0.9rem;">${entry.name}</div>
+                <div style="font-size:1.1rem;">${entry.text}</div>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <button class="host-btn btn-success btn-correct" data-pid="${entry.playerId}">✔</button>
+                <button class="host-btn btn-danger btn-incorrect" data-pid="${entry.playerId}">✘</button>
+            </div>
+        `;
+        
+        freetextList.appendChild(row);
+    });
+
+    // Event Listener für die Buttons hinzufügen
+    freetextList.querySelectorAll('.btn-correct').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const pid = (e.target as HTMLElement).dataset.pid;
+            if(pid) {
+                socket.emit('host_score_answer', { action: 'correct', playerId: pid });
+                // Visuelles Feedback für Host: Zeile grün markieren
+                const row = document.getElementById(`grading-row-${pid}`);
+                if(row) {
+                    row.style.background = '#d4edda';
+                    row.style.borderColor = '#c3e6cb';
+                    (e.target as HTMLButtonElement).disabled = true; // Doppelklick verhindern
+                }
+            }
+        });
+    });
+
+    freetextList.querySelectorAll('.btn-incorrect').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const pid = (e.target as HTMLElement).dataset.pid;
+            if(pid) {
+                // Optional: Minuspunkte vergeben oder einfach nur markieren
+                // socket.emit('host_score_answer', { action: 'incorrect', playerId: pid });
+                
+                // Wir markieren es nur rot, damit der Host weiß "erledigt"
+                const row = document.getElementById(`grading-row-${pid}`);
+                if(row) {
+                    row.style.background = '#f8d7da';
+                    row.style.borderColor = '#f5c6cb';
+                    row.style.opacity = '0.6';
+                }
+            }
+        });
+    });
 });
 // --- HELPER FUNKTIONEN ---
 
@@ -360,6 +450,27 @@ function updateHostControls(data: any) {
         unlockBuzzersBtn.style.display = 'none'; // Keine Buzzer bei Schätzfragen
         
         estimateModeControls.style.display = data.estimateMode ? 'flex' : 'none';
+    }
+
+    if (data.freetextMode !== undefined) {
+        activePlayerId = null;
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none';
+        estimateModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'none'; // Keine Buzzer
+
+        freetextModeControls.style.display = data.freetextMode ? 'flex' : 'none';
+        
+        // Zähler nutzen wir denselben Generic Count oder ein eigenes Feld
+        // Im Server hatten wir 'submittedCount' allgemein gesendet
+        if (data.submittedCount !== undefined && data.freetextMode) {
+             freetextSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
+        }
+    }
+    
+    if (data.submittedCount !== undefined && freetextModeControls.style.display === 'flex') {
+        freetextSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
     }
 }
 

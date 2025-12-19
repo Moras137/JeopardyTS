@@ -26,6 +26,12 @@ const estimateBtn = document.getElementById('submit-estimate-btn') as HTMLButton
 const estimateQText = document.getElementById('estimate-q-text') as HTMLHeadingElement;
 const estimateWaitMsg = document.getElementById('estimate-wait-msg') as HTMLParagraphElement;
 
+const freetextInterface = document.getElementById('freetext-interface') as HTMLDivElement;
+const freetextInput = document.getElementById('freetext-input') as HTMLTextAreaElement;
+const freetextBtn = document.getElementById('submit-freetext-btn') as HTMLButtonElement;
+const freetextQText = document.getElementById('freetext-q-text') as HTMLHeadingElement;
+const freetextWaitMsg = document.getElementById('freetext-wait-msg') as HTMLParagraphElement;
+
 // --- 2. STATE VARIABLEN ---
 let mySocketId: string | null = null;
 let playerName = "";
@@ -144,6 +150,22 @@ if(estimateBtn) {
         estimateInput.style.display = 'none';
         estimateBtn.style.display = 'none';
         estimateWaitMsg.style.display = 'block';
+    });
+}
+
+if(freetextBtn) {
+    freetextBtn.addEventListener('click', () => {
+        const text = freetextInput.value.trim();
+        if (!text) {
+            alert("Bitte eine Antwort eingeben.");
+            return;
+        }
+        socket.emit('player_submit_freetext', text);
+        
+        // UI Feedback
+        freetextInput.style.display = 'none';
+        freetextBtn.style.display = 'none';
+        freetextWaitMsg.style.display = 'block';
     });
 }
 
@@ -297,6 +319,12 @@ socket.on('board_hide_question', () => {
     estimateBtn.style.display = 'block';      
     estimateInput.style.display = 'block';    
     estimateWaitMsg.style.display = 'none';
+
+    freetextInterface.style.display = 'none';
+    freetextInput.value = '';
+    freetextBtn.style.display = 'block';
+    freetextInput.style.display = 'block';
+    freetextWaitMsg.style.display = 'none';
 });
 
 socket.on('session_ended', () => {
@@ -314,16 +342,19 @@ socket.on('session_ended', () => {
 socket.on('player_new_question', (data: { text: string, points: number }) => {
     // UI Reset für Standard-Frage
     mapInterface.style.display = 'none';
+    freetextInterface.style.display = 'none';
+    estimateInterface.style.display = 'none';
     gameSection.style.display = 'flex';
     statusMsg.innerText = "Frage aktiv!";
     document.body.style.backgroundColor = 'var(--bg-body)';
-    estimateInterface.style.display = 'none';
+
 });
 
 socket.on('player_start_estimate', (data) => {
     // UI Reset
     gameSection.style.display = 'none';
     mapInterface.style.display = 'none';
+    freetextInterface.style.display = 'none';
     estimateInterface.style.display = 'flex';
     
     estimateQText.innerText = data.text;
@@ -332,6 +363,23 @@ socket.on('player_start_estimate', (data) => {
     estimateInput.style.display = 'block';
     estimateBtn.style.display = 'block';
     estimateWaitMsg.style.display = 'none';
+    
+    document.body.style.backgroundColor = 'var(--bg-body)';
+});
+
+socket.on('player_start_freetext', (data) => {
+    // UI Reset
+    gameSection.style.display = 'none';
+    mapInterface.style.display = 'none';
+    estimateInterface.style.display = 'none';
+    freetextInterface.style.display = 'flex';
+    
+    freetextQText.innerText = data.text;
+    freetextInput.value = '';
+    
+    freetextInput.style.display = 'block';
+    freetextBtn.style.display = 'block';
+    freetextWaitMsg.style.display = 'none';
     
     document.body.style.backgroundColor = 'var(--bg-body)';
 });
