@@ -157,39 +157,48 @@ socket.on('board_reveal_list_item', (index: number) => {
 socket.on('board_reveal_answer', () => {
     if (!currentQuestion) return;
 
+    // 1. Frage-Elemente ausblenden
     questionText.style.display = 'none';
+    if(listContainer) listContainer.style.display = 'none'; // Liste weg (aus vorherigem Fix)
 
-    // Antwort Text anzeigen
+    // 2. Lösungstext zeigen
     answerTextDiv.innerHTML = `<span style="color:var(--text-success); font-size:0.5em; display:block;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
     answerTextDiv.style.display = 'block';
 
-    // --- MAP AUFLÖSUNG ---
-    if (currentQuestion.type === 'map' && currentQuestion.location) {
-        // Karte bleibt sichtbar, Marker kommen via 'board_reveal_map_results'
-    } 
-
+    // 3. Pixel-Animation stoppen (falls aktiv)
     if (currentPixelAnim) {
         cancelAnimationFrame(currentPixelAnim);
         currentPixelAnim = null;
     }
-    // --- STANDARD ANTWORT MEDIA ---
-    else {
-        // Map weg
+
+    // 4. Medien-Logik
+    if (currentQuestion.type === 'map' && currentQuestion.location) {
+        // Map-Logik bleibt unberührt (wird über map_results gesteuert)
+    } else {
+        // Map aufräumen
         mapDiv.style.display = 'none';
         if (mapInstance) { mapInstance.remove(); mapInstance = null; }
 
-        // Medien Container leeren & Antwort-Medien zeigen
+        // Medien-Container leeren (Canvas oder altes Bild entfernen)
         mediaContainer.innerHTML = '';
+        
+        let showMedia = false;
 
+        // FALL A: Pixel-Puzzle -> Originalbild anzeigen
         if (currentQuestion.type === 'pixel' && currentQuestion.mediaPath) {
              renderMedia(currentQuestion.mediaPath, mediaContainer, false);
+             showMedia = true;
         }
 
+        // FALL B: Explizites Antwort-Medium (überschreibt Pixel-Bild, falls vorhanden)
         if (currentQuestion.answerMediaPath) {
+            mediaContainer.innerHTML = ''; // Container leeren für Antwort-Medium
             renderMedia(currentQuestion.answerMediaPath, mediaContainer, true); // Autoplay
-        } else {
-            mediaContainer.style.display = 'none';
+            showMedia = true;
         }
+
+        // Container nur anzeigen, wenn auch wirklich was drin ist
+        mediaContainer.style.display = showMedia ? 'block' : 'none';
     }
 });
 
