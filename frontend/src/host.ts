@@ -518,6 +518,8 @@ function renderGameGrid(game: IGame) {
 
         hostGrid.appendChild(col);
     });
+
+    setTimeout(adjustHeaderHeights, 50);
 }
 
 function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: number) {
@@ -673,4 +675,25 @@ async function initMusic(game: IGame) {
 function markQuestionAsUsed(catIndex: number, qIndex: number) {
     const btn = document.getElementById(`q-btn-${catIndex}-${qIndex}`);
     if (btn) btn.classList.add('used');
+}
+
+function adjustHeaderHeights() {
+    const titles = document.querySelectorAll('.host-cat-title') as NodeListOf<HTMLElement>;
+    if (titles.length === 0) return;
+
+    // 1. Höhe zurücksetzen (wichtig falls das Fenster kleiner gezogen wird)
+    titles.forEach(t => t.style.height = 'auto');
+
+    // 2. Maximale Höhe ermitteln
+    let maxHeight = 0;
+    titles.forEach(t => {
+        if (t.offsetHeight > maxHeight) {
+            maxHeight = t.offsetHeight;
+        }
+    });
+
+    // 3. Allen Elementen die gleiche Höhe geben
+    titles.forEach(t => {
+        t.style.height = `${maxHeight}px`;
+    });
 }

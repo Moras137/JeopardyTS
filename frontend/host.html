@@ -139,12 +139,29 @@
         }
         
         .host-cat-title { 
-            font-weight: bold; text-align: center; 
+            font-weight: bold; 
+            text-align: center; 
             background: var(--cat-header-bg); 
             color: var(--cat-header-text); 
-            padding: 10px; border-radius: 4px; 
+            padding: 10px; 
+            border-radius: 4px; 
             box-shadow: 0 2px 4px var(--shadow);
-            min-height: 50px; display: flex; align-items: center; justify-content: center;
+            min-height: 50px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+
+            word-break: break-word;      
+            overflow-wrap: break-word;   
+            
+            -webkit-hyphens: auto;       
+            -moz-hyphens: auto;          
+            -ms-hyphens: auto;           
+            hyphens: auto;              
+
+            text-transform: uppercase;   
+            line-height: 1.2;           
+            font-size: 0.9rem;           
         }
         
         .q-btn {
