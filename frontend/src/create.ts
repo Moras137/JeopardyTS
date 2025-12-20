@@ -976,18 +976,54 @@ function checkQuestionFilled(el: HTMLElement | null) {
     const block = el.closest('.question-block');
     if(!block) return;
     
-    const text = (block.querySelector('.q-text') as HTMLInputElement).value;
-    const type = (block.querySelector('.q-type-select') as HTMLSelectElement).value;
+    // Basisfelder holen
+    const typeSelect = block.querySelector('.q-type-select') as HTMLSelectElement;
+    const type = typeSelect ? typeSelect.value : 'standard';
+    const textInput = block.querySelector('.q-text') as HTMLInputElement;
+    const text = textInput ? textInput.value.trim() : '';
+
     let filled = false;
 
-    if (type === 'standard') {
-        const ans = (block.querySelector('.q-answer') as HTMLInputElement).value;
-        if(text && ans) filled = true;
-    } else {
-        const lat = (block.querySelector('.q-lat') as HTMLInputElement).value;
-        if(text && lat) filled = true;
+    // 1. Fragetext ist IMMER Pflicht (außer vielleicht bei Pixel, aber auch da als Titel sinnvoll)
+    if (text) {
+        switch (type) {
+            case 'standard':
+            case 'freetext':
+                // Brauchen eine Antwort/Lösung
+                const ans = (block.querySelector('.q-answer') as HTMLInputElement).value.trim();
+                if(ans) filled = true;
+                break;
+
+            case 'estimate':
+                // Braucht eine Zahl als Lösung
+                const est = (block.querySelector('.q-estimate-ans') as HTMLInputElement).value;
+                if(est) filled = true;
+                break;
+
+            case 'list':
+                // Braucht Text im Listenfeld
+                const listItems = (block.querySelector('.q-list-items') as HTMLTextAreaElement).value.trim();
+                if(listItems) filled = true;
+                break;
+
+            case 'map':
+                // Braucht Koordinaten (Lat & Lng)
+                const lat = (block.querySelector('.q-lat') as HTMLInputElement).value;
+                const lng = (block.querySelector('.q-lng') as HTMLInputElement).value;
+                // Optional: Man könnte auch prüfen, ob der Ortsname (q-answer-map) gefüllt ist
+                if(lat && lng) filled = true;
+                break;
+
+            case 'pixel':
+                // Braucht Bild (Media) UND Lösung
+                const media = (block.querySelector('.q-media-path') as HTMLInputElement).value;
+                const pxAns = (block.querySelector('.q-answer') as HTMLInputElement).value.trim();
+                if(media && pxAns) filled = true;
+                break;
+        }
     }
     
+    // Klasse setzen für visuelles Feedback (grüner Hintergrund)
     if(filled) block.classList.add('is-filled');
     else block.classList.remove('is-filled');
 }
