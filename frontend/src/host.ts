@@ -304,6 +304,7 @@ socket.on('board_hide_question', () => {
 
 socket.on('host_update_estimate_status', (data) => {
     if(estimateSubmittedCount) estimateSubmittedCount.innerText = `${data.submittedCount}/${data.totalPlayers}`;
+    if(freetextSubmittedCount) freetextSubmittedCount.innerText = `${data.submittedCount}/${data.totalPlayers}`;
 });
 
 socket.on('board_show_freetext_results', (data) => {
@@ -581,16 +582,69 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
 
 function renderPlayerList() {
     playerListUl.innerHTML = '';
-    const activePlayers = Object.values(players).filter(p => p.active);
-    if(playerCountSpan) playerCountSpan.innerText = activePlayers.length.toString();
+    
+    // Alle Spieler holen (auch inaktive)
+    const allPlayers = Object.values(players);
+    if(playerCountSpan) playerCountSpan.innerText = allPlayers.length.toString();
 
-    activePlayers.sort((a, b) => b.score - a.score).forEach(p => {
+    // Sortieren und anzeigen
+    allPlayers.sort((a, b) => b.score - a.score).forEach(p => {
         const item = document.createElement('li');
         item.className = 'player-item';
-        item.innerHTML = `
-            <span style="color:${p.color}; font-weight:bold;">${p.name}</span>
-            <span class="score">${p.score}</span>
-        `;
+        
+        // Visuelles Feedback wenn offline
+        if (!p.active) {
+            item.style.opacity = '0.5';
+            item.style.filter = 'grayscale(100%)';
+        }
+
+        // --- Linke Seite: Name ---
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = p.color;
+        nameSpan.style.fontWeight = 'bold';
+        nameSpan.innerHTML = `${p.name} ${!p.active ? '<small>(Offline)</small>' : ''}`;
+
+        // --- Rechte Seite: Score + Edit Button ---
+        const scoreContainer = document.createElement('div');
+        scoreContainer.style.display = 'flex';
+        scoreContainer.style.alignItems = 'center';
+        scoreContainer.style.gap = '8px';
+
+        const scoreSpan = document.createElement('span');
+        scoreSpan.className = 'score';
+        scoreSpan.innerText = p.score.toString();
+
+        // Edit Button (Stift)
+        const editBtn = document.createElement('button');
+        editBtn.innerText = '✎';
+        editBtn.title = 'Punkte korrigieren';
+        editBtn.style.background = 'transparent';
+        editBtn.style.border = '1px solid #ccc';
+        editBtn.style.borderRadius = '4px';
+        editBtn.style.cursor = 'pointer';
+        editBtn.style.padding = '0px 5px';
+        editBtn.style.fontSize = '0.8rem';
+        editBtn.style.color = '#555';
+
+        // Klick-Event für Korrektur
+        editBtn.onclick = () => {
+            const input = prompt(`Neue Punktzahl für ${p.name}:`, p.score.toString());
+            if (input !== null) {
+                const newScore = parseInt(input);
+                if (!isNaN(newScore)) {
+                    socket.emit('host_manual_score_update', { playerId: p.id, newScore });
+                } else {
+                    alert("Bitte eine gültige Zahl eingeben.");
+                }
+            }
+        };
+
+        scoreContainer.appendChild(scoreSpan);
+        scoreContainer.appendChild(editBtn);
+
+        item.appendChild(nameSpan);
+        item.appendChild(scoreContainer);
+
         playerListUl.appendChild(item);
     });
 }

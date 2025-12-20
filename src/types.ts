@@ -121,7 +121,7 @@ export interface ServerToClientEvents {
     board_play_sfx: (type: 'correct' | 'incorrect') => void;
     player_start_freetext: (data: { text: string, points: number }) => void;
     board_show_freetext_results: (data: { answers: { playerId: string, name: string, text: string }[] }) => void;
-    board_freetext_mark_correct: (playerId: string) => void; 
+    board_freetext_mark_correct: (playerId: string) => void;
 }
 
 export interface ClientToServerEvents {
@@ -147,4 +147,5 @@ export interface ClientToServerEvents {
     host_resolve_estimate: () => void;
     player_submit_freetext: (text: string) => void;
     host_resolve_freetext: () => void;
+    host_manual_score_update: (data: { playerId: string, newScore: number }) => void;
 }

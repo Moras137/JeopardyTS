@@ -539,8 +539,10 @@ function renderMedia(path: string, container: HTMLElement, autoPlay: boolean) {
 
 function renderPlayerBar(players: Record<string, IPlayer>) {
     playerBar.innerHTML = "";
-    for (const id in players) {
-        const p = players[id];
+    // Wir sortieren hier optional auch nach Score, damit die Reihenfolge stabil bleibt
+    const sorted = Object.values(players).sort((a, b) => b.score - a.score);
+
+    for (const p of sorted) {
         const div = document.createElement('div');
         div.className = 'player-card';
         div.id = 'p-' + p.id; 

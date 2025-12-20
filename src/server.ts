@@ -736,6 +736,7 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (info && info.isPlayer && info.playerId) {
             info.session.players[info.playerId].active = false;
+            io.to(info.code).emit('update_player_list', info.session.players);
         }
     });
 
@@ -838,6 +839,22 @@ io.on('connection', (socket) => {
         
         // Scores updaten
         io.to(code).emit('update_scores', session.players);
+    });
+
+    socket.on('host_manual_score_update', (data: { playerId: string, newScore: number }) => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+        
+        const { session, code } = info;
+        const player = session.players[data.playerId];
+        
+        if (player) {
+            console.log(`Manuelle Korrektur: ${player.name} von ${player.score} auf ${data.newScore}`);
+            player.score = data.newScore;
+            
+            // Allen Bescheid sagen (Host Liste, Board Leiste)
+            io.to(code).emit('update_scores', session.players);
+        }
     });
 });
 
