@@ -536,7 +536,7 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
     }
 
     let map: L.Map;
-
+    
     if (isCustom) {
         if (customPath) {
             mapEl.style.background = '';
@@ -968,7 +968,21 @@ function changeQuestionType(select: HTMLSelectElement, qId: string) {
     } 
     else if (type === 'map') {
         (block.querySelector('.section-map') as HTMLElement).style.display = 'block';
-        initMap(qId);
+
+        const mapSourceSelect = block.querySelector('.map-controls select') as HTMLSelectElement;
+        const isCustom = mapSourceSelect ? mapSourceSelect.value === 'custom' : false;
+        
+        const pathInput = block.querySelector('.q-custom-path') as HTMLInputElement;
+        const customPath = pathInput ? pathInput.value : '';
+
+        const latInput = block.querySelector('.q-lat') as HTMLInputElement;
+        const lngInput = block.querySelector('.q-lng') as HTMLInputElement;
+        
+        const lat = latInput.value ? parseFloat(latInput.value) : undefined;
+        const lng = lngInput.value ? parseFloat(lngInput.value) : undefined;
+
+        // Jetzt rufen wir initMap mit den korrekten Parametern auf
+        initMap(qId, lat, lng, isCustom, customPath);
     }
     else if (type === 'pixel') {
         block.querySelectorAll('.section-pixel').forEach(el => (el as HTMLElement).style.display = 'block');
