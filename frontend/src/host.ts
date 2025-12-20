@@ -533,42 +533,43 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     
     socket.emit('host_pick_question', { catIndex, qIndex, question });
     
+    // --- RESET ALLER MODI ---
     mapModeControls.style.display = 'none';
     listModeControls.style.display = 'none';
     buzzWinnerSection.style.display = 'none';
+    pixelModeControls.style.display = 'none';
+    estimateModeControls.style.display = 'none';
+    freetextModeControls.style.display = 'none'; 
+    unlockBuzzersBtn.style.display = 'none';
+    // -----------------------------------
 
     if (question.type === 'map') {
-        buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'flex';
         mapSubmittedCount.innerText = `0/${Object.keys(players).length}`;
-        unlockBuzzersBtn.style.display = 'none';
-        pixelModeControls.style.display = 'none';
+    
     } else if (question.type === 'list') {
         listModeControls.style.display = 'block';
-        unlockBuzzersBtn.style.display = 'block'; // Buzzer sind an
+        unlockBuzzersBtn.style.display = 'block'; 
         
         if (question.listItems) {
-            updateListPreview(question.listItems, -1); // Noch nichts aufgedeckt
+            updateListPreview(question.listItems, -1); 
         }
-        pixelModeControls.style.display = 'none';
+
     } else if (question.type === 'pixel') {
-        // NEU: Pixel Puzzle Handling
-        buzzWinnerSection.style.display = 'none';
-        mapModeControls.style.display = 'none';
-        listModeControls.style.display = 'none';
         pixelModeControls.style.display = 'flex';
-        
-        // Buzzer sind aktiv!
         unlockBuzzersBtn.style.display = 'block';
-        
-        // Optional: Hinweis im Titel ergänzen
         qTitle.innerText += " (PIXEL PUZZLE)";
         
+    } else if (question.type === 'estimate') {
+        estimateModeControls.style.display = 'flex';
+        estimateSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+
+    } else if (question.type === 'freetext') {
+        freetextModeControls.style.display = 'flex';
+        freetextSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+
     } else {
-        buzzWinnerSection.style.display = 'none';
-        mapModeControls.style.display = 'none';
-        unlockBuzzersBtn.style.display = 'none';
-        pixelModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'block';
     }
 
     markQuestionAsUsed(catIndex, qIndex);
