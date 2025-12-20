@@ -431,6 +431,88 @@
             font-weight: bold;
             word-wrap: break-word;
         }
+
+        /* --- PODIUM STYLES --- */
+        #podium-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1a2a6c, #b21f1f, #fdbb2d); /* Feierlicher Gradient */
+            z-index: 3000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 50px;
+            overflow: hidden;
+        }
+
+        .podium-title {
+            position: absolute; top: 50px;
+            font-size: 6rem; color: white;
+            text-shadow: 0 0 20px rgba(255,215,0,0.8);
+            animation: bounceIn 1s ease;
+        }
+
+        .podium-stage {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 20px;
+            width: 80%;
+            height: 60%;
+        }
+
+        .podium-column {
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            width: 200px; position: relative;
+            transition: transform 0.3s;
+        }
+
+        .p-bar {
+            width: 100%;
+            background: linear-gradient(to bottom, #eee, #999);
+            border-top: 5px solid rgba(255,255,255,0.5);
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            padding-top: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transform-origin: bottom;
+            animation: growBar 1s ease-out forwards;
+        }
+
+        .first .p-bar { background: linear-gradient(to bottom, #FFD700, #DAA520); height: 60vh; animation-delay: 0.5s; }
+        .second .p-bar { background: linear-gradient(to bottom, #C0C0C0, #A9A9A9); height: 45vh; animation-delay: 0.2s; }
+        .third .p-bar { background: linear-gradient(to bottom, #cd7f32, #8b4513); height: 30vh; animation-delay: 0s; }
+
+        .p-rank { font-size: 4rem; font-weight: bold; color: rgba(0,0,0,0.3); }
+        .p-score { font-size: 2.5rem; font-weight: bold; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.5); margin-top: auto; margin-bottom: 20px;}
+
+        .p-avatar {
+            font-size: 2rem; font-weight: bold; color: white;
+            margin-bottom: 10px; text-shadow: 0 2px 5px black;
+            text-align: center;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+        .first .p-avatar { font-size: 3rem; animation-delay: 1.5s; }
+        .second .p-avatar { animation-delay: 1.2s; }
+        .third .p-avatar { animation-delay: 1.0s; }
+
+        .winner-crown {
+            font-size: 4rem; position: absolute; top: -120px;
+            animation: dropCrown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0; animation-delay: 1.6s;
+        }
+
+        @keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes dropCrown { from { transform: translateY(-50px) rotate(-10deg); opacity: 0; } to { transform: translateY(0) rotate(0); opacity: 1; } }
+        @keyframes bounceIn { 0% {transform: scale(0.3); opacity: 0;} 50% {transform: scale(1.05); opacity: 1;} 70% {transform: scale(0.9);} 100% {transform: scale(1);} }
+
+        /* Konfetti Partikel */
+        .confetti {
+            position: absolute; width: 10px; height: 10px; background-color: #f00;
+            animation: fall linear forwards;
+        }
+        @keyframes fall { to { transform: translateY(100vh) rotate(720deg); } }
     </style>
 </head>
 <body>
@@ -461,6 +543,39 @@
         <h1 style="color: white; font-size: 4rem; margin-bottom: 40px;">Zum Spiel beitreten</h1>
         <canvas id="qrcode-canvas"></canvas>
         <p style="color: white; font-size: 2rem; margin-top: 40px;">Gehe zu: <span id="join-url"></span></p>
+    </div>
+
+    <div id="podium-overlay" style="display:none;">
+        <h1 class="podium-title">ERGEBNIS</h1>
+        
+        <div class="podium-stage">
+            <div class="podium-column second">
+                <div class="p-avatar" id="p2-name"></div>
+                <div class="p-bar" style="height: 40%;">
+                    <div class="p-rank">2</div>
+                    <div class="p-score" id="p2-score">0</div>
+                </div>
+            </div>
+
+            <div class="podium-column first">
+                <div class="winner-crown">👑</div>
+                <div class="p-avatar" id="p1-name"></div>
+                <div class="p-bar" style="height: 60%;">
+                    <div class="p-rank">1</div>
+                    <div class="p-score" id="p1-score">0</div>
+                </div>
+            </div>
+
+            <div class="podium-column third">
+                <div class="p-avatar" id="p3-name"></div>
+                <div class="p-bar" style="height: 25%;">
+                    <div class="p-rank">3</div>
+                    <div class="p-score" id="p3-score">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="confetti-container"></div>
     </div>
 
     <script type="module" src="./src/board.ts"></script>

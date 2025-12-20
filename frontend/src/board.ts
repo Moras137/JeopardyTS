@@ -34,6 +34,7 @@ const introSub = document.getElementById('intro-sub-text') as HTMLDivElement;
 const listContainer = document.getElementById('list-container') as HTMLDivElement;
 const estimateResultsDiv = document.getElementById('estimate-results') as HTMLDivElement;
 const freetextContainer = document.getElementById('freetext-container') as HTMLDivElement;
+const podiumOverlay = document.getElementById('podium-overlay') as HTMLDivElement;
 
 // --- INIT ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -446,6 +447,58 @@ socket.on('board_freetext_mark_correct', (playerId: string) => {
     }
 });
 
+socket.on('board_show_podium', (sortedPlayers: IPlayer[]) => {
+    // Alles andere ausblenden
+    questionOverlay.style.display = 'none';
+    introOverlay.style.display = 'none';
+    gameGrid.style.display = 'none';
+    playerBar.style.display = 'none'; // Auch die Leiste unten weg
+
+    podiumOverlay.style.display = 'flex';
+
+    // Platz 1
+    const p1 = sortedPlayers[0];
+    const p1Name = document.getElementById('p1-name');
+    const p1Score = document.getElementById('p1-score');
+    if (p1 && p1Name && p1Score) {
+        p1Name.innerText = p1.name;
+        p1Score.innerText = p1.score.toString();
+    } else {
+        // Falls keiner da ist (sollte nicht passieren)
+        if(p1Name) p1Name.parentElement!.style.visibility = 'hidden';
+    }
+
+    // Platz 2
+    const p2 = sortedPlayers[1];
+    const p2Name = document.getElementById('p2-name');
+    const p2Score = document.getElementById('p2-score');
+    if (p2 && p2Name && p2Score) {
+        p2Name.innerText = p2.name;
+        p2Score.innerText = p2.score.toString();
+        p2Name.parentElement!.style.visibility = 'visible';
+    } else {
+        if(p2Name) p2Name.parentElement!.style.visibility = 'hidden';
+    }
+
+    // Platz 3
+    const p3 = sortedPlayers[2];
+    const p3Name = document.getElementById('p3-name');
+    const p3Score = document.getElementById('p3-score');
+    if (p3 && p3Name && p3Score) {
+        p3Name.innerText = p3.name;
+        p3Score.innerText = p3.score.toString();
+        p3Name.parentElement!.style.visibility = 'visible';
+    } else {
+        if(p3Name) p3Name.parentElement!.style.visibility = 'hidden';
+    }
+
+    // Konfetti starten
+    startConfetti();
+
+    // Optional: Sound abspielen (Gewinner Sound)
+    // playSoundEffect('correct'); 
+});
+
 // --- HELPER FUNKTIONEN ---
 
 function renderGrid() {
@@ -773,5 +826,23 @@ function playSoundEffect(type: 'correct' | 'incorrect') {
         const audio = new Audio(src);
         audio.volume = 0.5;
         audio.play().catch(e => console.log("SFX Playback error (Autoplay Blocked?)", e));
+    }
+}
+
+function startConfetti() {
+    const container = document.getElementById('confetti-container');
+    if(!container) return;
+
+    const colors = ['#ff0', '#f00', '#0f0', '#00f', '#f0f', '#0ff'];
+
+    // Erzeuge 100 Konfetti-Schnipsel
+    for(let i=0; i<150; i++) {
+        const div = document.createElement('div');
+        div.className = 'confetti';
+        div.style.left = Math.random() * 100 + 'vw';
+        div.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        div.style.animationDuration = (Math.random() * 3 + 2) + 's';
+        div.style.top = -10 + 'px';
+        container.appendChild(div);
     }
 }

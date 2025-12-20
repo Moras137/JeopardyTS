@@ -856,6 +856,19 @@ io.on('connection', (socket) => {
             io.to(code).emit('update_scores', session.players);
         }
     });
+
+    socket.on('host_show_podium', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+
+        const { session, code } = info;
+        
+        // Spieler nach Punkten sortieren (Höchste zuerst)
+        const sortedPlayers = Object.values(session.players).sort((a, b) => b.score - a.score);
+
+        // An das Board senden
+        io.to(code).emit('board_show_podium', sortedPlayers);
+    });
 });
 
 server.listen(PORT, () => {

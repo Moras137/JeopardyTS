@@ -60,6 +60,7 @@ const freetextSubmittedCount = document.getElementById('freetext-submitted-count
 const resolveFreetextBtn = document.getElementById('resolve-freetext-btn') as HTMLButtonElement;
 const freetextGradingView = document.getElementById('freetext-grading-view') as HTMLDivElement;
 const freetextList = document.getElementById('freetext-list') as HTMLDivElement;
+const btnPodium = document.getElementById('btn-podium') as HTMLButtonElement;
 
 // --- INIT & EVENT LISTENER ---
 
@@ -124,6 +125,14 @@ if(exitQuizBtn) exitQuizBtn.addEventListener('click', () => {
         window.location.href = '/create.html';
     }
 });
+
+if(btnPodium) {
+    btnPodium.addEventListener('click', () => {
+        if(confirm("Siegerehrung auf dem Board starten?")) {
+            socket.emit('host_show_podium');
+        }
+    });
+}
 
 toggleTheme(); // Theme init
 

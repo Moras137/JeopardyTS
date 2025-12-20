@@ -122,6 +122,7 @@ export interface ServerToClientEvents {
     player_start_freetext: (data: { text: string, points: number }) => void;
     board_show_freetext_results: (data: { answers: { playerId: string, name: string, text: string }[] }) => void;
     board_freetext_mark_correct: (playerId: string) => void;
+    board_show_podium: (sortedPlayers: IPlayer[]) => void;
 }
 
 export interface ClientToServerEvents {
@@ -148,4 +149,5 @@ export interface ClientToServerEvents {
     player_submit_freetext: (text: string) => void;
     host_resolve_freetext: () => void;
     host_manual_score_update: (data: { playerId: string, newScore: number }) => void;
+    host_show_podium: () => void;
 }
