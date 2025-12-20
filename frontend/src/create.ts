@@ -412,8 +412,8 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                 <span>Sekunden</span>
 
                 <button type="button" class="secondary-btn" onclick="previewPixelEffect('${qId}')" 
-                        style="margin-top:0; margin-left:auto; background:#fff; color: #28a745; border-color: #28a745;">
-                    ▶ Effekt Vorschau
+                        style="margin-top:0; margin-left:auto; background:#fff; color: #000000ff; border-color: #000000ff;">
+                    Effekt Vorschau
                 </button>
             </div>
             
