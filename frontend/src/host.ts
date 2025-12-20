@@ -288,6 +288,10 @@ socket.on('host_restore_active_question', (data) => {
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none'; 
+        estimateModeControls.style.display = 'none';
+        freetextModeControls.style.display = 'none';
+        pixelModeControls.style.display = 'none';   
         unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
     }
 
