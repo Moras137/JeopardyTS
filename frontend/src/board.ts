@@ -112,13 +112,10 @@ socket.on('board_show_question', (data) => {
     freetextContainer.innerHTML = '';
     
     questionText.innerText = question.questionText;
+    mapDiv.style.display = 'none';
 
     // --- MAP FRAGE ---
-    if (question.type === 'map' && question.location) {
-        mapDiv.style.display = 'block';
-        // Leaflet braucht sichtbaren Container, daher kurzer Timeout
-        setTimeout(() => initMap(question), 100);
-    } else if (question.type === 'list') {
+    if (question.type === 'list') {
         // NEU: List Modus
         listContainer.style.display = 'flex';
         
@@ -197,67 +194,89 @@ socket.on('board_reveal_answer', () => {
 });
 
 socket.on('board_reveal_map_results', (data: { results: any, players: Record<string, IPlayer>, target: any }) => {
-    if(!mapInstance) return;
-
-    const map = mapInstance; 
     
-    const { results, players, target } = data;
-    const bounds: L.LatLngTuple[] = [[target.lat, target.lng]];
+    // 1. UI Umschalten
+    mediaContainer.style.display = 'none'; 
+    questionText.style.display = 'none';  
+    mapDiv.style.display = 'block';        
 
-    // 1. ZIEL MARKER
-    const targetIcon = L.divIcon({
-        className: 'target-icon',
-        html: `<div style="width:20px; height:20px; background:#00ff00; border:2px solid black; border-radius:50%; box-shadow:0 0 10px #00ff00;"></div>
-               <div style="position:absolute; top:-25px; left:-20px; background:black; color:#00ff00; padding:2px 5px; font-weight:bold; border:1px solid #00ff00;">LÖSUNG</div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-    });
-    L.marker([target.lat, target.lng], {icon: targetIcon, zIndexOffset: 1000}).addTo(map);
+    // 2. TIMEOUT HINZUFÜGEN (Der wichtige Fix!)
+    // Wir warten 100ms, damit der Browser das 'display: block' rendern kann,
+    // bevor Leaflet die Größe berechnet.
+    setTimeout(() => {
+        
+        // Karte initialisieren, falls noch nicht da
+        if (!mapInstance && currentQuestion) {
+            initMap(currentQuestion);
+        }
 
-    // 2. SPIELER MARKER
-    Object.keys(results).forEach(playerId => {
-        const res = results[playerId];
-        const player = players[playerId];
-        if(!player) return;
+        if (!mapInstance) return;
 
-        const distText = target.isCustomMap 
-            ? Math.round(res.distance) + " px" 
-            : res.distance.toFixed(1) + " km";
+        const map = mapInstance; 
+        
+        // Leaflet zwingen, die Container-Größe neu zu berechnen
+        map.invalidateSize();
 
-        const winnerLabel = res.isWinner 
-            ? '<br><span style="color:#00ff00; font-weight:900;">★ GEWINNER ★</span>' 
-            : '';
+        const { results, players, target } = data;
+        const bounds: L.LatLngTuple[] = [[target.lat, target.lng]];
 
-        const html = `
-            <div class="marker-wrapper">
-                <div class="marker-dot" style="background:${player.color}; ${res.isWinner ? 'border:3px solid #00ff00; width:18px; height:18px;' : ''}"></div>
-                <div class="marker-label">
-                    <span style="color:${player.color}; font-weight:bold;">${player.name}</span><br>
-                    ${distText}
-                    ${winnerLabel}
-                </div>
-            </div>`;
+        // --- Marker Logik (wie zuvor) ---
 
-        const pIcon = L.divIcon({
-            className: 'custom-map-marker',
-            html: html,
-            iconSize: [0,0], 
-            iconAnchor: [0,0] 
+        // 1. ZIEL MARKER
+        const targetIcon = L.divIcon({
+            className: 'target-icon',
+            html: `<div style="width:20px; height:20px; background:#00ff00; border:2px solid black; border-radius:50%; box-shadow:0 0 10px #00ff00;"></div>
+                   <div style="position:absolute; top:-25px; left:-20px; background:black; color:#00ff00; padding:2px 5px; font-weight:bold; border:1px solid #00ff00;">LÖSUNG</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+        L.marker([target.lat, target.lng], {icon: targetIcon, zIndexOffset: 1000}).addTo(map);
+
+        // 2. SPIELER MARKER
+        Object.keys(results).forEach(playerId => {
+            const res = results[playerId];
+            const player = players[playerId];
+            if(!player) return;
+
+            const distText = target.isCustomMap 
+                ? Math.round(res.distance) + " px" 
+                : res.distance.toFixed(1) + " km";
+
+            const winnerLabel = res.isWinner 
+                ? '<br><span style="color:#00ff00; font-weight:900;">★ GEWINNER ★</span>' 
+                : '';
+
+            const html = `
+                <div class="marker-wrapper">
+                    <div class="marker-dot" style="background:${player.color}; ${res.isWinner ? 'border:3px solid #00ff00; width:18px; height:18px;' : ''}"></div>
+                    <div class="marker-label">
+                        <span style="color:${player.color}; font-weight:bold;">${player.name}</span><br>
+                        ${distText}
+                        ${winnerLabel}
+                    </div>
+                </div>`;
+
+            const pIcon = L.divIcon({
+                className: 'custom-map-marker',
+                html: html,
+                iconSize: [0,0], 
+                iconAnchor: [0,0] 
+            });
+
+            L.marker([res.lat, res.lng], {icon: pIcon}).addTo(map);
+            
+            L.polyline([[target.lat, target.lng], [res.lat, res.lng]], {
+                color: player.color, weight: res.isWinner ? 4 : 2, opacity: 0.8, dashArray: '5, 10'
+            }).addTo(map);
+
+            bounds.push([res.lat, res.lng]);
         });
 
-        L.marker([res.lat, res.lng], {icon: pIcon}).addTo(map);
+        if(bounds.length > 0) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        }
         
-        // Linie zeichnen
-        L.polyline([[target.lat, target.lng], [res.lat, res.lng]], {
-            color: player.color, weight: res.isWinner ? 4 : 2, opacity: 0.8, dashArray: '5, 10'
-        }).addTo(map);
-
-        bounds.push([res.lat, res.lng]);
-    });
-
-    if(bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-    }
+    }, 200); // 200ms Verzögerung reicht meistens völlig aus
 });
 
 socket.on('board_hide_question', () => {
@@ -409,7 +428,7 @@ socket.on('board_show_freetext_results', (data) => {
 });
 
 socket.on('board_freetext_mark_correct', (playerId: string) => {
-    const card = document.getElementById(`ft-card-${playerId}`);
+    const card = document.getElementById(`ft-card-${playerId}`);mapDiv.style.display = 'none';
     if (card) {
         card.classList.add('correct');
         // Optional: Kleiner Konfetti-Effekt oder Haken
