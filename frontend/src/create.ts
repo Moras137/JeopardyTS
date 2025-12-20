@@ -1358,6 +1358,8 @@ function renderBoardPreview() {
                 
                 const qMedia = (qBlock.querySelector('.q-media-path') as HTMLInputElement)?.value;
                 const aMedia = (qBlock.querySelector('.q-answer-media-path') as HTMLInputElement)?.value;
+                const qIcon = getMediaIcon(qMedia);
+                const aIcon = getMediaIcon(aMedia);
 
                 card.innerHTML = `
                     <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
@@ -1365,8 +1367,8 @@ function renderBoardPreview() {
                         ${isMap ? '<span style="font-size:0.8rem;">(Map)</span>' : ''}
                     </div>
 
-                    ${qMedia ? '<span class="media-indicator left" title="Frage-Bild vorhanden">📷</span>' : ''}
-                    ${aMedia ? '<span class="media-indicator right" title="Antwort-Bild vorhanden">🎬</span>' : ''}
+                    ${qMedia ? `<span class="media-indicator left" title="Frage-Medium">${qIcon}</span>` : ''}
+                    ${aMedia ? `<span class="media-indicator right" title="Antwort-Medium">${aIcon}</span>` : ''}
                 `;
                 
                 card.onclick = (e) => {
@@ -2032,6 +2034,19 @@ function clearSfx(type: 'correct' | 'incorrect') {
     upload.value = '';
 }
 (window as any).clearSfx = clearSfx;
+
+
+function getMediaIcon(path: string): string {
+    if (!path) return '';
+    const ext = path.split('.').pop()?.toLowerCase();
+    
+    // Audio
+    if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext || '')) return '🎵';
+    // Video
+    if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) return '🎥';
+    // Standard: Bild
+    return '🖼️';
+}
 
 initTheme();
 
