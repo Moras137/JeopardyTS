@@ -715,8 +715,15 @@ async function saveGame() {
                 const isCustom = (qBlock.querySelector('.q-is-custom') as HTMLInputElement).value === 'true';
                 const customPath = (qBlock.querySelector('.q-custom-path') as HTMLInputElement).value;
                 
-                if(lat && lng) {
-                    loc = { lat: parseFloat(lat), lng: parseFloat(lng), isCustomMap: isCustom, customMapPath: customPath, mapWidth: 1000, mapHeight: 1000 };
+                if ((lat && lng) || (isCustom && customPath)) {
+                    loc = { 
+                        lat: parseFloat(lat) || 0, 
+                        lng: parseFloat(lng) || 0, 
+                        isCustomMap: isCustom, 
+                        customMapPath: customPath, 
+                        mapWidth: 1000, 
+                        mapHeight: 1000 
+                    };
                 }
             }
             else if (type === 'pixel') {
