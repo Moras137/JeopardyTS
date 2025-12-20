@@ -1354,17 +1354,27 @@ function renderBoardPreview() {
                 const pointsInput = qBlock.querySelector('.q-points') as HTMLInputElement;
                 const points = pointsInput.value;
                 const typeSelect = qBlock.querySelector('.q-type-select') as HTMLSelectElement;
-                const isMap = typeSelect.value === 'map';
+                const type = typeSelect ? typeSelect.value : 'standard';
                 
                 const qMedia = (qBlock.querySelector('.q-media-path') as HTMLInputElement)?.value;
                 const aMedia = (qBlock.querySelector('.q-answer-media-path') as HTMLInputElement)?.value;
                 const qIcon = getMediaIcon(qMedia);
                 const aIcon = getMediaIcon(aMedia);
 
+                let typeIcon = '';
+                switch(type) {
+                    case 'map':      typeIcon = 'Map'; break; // Weltkugel
+                    case 'estimate': typeIcon = 'Schätzen'; break; // Zahlen
+                    case 'list':     typeIcon = 'Liste'; break; // Liste/Notizblock
+                    case 'pixel':    typeIcon = 'Pixel'; break; // Puzzle
+                    case 'freetext': typeIcon = 'Freie Frage'; break; // Stift
+                    case 'standard': typeIcon = 'Standard';   break; // Leer lassen oder 🔔
+                }
+
                 card.innerHTML = `
                     <div style="display:flex; flex-direction:column; align-items:center; pointer-events:none;">
                         <span>${points}</span>
-                        ${isMap ? '<span style="font-size:0.8rem;">(Map)</span>' : ''}
+                        ${typeIcon ? `<span style="font-size:1.5rem; line-height:1; margin-top:2px;" title="Typ: ${type}">${typeIcon}</span>` : ''}
                     </div>
 
                     ${qMedia ? `<span class="media-indicator left" title="Frage-Medium">${qIcon}</span>` : ''}
