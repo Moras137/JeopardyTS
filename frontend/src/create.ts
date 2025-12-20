@@ -338,8 +338,6 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const type = qData.type ?? 'standard';
     
     const qText = qData.questionText ?? '';
-    const points = qData.points ?? 100;
-    const negPoints = qData.negativePoints ?? 50;
     const media = qData.mediaPath ?? '';
     
     const aText = qData.answerText ?? ''; 
@@ -353,6 +351,15 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
 
     const pxDuration = qData.pixelConfig?.resolutionDuration ?? 15;
     const pxType = qData.pixelConfig?.effectType ?? 'pixelate';
+
+    const existingCount = qContainer.querySelectorAll('.question-block').length;
+    const rowIndex = existingCount + 1; 
+    
+    const defaultPoints = rowIndex * 100;
+    const defaultNegPoints = defaultPoints / 2;
+
+    const points = qData.points ?? defaultPoints;
+    const negPoints = qData.negativePoints ?? defaultNegPoints;
 
     const html = `
     <div class="question-block type-${type}" id="block-${qId}">
@@ -469,7 +476,11 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                 </div>
 
                 <div id="custom-upload-${qId}" style="display:${isCustom?'block':'none'}; margin-top:5px;">
-                    <input type="file" onchange="uploadCustomMap(this, '${qId}')">
+                    <div id="drop-zone-map-${qId}" class="drag-drop-zone compact">
+                        <input type="file" id="upload-map-${qId}" onchange="uploadCustomMap(this, '${qId}')" style="display:none;">
+                        <span class="drop-hint">Karte hierher ziehen oder klicken</span>
+                        <span class="upload-status" style="font-size: 0.9rem;"></span>
+                    </div>
                 </div>
              </div>
 
@@ -505,6 +516,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     setTimeout(() => {
         setupDragAndDrop(`drop-zone-q-${qId}`, `file-upload-${qId}`);
         setupDragAndDrop(`drop-zone-ans-${qId}`, `file-upload-ans-${qId}`);
+        setupDragAndDrop(`drop-zone-map-${qId}`, `upload-map-${qId}`);
     }, 0);
 
     checkQuestionFilled(document.getElementById(`block-${qId}`));
@@ -525,36 +537,67 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
 
     let map: L.Map;
 
-    if (isCustom && customPath) {
-        const img = new Image();
+    if (isCustom) {
+        if (customPath) {
+            mapEl.style.background = '';
+            const img = new Image();
 
-        img.onerror = (err) => {
-            console.error("BILD LADEFEHLER:", err);
-            alert(`Bild konnte nicht geladen werden.\nPfad: ${customPath}\n`);
-        };
+            img.onerror = (err) => {
+                console.error("BILD LADEFEHLER:", err);
+                mapEl.innerHTML = '<div style="padding:20px; text-align:center; color:red;">Bild konnte nicht geladen werden.</div>';
+            };
 
-        img.onload = () => {
-            const w = img.width;
-            const h = img.height;
+            img.onload = () => {
+                const w = img.width;
+                const h = img.height;
+                map = L.map(mapId, {
+                    crs: L.CRS.Simple,
+                    minZoom: -2, 
+                    zoom: 0,
+                    center: [h/2, w/2]
+                });
+                const bounds: L.LatLngBoundsExpression = [[0,0], [h,w]];
+                L.imageOverlay(customPath, bounds).addTo(map);
+                map.fitBounds(bounds);
+                
+                setupMapClick(map, qId);
+                
+                if (lat !== undefined && lng !== undefined && !isNaN(lat)) {
+                     L.marker([lat, lng]).addTo(map);
+                }
+                
+                mapInstances[qId] = map;
+            };
+            img.src = customPath;
+        } else {
             map = L.map(mapId, {
                 crs: L.CRS.Simple,
-                minZoom: -2, 
+                center: [0, 0],
                 zoom: 0,
-                center: [h/2, w/2]
+                zoomControl: false,
+                attributionControl: false,
+                dragging: false,
+                scrollWheelZoom: false,
+                doubleClickZoom: false,
+                boxZoom: false
             });
-            const bounds: L.LatLngBoundsExpression = [[0,0], [h,w]];
-            L.imageOverlay(customPath, bounds).addTo(map);
-            map.fitBounds(bounds);
-            setupMapClick(map, qId);
-            if (lat && lng) L.marker([lat, lng]).addTo(map);
+            
+            mapEl.style.background = '#e0e0e0';
+            mapEl.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;pointer-events:none;">Bitte Bild hochladen</div>';
+            
             mapInstances[qId] = map;
-        };
-        img.src = customPath;
+        }
     } else {
+        mapEl.style.background = ''; 
         map = L.map(mapId).setView([lat || 51.16, lng || 10.45], lat ? 13 : 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
         setupMapClick(map, qId);
-        if (lat && lng) L.marker([lat, lng]).addTo(map);
+        
+        if (lat && lng && !isNaN(lat)) {
+            L.marker([lat, lng]).addTo(map);
+        }
+        
         mapInstances[qId] = map;
     }
 }
@@ -590,21 +633,37 @@ window.toggleMapSource = (qId, source) => {
 };
 
 window.uploadCustomMap = async (input, qId) => {
+    // Status-Element im Container finden
+    const parent = input.closest('.drag-drop-zone');
+    const statusEl = parent?.querySelector('.upload-status') as HTMLElement;
+
     const file = input.files?.[0];
     if(!file) return;
     
     const fd = new FormData();
     fd.append('mediaFile', file);
+    
+    if(statusEl) statusEl.innerText = "Lade hoch...";
+
     try {
         const res = await fetch('/api/upload', { method: 'POST', body: fd });
         const data = await res.json();
         if(data.success) {
             (document.getElementById(`custom-path-${qId}`) as HTMLInputElement).value = data.filePath;
+            // Karte neu initialisieren mit dem neuen Bild
             initMap(qId, undefined, undefined, true, data.filePath);
+            
+            if(statusEl) statusEl.innerText = "Fertig!";
+        } else {
+            alert("Fehler: " + data.message);
+            if(statusEl) statusEl.innerText = "Fehler";
         }
-    } catch(e) { alert("Fehler beim Map Upload"); }
+    } catch(e) { 
+        console.error(e);
+        alert("Fehler beim Map Upload"); 
+        if(statusEl) statusEl.innerText = "Fehler";
+    }
 };
-
 
 // --- 4. SPEICHERN & LADEN ---
 
