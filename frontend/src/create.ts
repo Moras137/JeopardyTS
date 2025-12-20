@@ -603,13 +603,16 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
 }
 
 function setupMapClick(map: L.Map, qId: string) {
-    let marker: L.Marker | undefined;
-    
     map.on('click', (e) => {
         const { lat, lng } = e.latlng;
         
-        if (marker) marker.setLatLng(e.latlng);
-        else marker = L.marker(e.latlng).addTo(map);
+        map.eachLayer((layer) => {
+            if (layer instanceof L.Marker) {
+                map.removeLayer(layer);
+            }
+        });
+
+        L.marker(e.latlng).addTo(map);
 
         (document.getElementById(`lat-${qId}`) as HTMLInputElement).value = lat.toString();
         (document.getElementById(`lng-${qId}`) as HTMLInputElement).value = lng.toString();
@@ -1240,7 +1243,10 @@ function renderBoardPreview() {
         return;
     }
 
-    grid.style.gridTemplateColumns = `repeat(${categories.length}, 1fr)`;
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = `repeat(${categories.length}, minmax(0, 1fr))`;
+    grid.style.gap = '10px';
+    grid.style.width = '100%';
 
     categories.forEach((cat, index) => {
         const nameInput = cat.querySelector('.cat-name') as HTMLInputElement;
@@ -1249,6 +1255,25 @@ function renderBoardPreview() {
         const header = document.createElement('div');
         header.className = 'preview-cat-header';
         header.innerText = name;
+
+        Object.assign(header.style, {
+            backgroundColor: '#000080', // Dunkelblau
+            color: 'white',
+            fontWeight: 'bold',
+            padding: '10px 5px',
+            textAlign: 'center',
+            border: '2px solid #fff',
+            
+            // Die 3 magischen Zeilen für "..."
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            
+            // Damit es sauber aussieht
+            display: 'block',
+            width: '100%', 
+            boxSizing: 'border-box'
+        });
         grid.appendChild(header);
     });
 
@@ -1262,6 +1287,20 @@ function renderBoardPreview() {
             
             const card = document.createElement('div');
             card.className = 'preview-card';
+
+            Object.assign(card.style, {
+                height: '80px',           // Feste Höhe
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                border: '2px solid #fff',
+                backgroundColor: '#007bff',
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '1.2rem',
+                position: 'relative',
+                cursor: 'pointer'
+            });
             
             card.draggable = true;
             card.addEventListener('dragstart', (e) => handleDragStart(e, cIndex, r));
