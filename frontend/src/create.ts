@@ -497,6 +497,9 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                 
                 <input type="hidden" class="q-is-custom" id="is-custom-${qId}" value="${isCustom}">
                 <input type="hidden" class="q-custom-path" id="custom-path-${qId}" value="${customPath}">
+
+                <input type="hidden" class="q-map-width" id="map-w-${qId}" value="${qData.location?.mapWidth || ''}">
+                <input type="hidden" class="q-map-height" id="map-h-${qId}" value="${qData.location?.mapHeight || ''}">
             </div>
              
              <label>Ortsname (Anzeige bei Lösung):</label>
@@ -550,6 +553,12 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
             img.onload = () => {
                 const w = img.width;
                 const h = img.height;
+
+                const wInput = document.getElementById(`map-w-${qId}`) as HTMLInputElement;
+                const hInput = document.getElementById(`map-h-${qId}`) as HTMLInputElement;
+                if(wInput) wInput.value = w.toString();
+                if(hInput) hInput.value = h.toString();
+
                 map = L.map(mapId, {
                     crs: L.CRS.Simple,
                     minZoom: -2, 
@@ -717,6 +726,8 @@ async function saveGame() {
                 const lng = (qBlock.querySelector('.q-lng') as HTMLInputElement).value;
                 const isCustom = (qBlock.querySelector('.q-is-custom') as HTMLInputElement).value === 'true';
                 const customPath = (qBlock.querySelector('.q-custom-path') as HTMLInputElement).value;
+                const wInput = (qBlock.querySelector('.q-map-width') as HTMLInputElement).value;
+                const hInput = (qBlock.querySelector('.q-map-height') as HTMLInputElement).value;
                 
                 if ((lat && lng) || (isCustom && customPath)) {
                     loc = { 
@@ -724,8 +735,8 @@ async function saveGame() {
                         lng: parseFloat(lng) || 0, 
                         isCustomMap: isCustom, 
                         customMapPath: customPath, 
-                        mapWidth: 1000, 
-                        mapHeight: 1000 
+                        mapWidth: parseInt(wInput) || 1000, 
+                        mapHeight: parseInt(hInput) || 1000
                     };
                 }
             }

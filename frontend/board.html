@@ -87,36 +87,25 @@
              opacity: 0; 
              visibility: hidden; 
         }
-
-        /* --- QUESTION OVERLAY --- */
-        #question-overlay { 
-            position: fixed; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            background: var(--bg-board); 
-            z-index: 50; 
-            display: none; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: flex-start; 
-            padding: 5vh 5vw; 
-            box-sizing: border-box; 
-        }
         
         /* --- QUESTION OVERLAY --- */
-        #question-overlay { 
-            position: fixed; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            background: var(--bg-board); 
-            z-index: 50; 
-            display: none; 
-            flex-direction: column; 
-            align-items: center; 
-            /* ÄNDERUNG: Startet oben statt in der Mitte, damit der Titel immer sichtbar ist */
-            justify-content: flex-start; 
-            padding: 5vh 5vw; 
-            box-sizing: border-box; 
+        #question-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; 
+            
+            height: 85vh; 
+            
+            background: var(--bg-board);
+            z-index: 50;
+            
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            
+            padding: 2vh 5vw;
+            box-sizing: border-box;
         }
         
         #question-text { 
@@ -194,11 +183,17 @@
 
         #answer-text { 
             display: none; 
-            font-size: 6vh; 
+            flex-shrink: 0;
+            
+            font-size: clamp(2rem, 6vh, 4rem); 
             background: #000066; 
-            padding: 20px; 
-            border-radius: 10px;
-            margin-top: 20px; 
+            color: white; 
+            padding: 15px 30px; 
+            border-radius: 15px; 
+            text-align: center; 
+            border: 3px solid var(--border-highlight); 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            margin-top: auto; 
         }
         
         #media-container { 
@@ -346,32 +341,52 @@
         }
 
         .estimate-result-row {
-        background: #fff;
-        color: #000;
-        margin-bottom: 10px;
-        padding: 15px;
-        border-radius: 8px;
-        font-size: 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        opacity: 0;
-        animation: slideInResult 0.5s forwards;
-    }
+            width: 100%;
+            background: #fff;
+            color: #000;
+            margin-bottom: 10px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: clamp(1.5rem, 3vh, 2.5rem);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            flex-shrink: 0; 
+            opacity: 0;
+            animation: slideInResult 0.5s forwards;
+        }
     
-    .estimate-winner {
-        background: #28a745;
-        color: white;
-        border: 3px solid #ffcc00;
-        transform: scale(1.05);
-    }
+        .estimate-winner {
+            background: #28a745;
+            color: white;
+            border: 3px solid #ffcc00;
+            transform: scale(1.02);
+        }
 
-    @keyframes slideInResult {
-        from { transform: translateY(20px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-    }
+        #estimate-results {
+            display: none;
+            width: 100%;
+            max-width: 900px;
+            
+            flex: 1; 
+            
+            min-height: 0; 
+            overflow-y: auto; 
+            
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            
+            margin-bottom: 20px;
+        }
 
-    #freetext-container {
+        @keyframes slideInResult {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        #freetext-container {
             display: none;
             width: 90%;
             flex-wrap: wrap;
@@ -436,7 +451,7 @@
         <div id="q-map"></div>
         <div id="list-container"></div>
         <div id="freetext-container"></div>
-        <div id="estimate-results" style="display:none; width: 80%; margin-top: 20px;"></div>
+        <div id="estimate-results"></div>
         <div id="answer-text"></div>
     </div>
 

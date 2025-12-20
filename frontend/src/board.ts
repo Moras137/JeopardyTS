@@ -200,9 +200,6 @@ socket.on('board_reveal_map_results', (data: { results: any, players: Record<str
     questionText.style.display = 'none';  
     mapDiv.style.display = 'block';        
 
-    // 2. TIMEOUT HINZUFÜGEN (Der wichtige Fix!)
-    // Wir warten 100ms, damit der Browser das 'display: block' rendern kann,
-    // bevor Leaflet die Größe berechnet.
     setTimeout(() => {
         
         // Karte initialisieren, falls noch nicht da
@@ -273,7 +270,7 @@ socket.on('board_reveal_map_results', (data: { results: any, players: Record<str
         });
 
         if(bounds.length > 0) {
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 1 });
         }
         
     }, 200); // 200ms Verzögerung reicht meistens völlig aus
@@ -382,6 +379,10 @@ socket.on('board_reveal_estimate_results', (data) => {
     estimateResultsDiv.style.display = 'block';
     estimateResultsDiv.innerHTML = '';
 
+    mediaContainer.style.display = 'none'; 
+    mediaContainer.innerHTML = '';      
+    mapDiv.style.display = 'none';
+
     // Liste bauen
     data.guesses.forEach((g, index) => {
         const row = document.createElement('div');
@@ -394,10 +395,10 @@ socket.on('board_reveal_estimate_results', (data) => {
         const diffDisplay = g.diff % 1 === 0 ? g.diff : g.diff.toFixed(2);
         
         row.innerHTML = `
-            <span>${index + 1}. ${g.name}</span>
-            <div style="display:flex; gap:20px;">
-                <span>Tipp: ${g.value}</span>
-                <span style="font-size:0.8em; opacity:0.8;">(Abw: ${diffDisplay})</span>
+            <span style="font-weight:bold; text-align:left;">${index + 1}. ${g.name}</span>
+            <div style="display:flex; gap:15px; align-items:center;">
+                <span style="background:#eee; color:#000; padding:2px 10px; border-radius:4px;">${g.value}</span>
+                <span style="font-size:0.6em; opacity:0.7;">(±${diffDisplay})</span>
             </div>
         `;
         estimateResultsDiv.appendChild(row);
@@ -482,7 +483,8 @@ function initMap(question: IQuestion) {
         zoomSnap: 0.5,
         zoomControl: true,
         attributionControl: false,
-        crs: crsMode
+        crs: crsMode,
+        minZoom: loc.isCustomMap ? -5 : 1
     });
 
     if (loc.isCustomMap && loc.customMapPath) {

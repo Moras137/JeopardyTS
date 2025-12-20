@@ -258,14 +258,20 @@ socket.on('player_start_map_guess', (data) => {
             zoomSnap: 0.5,
             zoomControl: false, // Mobil besser ohne Zoom-Buttons
             attributionControl: false,
-            crs: L.CRS.Simple // Standard für Init, wird ggf. geändert
+            crs: L.CRS.Simple,
+            minZoom: -5
         });
 
         const location = data.location;
 
+        playerMap.invalidateSize();
+
         if (location && location.isCustomMap && location.customMapPath) {
             // --- CUSTOM MAP ---
-            const bounds: L.LatLngBoundsExpression = [[0, 0], [location.mapHeight, location.mapWidth]];
+            const h = location.mapHeight;
+            const w = location.mapWidth;
+
+            const bounds: L.LatLngBoundsExpression = [[0, 0], [h, w]];
             L.imageOverlay(location.customMapPath, bounds).addTo(playerMap);
             playerMap.fitBounds(bounds);
         } else {
@@ -275,9 +281,9 @@ socket.on('player_start_map_guess', (data) => {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19
             }).addTo(playerMap);
-        }
 
-        playerMap.invalidateSize();
+            playerMap.invalidateSize();
+        }
 
         // Klick Event
         playerMap.on('click', (e: L.LeafletMouseEvent) => {
