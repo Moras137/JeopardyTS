@@ -399,7 +399,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
         <input type="hidden" class="q-media-path" id="media-${qId}" value="${media}">
 
         <div class="type-section section-pixel" style="display:none; background: rgba(0, 123, 255, 0.1); padding: 10px; border: 1px dashed #007bff; margin-top:10px; border-radius: 4px;">
-            <label style="font-weight:bold; color: #007bff;">🧩 Pixel-Puzzle Einstellungen:</label>
+            <label style="font-weight:bold; color: #007bff;">Pixel-Puzzle Einstellungen:</label>
             <div style="display:flex; gap:10px; align-items:center; margin-top:5px;">
                 <select class="q-pixel-type" style="width: auto; padding: 5px;">
                     <option value="pixelate" ${pxType === 'pixelate' ? 'selected' : ''}>Klassisch (Verpixeln)</option>
@@ -441,7 +441,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                     
                     <div style="display:flex; align-items:center; gap:10px; width:100%; justify-content:center;">
                         <span class="upload-status" style="font-size: 0.9rem; min-width: 50px;"></span>
-                        <button type="button" class="sidebar-delete-btn" onclick="event.stopPropagation(); removeQuestionMedia('${qId}', 'answer')" title="Entfernen">🗑</button>
+                        <button type="button" class="sidebar-delete-btn" onclick="event.stopPropagation(); removeQuestionMedia('${qId}', 'answer')" title="Entfernen">Entfernen</button>
                     </div>
                 </div>
 
@@ -1738,9 +1738,9 @@ function filterAndRenderTiles(searchTerm: string) {
             <div class="tile-content">
                 <h3 class="tile-title" title="${game.title}">${game.title || 'Unbenannt'}</h3>
                 <div class="tile-actions">
-                    <button class="tile-btn btn-play" onclick="startGame('${game._id}')">▶ Spielen</button>
-                    <button class="tile-btn btn-edit" onclick="loadGame('${game._id}')">✏ Edit</button>
-                    <button class="tile-btn btn-del" onclick="deleteGame('${game._id}')">🗑</button>
+                    <button class="tile-btn btn-play" onclick="startGame('${game._id}')">Spielen</button>
+                    <button class="tile-btn btn-edit" onclick="loadGame('${game._id}')">Bearbeiten</button>
+                    <button class="tile-btn btn-del" onclick="deleteGame('${game._id}')">Löschen</button>
                 </div>
             </div>
         `;

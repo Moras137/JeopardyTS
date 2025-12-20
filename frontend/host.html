@@ -258,6 +258,19 @@
             #sidebar { width: 250px; min-width: 250px; }
             .q-btn { font-size: 1.2rem; padding: 10px; }
         }
+        #btn-intro-next {
+            white-space: normal !important;   /* Erlaubt Zeilenumbruch */
+            height: auto !important;          /* Höhe darf wachsen */
+            min-height: 44px;                 /* Mindesthöhe für gute Klickbarkeit */
+            line-height: 1.3;                 /* Schönerer Zeilenabstand bei 2 Zeilen */
+            text-align: center;               
+            
+            /* WICHTIG für dein Screenshot-Problem (lange Wörter ohne Leerzeichen): */
+            word-break: break-word;           
+            overflow-wrap: break-word;
+            
+            padding: 10px;                    /* Innenabstand sicherstellen */
+        }
     </style>
 </head>
 <body>
@@ -271,7 +284,7 @@
             </div>
             <button id="toggle-qr-btn" class="host-btn btn-info btn-full">QR-Code zeigen</button>
             <button id="btn-intro-next" class="host-btn btn-warning btn-full" style="margin-bottom: 10px; border: 2px solid white;">
-                🚀 Start: Titel zeigen
+                Start: Titel zeigen
             </button>
         </div>
 
@@ -286,7 +299,7 @@
         <div class="sidebar-section bottom">
             <div id="music-controls" style="display:none;">
                 <div class="music-row">
-                    <span style="font-weight:bold; font-size:0.9rem;">🎵 Hintergrundmusik</span>
+                    <span style="font-weight:bold; font-size:0.9rem;">Hintergrundmusik</span>
                     <button id="btn-music-toggle" class="icon-btn" title="Play/Pause">▶</button>
                 </div>
                 <div class="music-row">
@@ -329,15 +342,15 @@
                 
                 <div id="buzz-winner-section" style="width: 100%; display:none; background: rgba(255, 193, 7, 0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid var(--color-warning);">
                     <div style="text-align: center; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px;">
-                        🚨 GEBUZZERT: <span id="buzz-winner-name" style="color: var(--color-primary); font-size: 1.4rem;">Name</span>
+                        Gebuzzert: <span id="buzz-winner-name" style="color: var(--color-primary); font-size: 1.4rem;">Name</span>
                     </div>
                     <div style="display: flex; gap: 10px; justify-content: center;">
-                        <button id="correct-btn" class="host-btn btn-success">Richtig ✅</button>
-                        <button id="incorrect-btn" class="host-btn btn-danger">Falsch ❌</button>
+                        <button id="correct-btn" class="host-btn btn-success">Richtig</button>
+                        <button id="incorrect-btn" class="host-btn btn-danger">Falsch</button>
                     </div>
                 </div>
 
-                <button id="unlock-buzzers-btn" class="host-btn btn-warning" style="display:none;">🔓 Buzzer freigeben</button>
+                <button id="unlock-buzzers-btn" class="host-btn btn-warning" style="display:none;">Buzzer freigeben</button>
 
                 <div id="map-mode-controls" style="display:none; align-items: center; gap: 15px;">
                     <span style="font-weight:bold;">Map: <span id="map-submitted-count">0/0</span> abgegeben</span>
@@ -345,7 +358,7 @@
                 </div>
 
                 <div id="list-mode-controls" style="display:none; margin-top:15px; background:#fffbe6; padding:10px; border:1px solid #ffd700; border-radius:5px; color:#333;">
-                    <div style="font-weight:bold; margin-bottom:5px;">LISTE: Hinweise aufdecken</div>
+                    <div style="font-weight:bold; margin-bottom:5px;">Liste: Hinweise aufdecken</div>
                     <div id="list-items-preview" style="font-size:0.9rem; color:#555; margin-bottom:10px; font-style:italic;">
                         </div>
                     <button id="btn-reveal-list" class="host-btn btn-info">Nächsten Hinweis zeigen</button>
@@ -356,13 +369,13 @@
                 </div>
                 
                 <div id="pixel-mode-controls" style="display:none; align-items:center; gap:10px; background: #e6f7ff; padding: 10px; border-radius: 5px; border: 1px solid #1890ff;">
-                    <span style="font-weight:bold; color:#007bff;">🧩 Pixel:</span>
-                    <button id="btn-pixel-pause" class="host-btn btn-warning" style="padding: 5px 10px;">⏸ Pause</button>
-                    <button id="btn-pixel-resume" class="host-btn btn-success" style="padding: 5px 10px;">▶ Weiter</button>
+                    <span style="font-weight:bold; color:#007bff;">Pixel:</span>
+                    <button id="btn-pixel-pause" class="host-btn btn-warning" style="padding: 5px 10px;">Pause</button>
+                    <button id="btn-pixel-resume" class="host-btn btn-success" style="padding: 5px 10px;">Weiter</button>
                 </div>
 
                 <div id="estimate-mode-controls" style="display:none; align-items: center; gap: 15px; background: #e3f2fd; padding: 10px; border-radius: 5px; border: 1px solid #90caf9;">
-                    <span style="font-weight:bold; color: #0d47a1;">🔢 Schätzen: <span id="estimate-submitted-count">0/0</span></span>
+                    <span style="font-weight:bold; color: #0d47a1;">Schätzen: <span id="estimate-submitted-count">0/0</span></span>
                     <button id="resolve-estimate-btn" class="host-btn btn-primary">Auflösen & Punkte</button>
                 </div>
                 

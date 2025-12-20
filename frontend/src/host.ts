@@ -383,7 +383,7 @@ function updateHostControls(data: any) {
         } else {
             if(btnIntroNext) {
                 btnIntroNext.style.display = 'block';
-                btnIntroNext.innerText = "▶ " + data.nextIntroStep;
+                btnIntroNext.innerText = data.nextIntroStep;
                 // Farbe ändern wenn es "Zum Spielbrett" ist
                 if(data.nextIntroStep.includes('Spielbrett')) {
                      btnIntroNext.className = "host-btn btn-success btn-full";
