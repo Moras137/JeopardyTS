@@ -8,6 +8,7 @@ export interface ILocation {
     customMapPath: string;
     mapWidth: number;
     mapHeight: number;
+    radius?: number;
 }
 
 export interface IQuestion {

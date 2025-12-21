@@ -10,7 +10,8 @@ const questionSchema = new Schema<IQuestion>({
         isCustomMap: { type: Boolean, default: false }, 
         customMapPath: { type: String, default: '' },
         mapWidth: { type: Number }, 
-        mapHeight: { type: Number }
+        mapHeight: { type: Number },
+        radius: { type: Number, default: 0 }
     },
 
     estimationAnswer: { type: Number },

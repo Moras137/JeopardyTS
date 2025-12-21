@@ -250,8 +250,9 @@ socket.on('player_start_map_guess', (data) => {
         if (playerMap) {
             playerMap.remove();
             playerMap = null;
-            playerMarker = null;
         }
+
+        playerMarker = null;
 
         playerMap = L.map('player-map', {
             center: [0, 0],

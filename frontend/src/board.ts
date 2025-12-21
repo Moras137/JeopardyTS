@@ -203,87 +203,152 @@ socket.on('board_reveal_answer', () => {
     }
 });
 
-socket.on('board_reveal_map_results', (data: { results: any, players: Record<string, IPlayer>, target: any }) => {
+socket.on('board_reveal_map_results', (data) => {
+    // 1. UI ZURÜCKSETZEN & VORBEREITEN
+    questionText.style.display = 'none';
+    mediaContainer.style.display = 'none';
+    if(listContainer) listContainer.style.display = 'none';
+    if(estimateResultsDiv) estimateResultsDiv.style.display = 'none';
     
-    // 1. UI Umschalten
-    mediaContainer.style.display = 'none'; 
-    questionText.style.display = 'none';  
-    mapDiv.style.display = 'block';        
+    // Karte sichtbar machen
+    mapDiv.style.display = 'block';
 
+    // Falls Map noch nicht initialisiert (Sicherheitsnetz), jetzt tun:
+    if (!mapInstance && currentQuestion) {
+        initMap(currentQuestion);
+    }
+
+    // 2. TIMEOUT BLOCK (Wichtig für Rendering nach display:block)
     setTimeout(() => {
-        
-        // Karte initialisieren, falls noch nicht da
-        if (!mapInstance && currentQuestion) {
-            initMap(currentQuestion);
-        }
-
         if (!mapInstance) return;
-
-        const map = mapInstance; 
+        const map = mapInstance;
         
-        // Leaflet zwingen, die Container-Größe neu zu berechnen
+        // Leaflet Größe aktualisieren
         map.invalidateSize();
 
+        map.eachLayer((layer) => {
+            if (layer instanceof L.TileLayer || layer instanceof L.ImageOverlay) {
+                return;
+            }
+
+            map.removeLayer(layer);
+        });
+
         const { results, players, target } = data;
-        const bounds: L.LatLngTuple[] = [[target.lat, target.lng]];
+        if (!target) return;
 
-        // --- Marker Logik (wie zuvor) ---
-
-        // 1. ZIEL MARKER
+        // --- ZIEL MARKER ---
+        const targetLatLng = L.latLng(target.lat, target.lng);
         const targetIcon = L.divIcon({
-            className: 'target-icon',
+            className: 'map-target-icon',
             html: `<div style="width:20px; height:20px; background:#00ff00; border:2px solid black; border-radius:50%; box-shadow:0 0 10px #00ff00;"></div>
                    <div style="position:absolute; top:-25px; left:-20px; background:black; color:#00ff00; padding:2px 5px; font-weight:bold; border:1px solid #00ff00;">LÖSUNG</div>`,
             iconSize: [20, 20],
             iconAnchor: [10, 10]
         });
-        L.marker([target.lat, target.lng], {icon: targetIcon, zIndexOffset: 1000}).addTo(map);
+        L.marker(targetLatLng, { icon: targetIcon, zIndexOffset: 1000 }).addTo(map);
 
-        // 2. SPIELER MARKER
-        Object.keys(results).forEach(playerId => {
-            const res = results[playerId];
-            const player = players[playerId];
-            if(!player) return;
-
-            const distText = target.isCustomMap 
-                ? Math.round(res.distance) + " px" 
-                : res.distance.toFixed(1) + " km";
-
-            const winnerLabel = res.isWinner 
-                ? '<br><span style="color:#00ff00; font-weight:900;">★ GEWINNER ★</span>' 
-                : '';
-
-            const html = `
-                <div class="marker-wrapper">
-                    <div class="marker-dot" style="background:${player.color}; ${res.isWinner ? 'border:3px solid #00ff00; width:18px; height:18px;' : ''}"></div>
-                    <div class="marker-label">
-                        <span style="color:${player.color}; font-weight:bold;">${player.name}</span><br>
-                        ${distText}
-                        ${winnerLabel}
-                    </div>
-                </div>`;
-
-            const pIcon = L.divIcon({
-                className: 'custom-map-marker',
-                html: html,
-                iconSize: [0,0], 
-                iconAnchor: [0,0] 
-            });
-
-            L.marker([res.lat, res.lng], {icon: pIcon}).addTo(map);
-            
-            L.polyline([[target.lat, target.lng], [res.lat, res.lng]], {
-                color: player.color, weight: res.isWinner ? 4 : 2, opacity: 0.8, dashArray: '5, 10'
+        // --- RADIUS KREIS (NEU) ---
+        let circleBounds = null;
+        if (target.radius && target.radius > 0) {
+            const circle = L.circle(targetLatLng, {
+                color: '#28a745',       // Grün
+                fillColor: '#28a745',
+                fillOpacity: 0.2,
+                radius: target.radius,
+                weight: 1
             }).addTo(map);
+            circleBounds = circle.getBounds();
+        }
 
-            bounds.push([res.lat, res.lng]);
+        // --- SPIELER MARKER ---
+        const bounds = L.latLngBounds([targetLatLng]);
+        if (circleBounds) bounds.extend(circleBounds);
+
+        Object.keys(results).forEach((pid) => {
+            
+            const r = results[pid];
+            const p = players[pid];
+            if (!p) return;
+
+            const playerLatLng = L.latLng(r.lat, r.lng);
+            bounds.extend(playerLatLng);
+
+            
+            
+            // Linie zum Ziel
+            const isWin = r.isWinner;
+
+            let distText = '';
+            if (target.isCustomMap) {
+                distText = Math.round(r.distance) + ' px';
+            } else {
+                if (r.distance >= 1000) {
+                    distText = (r.distance / 1000).toFixed(2) + ' km';
+                } else {
+                    distText = Math.round(r.distance) + ' m';
+                }
+            }
+
+            const size = isWin ? 30 : 18;
+            const borderCol = isWin ? '#fff' : '#fff';
+            const shadow = isWin ? '0 0 10px #ffcc00' : '0 2px 4px rgba(0,0,0,0.5)';
+            const fontSize = isWin ? '1.2rem' : '0';
+
+            const markerHtml = `
+                <div style="
+                    background-color: ${p.color}; 
+                    width: ${size}px; height: ${size}px; 
+                    border-radius: 50%; 
+                    border: 2px solid ${borderCol};
+                    box-shadow: ${shadow};
+                    display: flex; align-items: center; justify-content: center;
+                    color: white; font-weight: bold; font-size: ${fontSize};
+                ">
+                    ${isWin ? '✓' : ''}
+                </div>
+                
+                <div style="
+                    position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
+                    background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 4px;
+                    font-size: 0.8rem; white-space: nowrap; pointer-events: none;
+                    text-align: center; line-height: 1.2; z-index: 9999;
+                    border: 1px solid #555;
+                ">
+                    <span style="font-weight:bold; color:${p.color}">${p.name}</span><br>
+                    <span style="font-size:0.75em; color:#ccc;">${distText}</span>
+                </div>
+            `;
+
+            const icon = L.divIcon({
+                className: 'player-map-marker',
+                html: markerHtml,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            
+            const marker = L.marker(playerLatLng, { icon }).addTo(map);
+            const dashArrayValue = isWin ? undefined : '5, 10';
+
+            L.polyline([playerLatLng, targetLatLng], { 
+                color: isWin ? '#28a745' : '#666', 
+                weight: isWin ? 3 : 1, 
+                dashArray: dashArrayValue,
+                opacity: isWin ? 0.8 : 0.5 
+            }).addTo(map);
+            
+            if (isWin) marker.setZIndexOffset(500);
         });
 
-        if(bounds.length > 0) {
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 1 });
-        }
-        
-    }, 200); // 200ms Verzögerung reicht meistens völlig aus
+        // --- ZOOM ANPASSEN ---
+        const maxZ = target.isCustomMap ? 2 : 16;
+        map.fitBounds(bounds, { 
+            padding: [50, 50], 
+            maxZoom: maxZ,
+            animate: true 
+        });
+
+    }, 200); // 100ms warten damit DOM fertig ist
 });
 
 socket.on('board_hide_question', () => {

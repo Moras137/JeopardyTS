@@ -144,7 +144,7 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
         const dy = lng1 - lng2;
         return Math.sqrt(dx * dx + dy * dy);
     }
-    const R = 6371; 
+    const R = 6371000; 
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLng = (lng2 - lng1) * (Math.PI / 180);
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -618,6 +618,8 @@ io.on('connection', (socket) => {
         
         const target = session.activeQuestion.location;
         const guesses = session.mapGuesses;
+        const radius = target.radius || 0;
+        let anyWinnerFound = false;
         let results: any = {};
         let bestDist = Infinity;
 
@@ -629,9 +631,22 @@ io.on('connection', (socket) => {
         }
 
         for (const pid in results) {
-            if (Math.abs(results[pid].distance - bestDist) < 0.001) {
-                results[pid].isWinner = true;
-                if(session.players[pid]) session.players[pid].score += session.activeQuestionPoints;
+            
+            const playerRes = results[pid];
+            
+            if (radius > 0) {
+                if (playerRes.distance <= radius) {
+                    playerRes.isWinner = true;
+                    anyWinnerFound = true;
+                    if(session.players[pid]) session.players[pid].score += session.activeQuestionPoints;
+                }
+            } 
+
+            else {
+                if (Math.abs(playerRes.distance - bestDist) < 0.001) {
+                    playerRes.isWinner = true;
+                    if(session.players[pid]) session.players[pid].score += session.activeQuestionPoints;
+                }
             }
         }
 

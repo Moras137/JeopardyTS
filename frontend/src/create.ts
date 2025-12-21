@@ -348,6 +348,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const lng = qData.location?.lng ?? '';
     const isCustom = qData.location?.isCustomMap ?? false;
     const customPath = qData.location?.customMapPath ?? '';
+    const radius = qData.location?.radius ?? 0;
 
     const pxDuration = qData.pixelConfig?.resolutionDuration ?? 15;
     const pxType = qData.pixelConfig?.effectType ?? 'pixelate';
@@ -500,6 +501,12 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
 
                 <input type="hidden" class="q-map-width" id="map-w-${qId}" value="${qData.location?.mapWidth || ''}">
                 <input type="hidden" class="q-map-height" id="map-h-${qId}" value="${qData.location?.mapHeight || ''}">
+
+                <div style="margin-top: 10px; display:flex; align-items:center; gap:10px;">
+                    <label style="margin:0;">Toleranz-Radius:</label>
+                    <input type="number" class="q-radius" id="radius-${qId}" value="${radius}" min="0" style="width: 100px;" oninput="updateMapCircle('${qId}')">
+                    <span style="font-size:0.8rem; color:#666;">(Meter bei OSM / Pixel bei Bild)</span>
+                </div>
             </div>
              
              <label>Ortsname (Anzeige bei Lösung):</label>
@@ -595,6 +602,7 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
             mapEl.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;pointer-events:none;">Bitte Bild hochladen</div>';
             
             mapInstances[qId] = map;
+            setTimeout(() => updateMapCircle(qId), 100);
         }
     } else {
         mapEl.style.background = ''; 
@@ -608,6 +616,7 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
         }
         
         mapInstances[qId] = map;
+        setTimeout(() => updateMapCircle(qId), 100);
     }
 }
 
@@ -627,6 +636,7 @@ function setupMapClick(map: L.Map, qId: string) {
         (document.getElementById(`lng-${qId}`) as HTMLInputElement).value = lng.toString();
         
         checkQuestionFilled(document.getElementById(`lat-${qId}`)!);
+        updateMapCircle(qId);
     });
 }
 
@@ -728,6 +738,8 @@ async function saveGame() {
                 const customPath = (qBlock.querySelector('.q-custom-path') as HTMLInputElement).value;
                 const wInput = (qBlock.querySelector('.q-map-width') as HTMLInputElement).value;
                 const hInput = (qBlock.querySelector('.q-map-height') as HTMLInputElement).value;
+                const radiusInput = qBlock.querySelector('.q-radius') as HTMLInputElement;
+                const radiusVal = parseFloat(radiusInput.value) || 0;
                 
                 if ((lat && lng) || (isCustom && customPath)) {
                     loc = { 
@@ -736,7 +748,8 @@ async function saveGame() {
                         isCustomMap: isCustom, 
                         customMapPath: customPath, 
                         mapWidth: parseInt(wInput) || 1000, 
-                        mapHeight: parseInt(hInput) || 1000
+                        mapHeight: parseInt(hInput) || 1000,
+                        radius: radiusVal
                     };
                 }
             }
@@ -2057,6 +2070,44 @@ function getMediaIcon(path: string): string {
     // Standard: Bild
     return '🖼️';
 }
+
+function updateMapCircle(qId: string) {
+    const map = mapInstances[qId];
+    if (!map) return;
+
+    // Radius holen
+    const radiusInput = document.getElementById(`radius-${qId}`) as HTMLInputElement;
+    const r = parseFloat(radiusInput.value) || 0;
+
+    // Koordinaten holen
+    const latInput = document.getElementById(`lat-${qId}`) as HTMLInputElement;
+    const lngInput = document.getElementById(`lng-${qId}`) as HTMLInputElement;
+    const lat = parseFloat(latInput.value);
+    const lng = parseFloat(lngInput.value);
+
+    // Alte Kreise entfernen (wir suchen nach Layern, die 'options.radius' haben)
+    map.eachLayer((layer: any) => {
+        if (layer instanceof L.Circle || (layer.options && layer.options.color === '#28a745')) {
+            // Um sicherzugehen, dass wir nicht Marker löschen, prüfen wir genauer
+            // In Leaflet sind Kreise Pfade. Wir löschen einfach den spezifischen grünen Kreis.
+            if(layer instanceof L.Circle) {
+                 map.removeLayer(layer);
+            }
+        }
+    });
+
+    // Neuen Kreis malen, wenn Koordinaten und Radius da sind
+    if (!isNaN(lat) && !isNaN(lng) && r > 0) {
+        L.circle([lat, lng], {
+            color: '#28a745',       // Grüner Rand
+            fillColor: '#28a745',   // Grüne Füllung
+            fillOpacity: 0.2,
+            radius: r,
+            weight: 1
+        }).addTo(map);
+    }
+}
+(window as any).updateMapCircle = updateMapCircle;
 
 initTheme();
 
