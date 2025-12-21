@@ -130,6 +130,7 @@ export interface ServerToClientEvents {
     host_freetext_grading_status: (data: { answers: {playerId: string, name: string, text: string, status?: 'correct' | 'incorrect' }[] }) => void;
     host_update_freetext_buttons: (data: { playerId: string; status?: 'correct' | 'incorrect'; }) => void;
     board_freetext_update_state: (data: { playerId: string, status: 'correct' | 'incorrect' | 'none' }) => void;
+    board_media_control: (data: { action: 'play' | 'pause' | 'seek', currentTime: number }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -157,4 +158,5 @@ export interface ClientToServerEvents {
     host_resolve_freetext: () => void;
     host_manual_score_update: (data: { playerId: string, newScore: number }) => void;
     host_show_podium: () => void;
+    host_media_control: (data: { action: 'play' | 'pause' | 'seek', currentTime: number }) => void;
 }

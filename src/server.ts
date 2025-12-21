@@ -930,6 +930,14 @@ io.on('connection', (socket) => {
         // An das Board senden
         io.to(code).emit('board_show_podium', sortedPlayers);
     });
+
+    socket.on('host_media_control', (data) => {
+        const info = getSessionBySocketId(socket.id);
+        if (info) {
+            // Leite den Befehl an alle Clients im Raum (also das Board) weiter
+            io.to(info.code).emit('board_media_control', data);
+        }
+    });
 });
 
 server.listen(PORT, () => {

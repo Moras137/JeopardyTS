@@ -186,6 +186,9 @@ socket.on('host_session_restored', (data: any) => {
         qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
         aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
 
+        attachMediaSyncListeners('question-display');
+        attachMediaSyncListeners('answer-display');
+
         const btn = document.getElementById(`q-btn-${data.catIndex}-${data.qIndex}`);
         if (btn) btn.classList.add('used');
 
@@ -268,6 +271,9 @@ socket.on('host_restore_active_question', (data) => {
     qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
     aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
 
+    attachMediaSyncListeners('question-display');
+    attachMediaSyncListeners('answer-display');
+
     const btn = document.getElementById(`q-btn-${data.catIndex}-${data.qIndex}`);
     if (btn) btn.classList.add('used');
 
@@ -294,7 +300,6 @@ socket.on('host_restore_active_question', (data) => {
          listModeControls.style.display = 'none';
          unlockBuzzersBtn.style.display = 'none';
          estimateModeControls.style.display = 'flex';
-         // Count müsste man eigentlich mitsenden, hier Default 0 oder aus data nehmen wenn du es im Server ergänzt
     } else if (data.question.type === 'freetext') {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
@@ -304,9 +309,6 @@ socket.on('host_restore_active_question', (data) => {
         unlockBuzzersBtn.style.display = 'none';
         
         freetextModeControls.style.display = 'flex';
-        // Falls wir Antworten schon haben, könnte man sie hier laden, 
-        // aber meistens passiert das erst nach 'resolve'.
-        // Der Server sendet 'submittedCount' oft separat.
     } else {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
@@ -503,6 +505,9 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     qTitle.innerText = `${currentGame?.categories[catIndex].name} - ${question.points} Punkte`;
     qDisplay.innerHTML = renderQuestionContent(question, 'question');
     aDisplay.innerHTML = renderQuestionContent(question, 'answer');
+
+    attachMediaSyncListeners('question-display');
+    attachMediaSyncListeners('answer-display');
     
     socket.emit('host_pick_question', { catIndex, qIndex, question });
     
@@ -807,4 +812,24 @@ function updateFreetextButtonStyles(playerId: string, status: 'correct' | 'incor
         btnInc.style.color = 'white';
         btnInc.style.border = '1px solid #bd2130';
     }
+}
+
+function attachMediaSyncListeners(containerId: string) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const mediaEl = container.querySelector('video, audio') as HTMLMediaElement;
+    if (!mediaEl) return;
+
+    mediaEl.onplay = () => {
+        socket.emit('host_media_control', { action: 'play', currentTime: mediaEl.currentTime });
+    };
+
+    mediaEl.onpause = () => {
+        socket.emit('host_media_control', { action: 'pause', currentTime: mediaEl.currentTime });
+    };
+
+    mediaEl.onseeked = () => {
+        socket.emit('host_media_control', { action: 'seek', currentTime: mediaEl.currentTime });
+    };
 }

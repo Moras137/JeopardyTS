@@ -195,7 +195,7 @@ socket.on('board_reveal_answer', () => {
         // FALL B: Explizites Antwort-Medium (überschreibt Pixel-Bild, falls vorhanden)
         if (currentQuestion.answerMediaPath) {
             mediaContainer.innerHTML = ''; // Container leeren für Antwort-Medium
-            renderMedia(currentQuestion.answerMediaPath, mediaContainer, true); // Autoplay
+            renderMedia(currentQuestion.answerMediaPath, mediaContainer, false); // Autoplay
             showMedia = true;
         }
 
@@ -679,6 +679,29 @@ socket.on('board_show_podium', (sortedPlayers: IPlayer[]) => {
     // playSoundEffect('correct'); 
 });
 
+socket.on('board_media_control', (data) => {
+    // Wir suchen nach Audio oder Video Elementen im Medien-Container
+    const mediaEl = document.querySelector('#media-container video, #media-container audio') as HTMLMediaElement;
+    
+    // Falls kein Medium da ist, brechen wir ab
+    if (!mediaEl) return;
+
+    // 1. Zeit synchronisieren (falls Abweichung größer als 0.5s)
+    if (Math.abs(mediaEl.currentTime - data.currentTime) > 0.5) {
+        mediaEl.currentTime = data.currentTime;
+    }
+
+    // 2. Aktion ausführen
+    if (data.action === 'play') {
+        // Play muss oft mit catch abgefangen werden (Browser-Richtlinien)
+        mediaEl.play().catch(e => console.log("Autoplay blocked or error:", e));
+    } else if (data.action === 'pause') {
+        mediaEl.pause();
+    } else if (data.action === 'seek') {
+        mediaEl.currentTime = data.currentTime;
+    }
+});
+
 // --- HELPER FUNKTIONEN ---
 
 function renderGrid() {
@@ -768,7 +791,6 @@ function renderMedia(path: string, container: HTMLElement, autoPlay: boolean) {
         container.appendChild(audio);
         
         const icon = document.createElement('div');
-        icon.innerHTML = '🎵';
         icon.style.fontSize = '5rem';
         container.appendChild(icon);
     } else {
