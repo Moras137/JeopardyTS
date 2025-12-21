@@ -271,10 +271,50 @@
             
             padding: 10px;                    /* Innenabstand sicherstellen */
         }
+
+        .grading-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: var(--bg-card); /* Passt sich an Dark/Light an */
+            color: var(--text-main);    /* Passt sich an Dark/Light an */
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .grading-row.correct {
+            /* Zartes Grün mit Transparenz - funktioniert auf Weiß und Schwarz */
+            background-color: rgba(40, 167, 69, 0.15) !important; 
+            border-color: #28a745 !important;
+        }
+
+        .grading-row.incorrect {
+            /* Zartes Rot mit Transparenz */
+            background-color: rgba(220, 53, 69, 0.15) !important; 
+            border-color: #dc3545 !important;
+        }
+
+        /* Antwort-Text fetter und größer machen für Lesbarkeit */
+        .grading-text {
+            font-size: 1.1rem; 
+            font-weight: 500;
+            margin-top: 4px;
+            color: var(--text-main); 
+        }
+        
+        /* Namen etwas dezenter */
+        .grading-name {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-
     <div id="sidebar">
         <div class="sidebar-section">
             <div id="room-code-box">

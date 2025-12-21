@@ -720,23 +720,18 @@ function renderFreetextGradingList(answers: any[]) {
 
     answers.forEach((entry) => {
         const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.justifyContent = 'space-between';
-        row.style.background = '#f9f9f9';
-        row.style.padding = '10px';
-        row.style.border = '1px solid #ddd';
-        row.style.borderRadius = '5px';
+        // Wir nutzen jetzt die CSS Klasse statt inline styles
+        row.className = 'grading-row'; 
         row.id = `grading-row-${entry.playerId}`;
 
         row.innerHTML = `
-            <div style="flex-grow:1;">
-                <div style="font-weight:bold; font-size:0.9rem;">${entry.name}</div>
-                <div style="font-size:1.1rem; word-break:break-word;">${entry.text}</div>
+            <div style="flex-grow:1; padding-right: 10px;">
+                <div class="grading-name">${entry.name}</div>
+                <div class="grading-text">${entry.text}</div>
             </div>
-            <div style="display:flex; gap:5px; margin-left:10px;">
-                <button class="host-btn btn-correct" id="btn-correct-${entry.playerId}" data-pid="${entry.playerId}" style="background:#ccc;">✔</button>
-                <button class="host-btn btn-incorrect" id="btn-incorrect-${entry.playerId}" data-pid="${entry.playerId}" style="background:#ccc;">✘</button>
+            <div style="display:flex; gap:8px; flex-shrink: 0;">
+                <button class="host-btn btn-correct" id="btn-correct-${entry.playerId}" data-pid="${entry.playerId}" style="background:#e0e0e0; min-width: 40px;">✔</button>
+                <button class="host-btn btn-incorrect" id="btn-incorrect-${entry.playerId}" data-pid="${entry.playerId}" style="background:#e0e0e0; min-width: 40px;">✘</button>
             </div>
         `;
         
@@ -748,7 +743,7 @@ function renderFreetextGradingList(answers: any[]) {
         }
     });
 
-    // Event Listener (nur einmal global oder per Element)
+    // Event Listener für Buttons (wie gehabt)
     freetextList.querySelectorAll('.btn-correct').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const pid = (e.target as HTMLElement).dataset.pid;
@@ -771,23 +766,32 @@ function updateFreetextButtonStyles(playerId: string, status: 'correct' | 'incor
 
     if (!row || !btnCor || !btnInc) return;
 
-    // Reset Styles
-    btnCor.style.background = '#ccc';
-    btnCor.style.border = 'none';
-    btnInc.style.background = '#ccc';
-    btnInc.style.border = 'none';
-    row.style.background = '#f9f9f9';
-    row.style.borderColor = '#ddd';
+    // 1. Reset: Alle Status-Klassen entfernen & Buttons grau machen
+    row.classList.remove('correct', 'incorrect');
+    
+    btnCor.style.background = '#e0e0e0';
+    btnCor.style.color = '#333';
+    btnCor.style.border = '1px solid #ccc';
+    
+    btnInc.style.background = '#e0e0e0';
+    btnInc.style.color = '#333';
+    btnInc.style.border = '1px solid #ccc';
 
+    // 2. Status anwenden (Klassen hinzufügen)
     if (status === 'correct') {
-        btnCor.style.background = '#28a745'; // Grün
-        btnCor.style.border = '2px solid darkgreen';
-        row.style.background = '#d4edda';
-        row.style.borderColor = '#c3e6cb';
+        row.classList.add('correct');
+        
+        // Button Highlight
+        btnCor.style.background = '#28a745';
+        btnCor.style.color = 'white';
+        btnCor.style.border = '1px solid #1e7e34';
+
     } else if (status === 'incorrect') {
-        btnInc.style.background = '#dc3545'; // Rot
-        btnInc.style.border = '2px solid darkred';
-        row.style.background = '#f8d7da';
-        row.style.borderColor = '#f5c6cb';
+        row.classList.add('incorrect');
+        
+        // Button Highlight
+        btnInc.style.background = '#dc3545';
+        btnInc.style.color = 'white';
+        btnInc.style.border = '1px solid #bd2130';
     }
 }
