@@ -70,6 +70,8 @@ const btnSidebarNew = document.getElementById('btn-sidebar-new') as HTMLButtonEl
 const btnBackDash = document.getElementById('btn-back-dashboard') as HTMLButtonElement;
 const searchInput = document.getElementById('dashboard-search') as HTMLInputElement;
 const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
+const mapDrawingStates: Record<string, boolean> = {}; 
+const mapPolygons: Record<string, L.Polygon> = {};
 
 
 setupDragAndDrop('drop-zone-bg', 'boardBackgroundUpload');
@@ -483,6 +485,20 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                         <span class="upload-status" style="font-size: 0.9rem;"></span>
                     </div>
                 </div>
+
+                <div style="margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;">
+                    <label style="font-weight:bold;">Variable Zone (Polygon):</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <button type="button" class="secondary-btn" id="btn-draw-${qId}" onclick="toggleZoneMode('${qId}')">
+                            ✏️ Zone zeichnen
+                        </button>
+                        <button type="button" class="sidebar-delete-btn" onclick="clearZone('${qId}')" title="Zone löschen">🗑</button>
+                    </div>
+                    <small style="color:#666; display:block; margin-top:5px;">
+                        Klicke auf die Karte, um Eckpunkte zu setzen. Klicke erneut auf "Fertig", um zu speichern.
+                    </small>
+                    <input type="hidden" class="q-zone" id="zone-${qId}" value='${JSON.stringify(qData.location?.zone || [])}'>
+                </div>
              </div>
 
              <div id="map-${qId}" class="map-editor-container"></div>
@@ -583,6 +599,16 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
                 }
                 
                 mapInstances[qId] = map;
+
+                const zoneInput = document.getElementById(`zone-${qId}`) as HTMLInputElement;
+                if (zoneInput && zoneInput.value) {
+                    try {
+                        const coords = JSON.parse(zoneInput.value);
+                        if (Array.isArray(coords) && coords.length > 0) {
+                            mapPolygons[qId] = L.polygon(coords, { color: '#007bff' }).addTo(map);
+                        }
+                    } catch(e) { console.error("Fehler beim Laden der Zone", e); }
+                }
             };
             img.src = customPath;
         } else {
@@ -602,6 +628,17 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
             mapEl.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#777;pointer-events:none;">Bitte Bild hochladen</div>';
             
             mapInstances[qId] = map;
+
+            const zoneInput = document.getElementById(`zone-${qId}`) as HTMLInputElement;
+            if (zoneInput && zoneInput.value) {
+                try {
+                    const coords = JSON.parse(zoneInput.value);
+                    if (Array.isArray(coords) && coords.length > 0) {
+                        mapPolygons[qId] = L.polygon(coords, { color: '#007bff' }).addTo(map);
+                    }
+                } catch(e) { console.error("Fehler beim Laden der Zone", e); }
+            }
+
             setTimeout(() => updateMapCircle(qId), 100);
         }
     } else {
@@ -616,12 +653,50 @@ function initMap(qId: string, lat?: number, lng?: number, isCustom = false, cust
         }
         
         mapInstances[qId] = map;
+
+        const zoneInput = document.getElementById(`zone-${qId}`) as HTMLInputElement;
+        if (zoneInput && zoneInput.value) {
+            try {
+                const coords = JSON.parse(zoneInput.value);
+                if (Array.isArray(coords) && coords.length > 0) {
+                    mapPolygons[qId] = L.polygon(coords, { color: '#007bff' }).addTo(map);
+                }
+            } catch(e) { console.error("Fehler beim Laden der Zone", e); }
+        }
         setTimeout(() => updateMapCircle(qId), 100);
     }
 }
 
 function setupMapClick(map: L.Map, qId: string) {
     map.on('click', (e) => {
+        // FALL 1: WIR ZEICHNEN EINE ZONE
+        if (mapDrawingStates[qId]) {
+            let poly = mapPolygons[qId];
+            if (!poly) {
+                poly = L.polygon([], { color: '#007bff' }).addTo(map);
+                mapPolygons[qId] = poly;
+            }
+            
+            // Punkt hinzufügen
+            poly.addLatLng(e.latlng);
+            
+            // Speichern in Input
+            const latLngs = poly.getLatLngs()[0] as L.LatLng[]; // Leaflet gibt Array von Arrays (für Löcher)
+            const simpleCoords = latLngs.map(p => ({ lat: p.lat, lng: p.lng }));
+            (document.getElementById(`zone-${qId}`) as HTMLInputElement).value = JSON.stringify(simpleCoords);
+            
+            return; // WICHTIG: Nicht weitermachen (keinen Marker setzen)
+        }
+
+        // FALL 2: NORMALER MODUS (Marker setzen)
+        if (mapPolygons[qId]) {
+            mapPolygons[qId].remove();
+            delete mapPolygons[qId];
+        }
+
+        const zoneInput = document.getElementById(`zone-${qId}`) as HTMLInputElement;
+        if(zoneInput) zoneInput.value = '[]';
+
         const { lat, lng } = e.latlng;
         
         map.eachLayer((layer) => {
@@ -636,7 +711,7 @@ function setupMapClick(map: L.Map, qId: string) {
         (document.getElementById(`lng-${qId}`) as HTMLInputElement).value = lng.toString();
         
         checkQuestionFilled(document.getElementById(`lat-${qId}`)!);
-        updateMapCircle(qId);
+        if ((window as any).updateMapCircle) (window as any).updateMapCircle(qId);
     });
 }
 
@@ -739,9 +814,17 @@ async function saveGame() {
                 const wInput = (qBlock.querySelector('.q-map-width') as HTMLInputElement).value;
                 const hInput = (qBlock.querySelector('.q-map-height') as HTMLInputElement).value;
                 const radiusInput = qBlock.querySelector('.q-radius') as HTMLInputElement;
-                const radiusVal = parseFloat(radiusInput.value) || 0;
+                const radiusVal = radiusInput ? (parseFloat(radiusInput.value) || 0) : 0;
                 
-                if ((lat && lng) || (isCustom && customPath)) {
+                const zoneInput = qBlock.querySelector('.q-zone') as HTMLInputElement;
+                let zoneArr = [];
+                try {
+                    if (zoneInput && zoneInput.value) {
+                        zoneArr = JSON.parse(zoneInput.value);
+                    }
+                } catch (e) { console.error("Fehler beim Parsen der Zone", e); }
+
+                if ((lat && lng) || (isCustom && customPath) || (zoneArr.length > 0)) {
                     loc = { 
                         lat: parseFloat(lat) || 0, 
                         lng: parseFloat(lng) || 0, 
@@ -749,7 +832,8 @@ async function saveGame() {
                         customMapPath: customPath, 
                         mapWidth: parseInt(wInput) || 1000, 
                         mapHeight: parseInt(hInput) || 1000,
-                        radius: radiusVal
+                        radius: radiusVal,
+                        zone: zoneArr
                     };
                 }
             }
@@ -2108,6 +2192,60 @@ function updateMapCircle(qId: string) {
     }
 }
 (window as any).updateMapCircle = updateMapCircle;
+
+function toggleZoneMode(qId: string) {
+    const isDrawing = !mapDrawingStates[qId];
+    mapDrawingStates[qId] = isDrawing;
+    
+    const btn = document.getElementById(`btn-draw-${qId}`);
+    if(btn) {
+        btn.innerText = isDrawing ? "✅ Fertig" : "✏️ Zone zeichnen";
+        btn.style.background = isDrawing ? '#28a745' : '';
+        btn.style.color = isDrawing ? 'white' : '';
+    }
+    
+    const map = mapInstances[qId];
+    if (!map) return;
+
+    // WENN WIR ZEICHNEN STARTEN:
+    if (isDrawing) {
+        // 1. Inputs leeren (Lat, Lng, Radius)
+        (document.getElementById(`lat-${qId}`) as HTMLInputElement).value = '';
+        (document.getElementById(`lng-${qId}`) as HTMLInputElement).value = '';
+        (document.getElementById(`radius-${qId}`) as HTMLInputElement).value = '0';
+
+        // 2. Marker und Kreise von der Karte entfernen
+        map.eachLayer((layer: any) => {
+            if (layer instanceof L.Marker || layer instanceof L.Circle) {
+                map.removeLayer(layer);
+            }
+        });
+
+        // 3. Sicherstellen, dass ein Polygon-Objekt zum Zeichnen da ist
+        if (!mapPolygons[qId]) {
+            mapPolygons[qId] = L.polygon([], { color: '#007bff' }).addTo(map);
+        }
+    }
+}
+(window as any).toggleZoneMode = toggleZoneMode;
+
+function clearZone(qId: string) {
+    if (mapPolygons[qId]) {
+        mapPolygons[qId].remove();
+        delete mapPolygons[qId];
+    }
+    (document.getElementById(`zone-${qId}`) as HTMLInputElement).value = '[]';
+    mapDrawingStates[qId] = false;
+    
+    // Button Reset
+    const btn = document.getElementById(`btn-draw-${qId}`);
+    if(btn) {
+        btn.innerText = "✏️ Zone zeichnen";
+        btn.style.background = '';
+        btn.style.color = '';
+    }
+}
+(window as any).clearZone = clearZone;
 
 initTheme();
 

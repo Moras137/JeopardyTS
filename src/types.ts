@@ -9,6 +9,7 @@ export interface ILocation {
     mapWidth: number;
     mapHeight: number;
     radius?: number;
+    zone?: { lat: number, lng: number }[];
 }
 
 export interface IQuestion {

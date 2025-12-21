@@ -11,7 +11,11 @@ const questionSchema = new Schema<IQuestion>({
         customMapPath: { type: String, default: '' },
         mapWidth: { type: Number }, 
         mapHeight: { type: Number },
-        radius: { type: Number, default: 0 }
+        radius: { type: Number, default: 0 },
+        zone: {
+            type: [{ lat: Number, lng: Number }],
+            default: []
+        }
     },
 
     estimationAnswer: { type: Number },

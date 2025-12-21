@@ -153,6 +153,20 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
     return R * c;
 }
 
+function isPointInPolygon(point: {lat: number, lng: number}, vs: {lat: number, lng: number}[]) {
+    const x = point.lat, y = point.lng;
+    let inside = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        const xi = vs[i].lat, yi = vs[i].lng;
+        const xj = vs[j].lat, yj = vs[j].lng;
+
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
 async function cleanupUnusedFiles() {
     try {
         console.log("Starte Cleanup unbenutzter Dateien...");
@@ -212,6 +226,8 @@ async function cleanupUnusedFiles() {
         console.error("Fehler beim Cleanup:", err);
     }
 }
+
+
 
 // --- UPLOAD ---
 const storage = multer.diskStorage({
@@ -633,8 +649,15 @@ io.on('connection', (socket) => {
         for (const pid in results) {
             
             const playerRes = results[pid];
-            
-            if (radius > 0) {
+
+            if (target.zone && target.zone.length > 2) {
+                // Prüfen ob Punkt im Polygon liegt
+                if (isPointInPolygon({lat: playerRes.lat, lng: playerRes.lng}, target.zone)) {
+                    playerRes.isWinner = true;
+                    anyWinnerFound = true;
+                    if(session.players[pid]) session.players[pid].score += session.activeQuestionPoints;
+                }
+            } else if (radius > 0) {
                 if (playerRes.distance <= radius) {
                     playerRes.isWinner = true;
                     anyWinnerFound = true;

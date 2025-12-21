@@ -247,9 +247,8 @@ socket.on('board_reveal_map_results', (data) => {
             iconAnchor: [10, 10]
         });
         L.marker(targetLatLng, { icon: targetIcon, zIndexOffset: 1000 }).addTo(map);
+        const bounds = L.latLngBounds([targetLatLng]);
 
-        // --- RADIUS KREIS (NEU) ---
-        let circleBounds = null;
         if (target.radius && target.radius > 0) {
             const circle = L.circle(targetLatLng, {
                 color: '#28a745',       // Grün
@@ -258,12 +257,23 @@ socket.on('board_reveal_map_results', (data) => {
                 radius: target.radius,
                 weight: 1
             }).addTo(map);
-            circleBounds = circle.getBounds();
+            bounds.extend(circle.getBounds());
+        }
+
+        if (target.zone && target.zone.length > 2) {
+            const poly = L.polygon(target.zone, {
+                color: '#28a745',       // Grün
+                fillColor: '#28a745',
+                fillOpacity: 0.3,
+                weight: 2,
+                dashArray: '5, 5'       // Gestrichelt für Zone
+            }).addTo(map);
+            
+            // Bounds erweitern, damit die ganze Zone sichtbar ist
+            bounds.extend(poly.getBounds());
         }
 
         // --- SPIELER MARKER ---
-        const bounds = L.latLngBounds([targetLatLng]);
-        if (circleBounds) bounds.extend(circleBounds);
 
         Object.keys(results).forEach((pid) => {
             
@@ -326,7 +336,7 @@ socket.on('board_reveal_map_results', (data) => {
                 iconSize: [20, 20],
                 iconAnchor: [10, 10]
             });
-            
+
             const marker = L.marker(playerLatLng, { icon }).addTo(map);
             const dashArrayValue = isWin ? undefined : '5, 10';
 
