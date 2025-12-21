@@ -553,6 +553,13 @@ socket.on('board_show_freetext_results', (data) => {
     freetextContainer.style.display = 'flex';
     freetextContainer.innerHTML = '';
 
+    mediaContainer.style.display = 'none';
+    mediaContainer.innerHTML = '';
+
+    estimateResultsDiv.style.display = 'none';
+    estimateResultsDiv.innerHTML = '';
+    mapDiv.style.display = 'none';
+
     data.answers.forEach((entry, index) => {
         const card = document.createElement('div');
         card.className = 'freetext-card';

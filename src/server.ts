@@ -526,6 +526,7 @@ io.on('connection', (socket) => {
         session.activeQuestionPoints = data.question.points;
         session.mapGuesses = {};
         session.lockedPlayers = [];
+        session.freetextGrading = {};
         
         (session as any).activeCatIndex = data.catIndex;
         (session as any).activeQIndex = data.qIndex;

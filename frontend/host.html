@@ -302,7 +302,12 @@
             font-size: 1.1rem; 
             font-weight: 500;
             margin-top: 4px;
-            color: var(--text-main); 
+            color: var(--text-main);
+
+            white-space: pre-wrap;       /* Behält Zeilenumbrüche bei, bricht aber auch um */
+            word-wrap: break-word;       /* Ältere Browser */
+            overflow-wrap: break-word;   /* Standard */
+            word-break: break-word;      /* Erzwingt Umbruch auch mitten im Wort wenn nötig */
         }
         
         /* Namen etwas dezenter */

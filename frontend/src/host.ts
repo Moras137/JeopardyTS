@@ -738,7 +738,7 @@ function renderFreetextGradingList(answers: any[]) {
         row.id = `grading-row-${entry.playerId}`;
 
         row.innerHTML = `
-            <div style="flex-grow:1; padding-right: 10px;">
+            <div style="flex-grow:1; padding-right: 10px; min-width: 0;">
                 <div class="grading-name">${entry.name}</div>
                 <div class="grading-text">${entry.text}</div>
             </div>
