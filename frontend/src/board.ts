@@ -391,7 +391,7 @@ socket.on('board_reveal_map_results', (data) => {
             const marker = L.marker(playerLatLng, { icon }).addTo(map);
 
             // Linie zum Ziel
-           if (!(target.zone && target.zone.length > 0)) {
+            if (!(target.zone && target.zone.length > 0)) {
                 const dashArrayValue = isWin ? undefined : '5, 10';
                 L.polyline([playerLatLng, targetLatLng], { 
                     color: isWin ? '#28a745' : '#666', 
