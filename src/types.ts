@@ -79,6 +79,7 @@ export interface ISession {
     introIndex: number;
     listRevealedCount: number;
     freetextAnswers: Record<string, string>;
+    freetextGrading?: Record<string, 'correct' | 'incorrect'>;
 }
 
 // --- SOCKET EVENTS ---
@@ -122,9 +123,12 @@ export interface ServerToClientEvents {
     board_reveal_estimate_results: (data: { correctAnswer: number, guesses: { playerId: string, name: string, value: number, diff: number, isWinner: boolean }[] }) => void;
     board_play_sfx: (type: 'correct' | 'incorrect') => void;
     player_start_freetext: (data: { text: string, points: number }) => void;
-    board_show_freetext_results: (data: { answers: { playerId: string, name: string, text: string }[] }) => void;
+    board_show_freetext_results: (data: {  answers: { playerId: string, name: string, text: string, status?: 'correct' | 'incorrect' }[] }) => void;
     board_freetext_mark_correct: (playerId: string) => void;
     board_show_podium: (sortedPlayers: IPlayer[]) => void;
+    host_freetext_grading_status: (data: { answers: {playerId: string, name: string, text: string, status?: 'correct' | 'incorrect' }[] }) => void;
+    host_update_freetext_buttons: (data: { playerId: string; status?: 'correct' | 'incorrect'; }) => void;
+    board_freetext_update_state: (data: { playerId: string, status: 'correct' | 'incorrect' | 'none' }) => void;
 }
 
 export interface ClientToServerEvents {

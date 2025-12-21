@@ -567,13 +567,57 @@ socket.on('board_show_freetext_results', (data) => {
     });
 });
 
-socket.on('board_freetext_mark_correct', (playerId: string) => {
-    const card = document.getElementById(`ft-card-${playerId}`);mapDiv.style.display = 'none';
-    if (card) {
+socket.on('board_freetext_update_state', (data: { playerId: string, status: 'correct' | 'incorrect' | 'none' }) => {
+    const card = document.getElementById(`ft-card-${data.playerId}`);
+    if (!card) return;
+
+    // Klassen bereinigen
+    card.classList.remove('correct', 'incorrect');
+    
+    // Alte Icons entfernen (falls vorhanden)
+    const oldIcon = card.querySelector('.ft-status-icon');
+    if (oldIcon) oldIcon.remove();
+
+    if (data.status === 'correct') {
         card.classList.add('correct');
-        // Optional: Kleiner Konfetti-Effekt oder Haken
-        card.innerHTML += `<div style="position:absolute; top:-10px; right:-10px; font-size:2rem;">✅</div>`;
+        card.innerHTML += `<div class="ft-status-icon" style="position:absolute; top:-10px; right:-10px; font-size:2rem; background:white; border-radius:50%;">✅</div>`;
+    } else if (data.status === 'incorrect') {
+        card.classList.add('incorrect'); // CSS Klasse gleich hinzufügen
+        card.innerHTML += `<div class="ft-status-icon" style="position:absolute; top:-10px; right:-10px; font-size:2rem; background:white; border-radius:50%;">❌</div>`;
     }
+});
+
+// 2. Falls du socket.on('board_show_freetext_results') hast, pass auf, dass dort eventuell der Status schon initial gesetzt wird:
+socket.on('board_show_freetext_results', (data) => {
+    questionText.style.display = 'none';
+    freetextContainer.style.display = 'flex';
+    freetextContainer.innerHTML = '';
+
+    data.answers.forEach((entry, index) => {
+        const card = document.createElement('div');
+        card.className = 'freetext-card';
+        card.id = `ft-card-${entry.playerId}`;
+        card.style.animationDelay = `${index * 0.1}s`;
+
+        card.innerHTML = `
+            <div class="ft-player-name">${entry.name}</div>
+            <div class="ft-answer-text">${entry.text}</div>
+        `;
+        freetextContainer.appendChild(card);
+
+        // Status direkt anwenden, falls beim Reload schon bewertet
+        if (entry.status) {
+            // Um Code-Duplizierung zu vermeiden, rufen wir einfach das Update manuell auf
+            // (Simulierter Aufruf wäre sauberer, aber hier direkt Logik:)
+            if(entry.status === 'correct') {
+                card.classList.add('correct');
+                card.innerHTML += `<div class="ft-status-icon" style="position:absolute; top:-10px; right:-10px; font-size:2rem; background:white; border-radius:50%;">✅</div>`;
+            } else if (entry.status === 'incorrect') {
+                card.classList.add('incorrect');
+                card.innerHTML += `<div class="ft-status-icon" style="position:absolute; top:-10px; right:-10px; font-size:2rem; background:white; border-radius:50%;">❌</div>`;
+            }
+        }
+    });
 });
 
 socket.on('board_show_podium', (sortedPlayers: IPlayer[]) => {

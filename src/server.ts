@@ -338,7 +338,8 @@ io.on('connection', (socket) => {
             listRevealedCount: -1, 
             usedQuestions: [],
             introIndex: -2,
-            freetextAnswers: {}
+            freetextAnswers: {},
+            freetextGrading: {}
         };
         socket.join(roomCode);
         socket.emit('session_created', roomCode);
@@ -471,29 +472,42 @@ io.on('connection', (socket) => {
         
         const player = session.players[data.playerId];
         if (player) {
-            if (data.action === 'correct') {
-                player.score += session.activeQuestionPoints;
-                if (session.activeQuestion?.type === 'freetext') {
-                    io.to(code).emit('board_freetext_mark_correct', data.playerId);
-                } else {
-                    io.to(code).emit('board_reveal_answer');
-                }
-                io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
-            } else {
-                player.score -= session.activeQuestionPoints;
-                session.buzzersActive = true;
+            const points = session.activeQuestionPoints;
+            const newAction = data.action;
+            
+            if (!session.freetextGrading) session.freetextGrading = {};
+            const previousStatus = session.freetextGrading[data.playerId];
 
-                // io.to(code).emit('board_freetext_mark_incorrect', data.playerId);
+            if (previousStatus === 'correct') {
+                player.score -= points; 
+            } 
+
+            if (previousStatus === newAction) {
+                delete session.freetextGrading[data.playerId];
                 
-                if (session.activeQuestion?.type !== 'freetext') {
-                     session.buzzersActive = true;
-                     io.to(code).emit('buzzers_unlocked');
-                }
+                io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'none' });
+            } 
+            else {
+                session.freetextGrading[data.playerId] = newAction;
 
-                io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
+                if (newAction === 'correct') {
+                    player.score += points;
+                    io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'correct' });
+                    
+                    if (session.activeQuestion?.type !== 'freetext') {
+                        io.to(code).emit('board_reveal_answer');
+                    }
+                } else {
+                    io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'incorrect' });
+                }
             }
-            io.to(code).emit('board_play_sfx', data.action);
+
+            // Scores und Host-Buttons aktualisieren
             io.to(code).emit('update_scores', session.players);
+            io.to(session.hostSocketId).emit('host_update_freetext_buttons', { 
+                playerId: data.playerId, 
+                status: session.freetextGrading[data.playerId] 
+            });
         }
     });
 
@@ -708,7 +722,8 @@ io.on('connection', (socket) => {
                 answers.push({
                     playerId: pid,
                     name: player.name,
-                    text: session.freetextAnswers[pid]
+                    text: session.freetextAnswers[pid],
+                    status: session.freetextGrading ? session.freetextGrading[pid] : undefined
                 });
             }
         }

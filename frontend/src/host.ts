@@ -317,69 +317,15 @@ socket.on('host_update_estimate_status', (data) => {
 });
 
 socket.on('board_show_freetext_results', (data) => {
-    // Zeige den Grading-Bereich
-    freetextGradingView.style.display = 'block';
-    freetextList.innerHTML = '';
+    renderFreetextGradingList(data.answers);
+});
 
-    data.answers.forEach((entry) => {
-        const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.justifyContent = 'space-between';
-        row.style.background = '#f9f9f9';
-        row.style.padding = '10px';
-        row.style.border = '1px solid #ddd';
-        row.style.borderRadius = '5px';
-        row.id = `grading-row-${entry.playerId}`;
+socket.on('host_freetext_grading_status', (data) => {
+    renderFreetextGradingList(data.answers);
+});
 
-        row.innerHTML = `
-            <div style="flex-grow:1;">
-                <div style="font-weight:bold; font-size:0.9rem;">${entry.name}</div>
-                <div style="font-size:1.1rem;">${entry.text}</div>
-            </div>
-            <div style="display:flex; gap:5px;">
-                <button class="host-btn btn-success btn-correct" data-pid="${entry.playerId}">✔</button>
-                <button class="host-btn btn-danger btn-incorrect" data-pid="${entry.playerId}">✘</button>
-            </div>
-        `;
-        
-        freetextList.appendChild(row);
-    });
-
-    // Event Listener für die Buttons hinzufügen
-    freetextList.querySelectorAll('.btn-correct').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const pid = (e.target as HTMLElement).dataset.pid;
-            if(pid) {
-                socket.emit('host_score_answer', { action: 'correct', playerId: pid });
-                // Visuelles Feedback für Host: Zeile grün markieren
-                const row = document.getElementById(`grading-row-${pid}`);
-                if(row) {
-                    row.style.background = '#d4edda';
-                    row.style.borderColor = '#c3e6cb';
-                    (e.target as HTMLButtonElement).disabled = true; // Doppelklick verhindern
-                }
-            }
-        });
-    });
-
-    freetextList.querySelectorAll('.btn-incorrect').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const pid = (e.target as HTMLElement).dataset.pid;
-            if(pid) {
-                // Optional: Minuspunkte vergeben oder einfach nur markieren
-                // socket.emit('host_score_answer', { action: 'incorrect', playerId: pid });
-                
-                // Wir markieren es nur rot, damit der Host weiß "erledigt"
-                const row = document.getElementById(`grading-row-${pid}`);
-                if(row) {
-                    row.style.background = '#f8d7da';
-                    row.style.borderColor = '#f5c6cb';
-                    row.style.opacity = '0.6';
-                }
-            }
-        });
-    });
+socket.on('host_update_freetext_buttons', (data) => {
+    updateFreetextButtonStyles(data.playerId, data.status);
 });
 // --- HELPER FUNKTIONEN ---
 
@@ -764,4 +710,84 @@ function adjustHeaderHeights() {
     titles.forEach(t => {
         t.style.height = `${maxHeight}px`;
     });
+}
+
+function renderFreetextGradingList(answers: any[]) {
+    if(!freetextGradingView || !freetextList) return;
+    
+    freetextGradingView.style.display = 'block';
+    freetextList.innerHTML = '';
+
+    answers.forEach((entry) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.background = '#f9f9f9';
+        row.style.padding = '10px';
+        row.style.border = '1px solid #ddd';
+        row.style.borderRadius = '5px';
+        row.id = `grading-row-${entry.playerId}`;
+
+        row.innerHTML = `
+            <div style="flex-grow:1;">
+                <div style="font-weight:bold; font-size:0.9rem;">${entry.name}</div>
+                <div style="font-size:1.1rem; word-break:break-word;">${entry.text}</div>
+            </div>
+            <div style="display:flex; gap:5px; margin-left:10px;">
+                <button class="host-btn btn-correct" id="btn-correct-${entry.playerId}" data-pid="${entry.playerId}" style="background:#ccc;">✔</button>
+                <button class="host-btn btn-incorrect" id="btn-incorrect-${entry.playerId}" data-pid="${entry.playerId}" style="background:#ccc;">✘</button>
+            </div>
+        `;
+        
+        freetextList.appendChild(row);
+        
+        // Initialen Status setzen
+        if (entry.status) {
+            updateFreetextButtonStyles(entry.playerId, entry.status);
+        }
+    });
+
+    // Event Listener (nur einmal global oder per Element)
+    freetextList.querySelectorAll('.btn-correct').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const pid = (e.target as HTMLElement).dataset.pid;
+            if(pid) socket.emit('host_score_answer', { action: 'correct', playerId: pid });
+        });
+    });
+
+    freetextList.querySelectorAll('.btn-incorrect').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const pid = (e.target as HTMLElement).dataset.pid;
+            if(pid) socket.emit('host_score_answer', { action: 'incorrect', playerId: pid });
+        });
+    });
+}
+
+function updateFreetextButtonStyles(playerId: string, status: 'correct' | 'incorrect' | undefined) {
+    const row = document.getElementById(`grading-row-${playerId}`);
+    const btnCor = document.getElementById(`btn-correct-${playerId}`);
+    const btnInc = document.getElementById(`btn-incorrect-${playerId}`);
+
+    if (!row || !btnCor || !btnInc) return;
+
+    // Reset Styles
+    btnCor.style.background = '#ccc';
+    btnCor.style.border = 'none';
+    btnInc.style.background = '#ccc';
+    btnInc.style.border = 'none';
+    row.style.background = '#f9f9f9';
+    row.style.borderColor = '#ddd';
+
+    if (status === 'correct') {
+        btnCor.style.background = '#28a745'; // Grün
+        btnCor.style.border = '2px solid darkgreen';
+        row.style.background = '#d4edda';
+        row.style.borderColor = '#c3e6cb';
+    } else if (status === 'incorrect') {
+        btnInc.style.background = '#dc3545'; // Rot
+        btnInc.style.border = '2px solid darkred';
+        row.style.background = '#f8d7da';
+        row.style.borderColor = '#f5c6cb';
+    }
 }
