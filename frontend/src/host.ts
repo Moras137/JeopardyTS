@@ -633,9 +633,9 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
         let mediaHtml = '';
 
         if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
-            mediaHtml = `<audio controls src="${path}" style="width: 100%;">Dein Browser unterstützt kein Audio.</audio>`;
+            mediaHtml = `<audio controls muted src="${path}" style="width: 100%;">Dein Browser unterstützt kein Audio.</audio>`;
         } else if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
-            mediaHtml = `<video controls src="${path}" style="max-height: 300px; width:100%; object-fit:contain;">Dein Browser unterstützt kein Video.</video>`;
+            mediaHtml = `<video controls muted src="${path}" style="max-height: 300px; width:100%; object-fit:contain;">Dein Browser unterstützt kein Video.</video>`;
         } else {
             mediaHtml = `<img src="${path}" style="max-height: 300px; width:100%; object-fit:contain;" alt="Medien">`;
         }

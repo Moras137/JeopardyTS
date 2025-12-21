@@ -31,7 +31,6 @@ const joinUrlSpan = document.getElementById('join-url') as HTMLSpanElement;
 const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
 const introOverlay = document.getElementById('intro-overlay') as HTMLDivElement;
 const introMain = document.getElementById('intro-main-text') as HTMLDivElement;
-const introSub = document.getElementById('intro-sub-text') as HTMLDivElement;
 const listContainer = document.getElementById('list-container') as HTMLDivElement;
 const estimateResultsDiv = document.getElementById('estimate-results') as HTMLDivElement;
 const freetextContainer = document.getElementById('freetext-container') as HTMLDivElement;
@@ -72,7 +71,7 @@ socket.on('board_show_intro', (data) => {
     introMain.classList.add('slide-in');
 
     introMain.innerText = text;
-    introSub.innerText = subtext || '';
+    //introSub.innerText = subtext || '';
 });
 
 socket.on('board_init_game', (game: IGame) => {
@@ -115,6 +114,8 @@ socket.on('board_show_question', (data) => {
     
     questionText.innerText = question.questionText;
     mapDiv.style.display = 'none';
+
+    questionText.style.display = 'flex';
 
     // --- MAP FRAGE ---
     if (question.type === 'list') {
