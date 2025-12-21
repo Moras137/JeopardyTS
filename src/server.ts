@@ -339,7 +339,8 @@ io.on('connection', (socket) => {
             usedQuestions: [],
             introIndex: -2,
             freetextAnswers: {},
-            freetextGrading: {}
+            freetextGrading: {},
+            lockedPlayers: []
         };
         socket.join(roomCode);
         socket.emit('session_created', roomCode);
@@ -455,6 +456,10 @@ io.on('connection', (socket) => {
             session.buzzersActive = false;
             session.currentBuzzWinnerId = playerId;
             
+            if (!session.lockedPlayers.includes(playerId)) {
+                session.lockedPlayers.push(playerId);
+            }
+
             io.to(code).emit('buzzers_locked');
             io.to(code).emit('player_won_buzz', { id: playerId, name: session.players[playerId].name });
             io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: playerId, buzzWinnerName: session.players[playerId].name });
@@ -493,12 +498,13 @@ io.on('connection', (socket) => {
                 if (newAction === 'correct') {
                     player.score += points;
                     io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'correct' });
-                    
+                    io.to(code).emit('board_play_sfx', 'correct');
                     if (session.activeQuestion?.type !== 'freetext') {
                         io.to(code).emit('board_reveal_answer');
                     }
                 } else {
                     io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'incorrect' });
+                    io.to(code).emit('board_play_sfx', 'incorrect');
                 }
             }
 
@@ -519,6 +525,7 @@ io.on('connection', (socket) => {
         session.activeQuestion = data.question;
         session.activeQuestionPoints = data.question.points;
         session.mapGuesses = {};
+        session.lockedPlayers = [];
         
         (session as any).activeCatIndex = data.catIndex;
         (session as any).activeQIndex = data.qIndex;
@@ -750,7 +757,7 @@ io.on('connection', (socket) => {
         if(info) {
             info.session.buzzersActive = true;
             info.session.currentBuzzWinnerId = null;
-            io.to(info.code).emit('buzzers_unlocked');
+            io.to(info.code).emit('buzzers_unlocked', info.session.lockedPlayers);
             io.to(info.session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
         }
     });

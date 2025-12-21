@@ -88,11 +88,24 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Event Listener
-if(correctBtn) correctBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId }));
-if(incorrectBtn) incorrectBtn.addEventListener('click', () => activePlayerId && socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId }));
+if(correctBtn) correctBtn.addEventListener('click', () => {
+    if (activePlayerId) {
+        socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId });
+        buzzWinnerSection.style.display = 'none'; 
+    }
+});
+
+if(incorrectBtn) incorrectBtn.addEventListener('click', () => {
+    if (activePlayerId) {
+        socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId });
+        buzzWinnerSection.style.display = 'none';
+        
+        if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'block';
+    }
+});
+
 if(unlockBuzzersBtn) unlockBuzzersBtn.addEventListener('click', () => socket.emit('host_unlock_buzzers'));
 
-// Schließen der Frage
 const handleClose = () => socket.emit('host_close_question');
 if(closeQuestionBtn) closeQuestionBtn.addEventListener('click', handleClose);
 if(btnCloseModalTop) btnCloseModalTop.addEventListener('click', handleClose);
@@ -357,7 +370,7 @@ function updateHostControls(data: any) {
             activePlayerId = data.buzzWinnerId;
             buzzWinnerName.innerText = data.buzzWinnerName || 'Spieler';
             buzzWinnerSection.style.display = 'block';
-            unlockBuzzersBtn.style.display = 'none';
+            unlockBuzzersBtn.style.display = 'block';
             mapModeControls.style.display = 'none';
         } else {
             activePlayerId = null;

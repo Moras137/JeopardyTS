@@ -978,18 +978,14 @@ function startPixelPuzzle(question: IQuestion) {
 function playSoundEffect(type: 'correct' | 'incorrect') {
     let src = '';
     
-    // Basis-URL für Backend Assets bauen
     const backendBase = `${window.location.protocol}//${window.location.hostname}:3000`;
 
     if (type === 'correct') {
         if (currentGame?.soundCorrectPath) {
-            // Wenn Custom Sound, nutzen wir den Pfad vom Spiel (der hoffentlich schon '/uploads/...' ist)
-            // Prüfen ob Pfad absolut ist oder nicht
             src = currentGame.soundCorrectPath.startsWith('http') 
                   ? currentGame.soundCorrectPath 
                   : backendBase + currentGame.soundCorrectPath;
         } else {
-            // Standard Sound vom Backend laden
             src = backendBase + '/sounds/default_correct.mp3'; 
         }
     } else {
@@ -1003,7 +999,7 @@ function playSoundEffect(type: 'correct' | 'incorrect') {
     }
 
     if (src) {
-        console.log("Spiele Sound:", src); // Debug log
+        console.log("Spiele Sound:", src); 
         const audio = new Audio(src);
         audio.volume = 0.5;
         audio.play().catch(e => console.log("SFX Playback error (Autoplay Blocked?)", e));

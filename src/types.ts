@@ -80,6 +80,7 @@ export interface ISession {
     listRevealedCount: number;
     freetextAnswers: Record<string, string>;
     freetextGrading?: Record<string, 'correct' | 'incorrect'>;
+    lockedPlayers: string[];
 }
 
 // --- SOCKET EVENTS ---
@@ -99,7 +100,7 @@ export interface ServerToClientEvents {
     host_update_map_status: (data: { submittedCount: number, totalPlayers: number }) => void;
     player_won_buzz: (data: { id: string, name: string }) => void;
     buzzers_locked: () => void;
-    buzzers_unlocked: () => void;
+    buzzers_unlocked: (lockedPlayerIds?: string[]) => void;
     join_success: (data: { playerId: string, roomCode: string, name: string }) => void;
     join_error: (msg: string) => void;
     player_start_map_guess: (data: { questionText: string, location?: ILocation, points: number }) => void;

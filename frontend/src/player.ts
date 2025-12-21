@@ -209,7 +209,15 @@ socket.on('join_error', (msg) => {
 
 // --- BUZZER LOGIK ---
 
-socket.on('buzzers_unlocked', () => {
+socket.on('buzzers_unlocked', (lockedIds?: string[]) => {
+    if (myPlayerId && lockedIds && lockedIds.includes(myPlayerId)) {
+        playerBuzzed = true;
+        setBuzzerState('locked'); 
+        const statusMsg = document.getElementById('status-message');
+        if(statusMsg) statusMsg.innerText = "Du hast bereits geantwortet.";
+        return;
+    }
+
     playerBuzzed = false;
     setBuzzerState('active');
 });
