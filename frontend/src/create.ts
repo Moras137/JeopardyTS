@@ -1000,7 +1000,7 @@ async function loadGame(id: string) {
         }
 
         showEditor();
-        switchView('list');
+        switchView(View ? 'board' : 'list');
 
     } catch (e: any) {
         console.error("Detaillierter Ladefehler:", e);
@@ -1460,12 +1460,12 @@ function renderBoardPreview() {
 
                 let typeIcon = '';
                 switch(type) {
-                    case 'map':      typeIcon = 'Map'; break; // Weltkugel
-                    case 'estimate': typeIcon = 'Schätzen'; break; // Zahlen
-                    case 'list':     typeIcon = 'Liste'; break; // Liste/Notizblock
-                    case 'pixel':    typeIcon = 'Pixel'; break; // Puzzle
-                    case 'freetext': typeIcon = 'Freie Frage'; break; // Stift
-                    case 'standard': typeIcon = 'Standard';   break; // Leer lassen oder 🔔
+                    case 'map':      typeIcon = 'Karte'; break;
+                    case 'estimate': typeIcon = 'Schätzen'; break;
+                    case 'list':     typeIcon = 'Liste'; break;
+                    case 'pixel':    typeIcon = 'Bild'; break;
+                    case 'freetext': typeIcon = 'Freie Frage'; break; 
+                    case 'standard': typeIcon = 'Standard';   break; 
                 }
 
                 card.innerHTML = `
