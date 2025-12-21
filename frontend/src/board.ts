@@ -15,6 +15,7 @@ let serverAddress = window.location.hostname;
 let serverPort = window.location.port;
 let currentPixelAnim: number | null = null;
 let pixelControlCalls: { pause: () => void, resume: () => void } | null = null;
+let mapIsCustomMode = false;
 
 // --- DOM ELEMENTE ---
 const gameGrid = document.getElementById('game-grid') as HTMLDivElement;
@@ -204,7 +205,7 @@ socket.on('board_reveal_answer', () => {
 });
 
 socket.on('board_reveal_map_results', (data) => {
-    // 1. UI ZURÜCKSETZEN & VORBEREITEN
+    // 1. UI ZURÜCKSETZEN
     questionText.style.display = 'none';
     mediaContainer.style.display = 'none';
     if(listContainer) listContainer.style.display = 'none';
@@ -213,70 +214,124 @@ socket.on('board_reveal_map_results', (data) => {
     // Karte sichtbar machen
     mapDiv.style.display = 'block';
 
-    // Falls Map noch nicht initialisiert (Sicherheitsnetz), jetzt tun:
-    if (!mapInstance && currentQuestion) {
-        initMap(currentQuestion);
+    const { results, players, target } = data;
+    if (!target) return;
+
+    // --- LOGIK FÜR KARTEN-WECHSEL ---
+    const targetIsCustom = !!target.isCustomMap;
+
+    // Falls Karte existiert, aber falscher Modus -> Zerstören
+    if (mapInstance) {
+        if (mapIsCustomMode !== targetIsCustom) {
+            mapInstance.remove();
+            mapInstance = null;
+        }
     }
 
-    // 2. TIMEOUT BLOCK (Wichtig für Rendering nach display:block)
+    // Falls Karte nicht existiert (oder gerade zerstört wurde) -> Neu bauen
+    if (!mapInstance) {
+        if (targetIsCustom) {
+            mapInstance = L.map('q-map', {
+                crs: L.CRS.Simple,
+                minZoom: -5,
+                zoomControl: false,
+                attributionControl: false
+            });
+        } else {
+            mapInstance = L.map('q-map', {
+                crs: L.CRS.EPSG3857,
+                zoomControl: false,
+                attributionControl: false
+            });
+        }
+        mapIsCustomMode = targetIsCustom;
+    }
+    // --------------------------------
+
+    // 2. TIMEOUT BLOCK (Rendering)
     setTimeout(() => {
         if (!mapInstance) return;
         const map = mapInstance;
         
-        // Leaflet Größe aktualisieren
         map.invalidateSize();
 
+        // Layer aufräumen: Alles weg außer dem passenden Hintergrund
         map.eachLayer((layer) => {
-            if (layer instanceof L.TileLayer || layer instanceof L.ImageOverlay) {
-                return;
+            if (targetIsCustom) {
+                // Bei Custom Maps behalten wir nur das Bild (ImageOverlay)
+                if (layer instanceof L.ImageOverlay) return;
+            } else {
+                // Bei Weltkarten behalten wir nur die Kacheln (TileLayer)
+                if (layer instanceof L.TileLayer) return;
             }
-
             map.removeLayer(layer);
         });
 
-        const { results, players, target } = data;
-        if (!target) return;
-
-        // --- ZIEL MARKER ---
-        const targetLatLng = L.latLng(target.lat, target.lng);
-        const targetIcon = L.divIcon({
-            className: 'map-target-icon',
-            html: `<div style="width:20px; height:20px; background:#00ff00; border:2px solid black; border-radius:50%; box-shadow:0 0 10px #00ff00;"></div>
-                   <div style="position:absolute; top:-25px; left:-20px; background:black; color:#00ff00; padding:2px 5px; font-weight:bold; border:1px solid #00ff00;">LÖSUNG</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
+        // Hintergrund laden, falls er fehlt (z.B. nach Neustart der Map)
+        let hasBackground = false;
+        map.eachLayer(l => {
+            if (targetIsCustom && l instanceof L.ImageOverlay) hasBackground = true;
+            if (!targetIsCustom && l instanceof L.TileLayer) hasBackground = true;
         });
-        L.marker(targetLatLng, { icon: targetIcon, zIndexOffset: 1000 }).addTo(map);
-        const bounds = L.latLngBounds([targetLatLng]);
 
-        if (target.radius && target.radius > 0) {
-            const circle = L.circle(targetLatLng, {
-                color: '#28a745',       // Grün
-                fillColor: '#28a745',
-                fillOpacity: 0.2,
-                radius: target.radius,
-                weight: 1
-            }).addTo(map);
-            bounds.extend(circle.getBounds());
+        if (!hasBackground) {
+            if (targetIsCustom && target.customMapPath) {
+                const w = target.mapWidth || 1000;
+                const h = target.mapHeight || 1000;
+                const bounds: L.LatLngBoundsExpression = [[0, 0], [h, w]];
+                L.imageOverlay(target.customMapPath, bounds).addTo(map);
+                map.fitBounds(bounds);
+            } else {
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19
+                }).addTo(map);
+                map.setView([0, 0], 2);
+            }
         }
 
+        const targetLatLng = L.latLng(target.lat, target.lng);
+        let bounds: L.LatLngBounds;
+
+        // --- ZIEL MARKER ---
         if (target.zone && target.zone.length > 2) {
+            // FALL A: Zonen-Frage -> Polygon zeichnen, KEINE Flagge
             const poly = L.polygon(target.zone, {
-                color: '#28a745',       // Grün
+                color: '#28a745',
                 fillColor: '#28a745',
                 fillOpacity: 0.3,
                 weight: 2,
-                dashArray: '5, 5'       // Gestrichelt für Zone
+                dashArray: '5, 5'
             }).addTo(map);
             
-            // Bounds erweitern, damit die ganze Zone sichtbar ist
-            bounds.extend(poly.getBounds());
+            // Bounds auf die Zone setzen
+            bounds = poly.getBounds();
+        
+        } else {
+            // FALL B: Punkt-Frage -> Flagge & Radius zeichnen
+            bounds = L.latLngBounds([targetLatLng]);
+
+            const targetIcon = L.divIcon({
+                className: 'map-target-icon',
+                html: `<div style="font-size:2rem; filter: drop-shadow(0 0 5px white); line-height:1;">🚩</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [10, 28] 
+            });
+            L.marker(targetLatLng, { icon: targetIcon, zIndexOffset: 2000 }).addTo(map);
+
+            // Radius Kreis
+            if (target.radius && target.radius > 0) {
+                const circle = L.circle(targetLatLng, {
+                    color: '#28a745',       
+                    fillColor: '#28a745',
+                    fillOpacity: 0.2,
+                    radius: target.radius,
+                    weight: 1
+                }).addTo(map);
+                bounds.extend(circle.getBounds());
+            }
         }
-
         // --- SPIELER MARKER ---
-
         Object.keys(results).forEach((pid) => {
-            
             const r = results[pid];
             const p = players[pid];
             if (!p) return;
@@ -284,10 +339,8 @@ socket.on('board_reveal_map_results', (data) => {
             const playerLatLng = L.latLng(r.lat, r.lng);
             bounds.extend(playerLatLng);
 
-            
-            
-            // Linie zum Ziel
             const isWin = r.isWinner;
+            const size = isWin ? 30 : 18;
 
             let distText = '';
             if (target.isCustomMap) {
@@ -300,9 +353,7 @@ socket.on('board_reveal_map_results', (data) => {
                 }
             }
 
-            const size = isWin ? 30 : 18;
-            const borderCol = isWin ? '#fff' : '#fff';
-            const shadow = isWin ? '0 0 10px #ffcc00' : '0 2px 4px rgba(0,0,0,0.5)';
+            const shadow = isWin ? '0 0 15px #ffcc00' : '0 2px 4px rgba(0,0,0,0.5)';
             const fontSize = isWin ? '1.2rem' : '0';
 
             const markerHtml = `
@@ -310,19 +361,19 @@ socket.on('board_reveal_map_results', (data) => {
                     background-color: ${p.color}; 
                     width: ${size}px; height: ${size}px; 
                     border-radius: 50%; 
-                    border: 2px solid ${borderCol};
+                    border: 2px solid white;
                     box-shadow: ${shadow};
                     display: flex; align-items: center; justify-content: center;
                     color: white; font-weight: bold; font-size: ${fontSize};
+                    box-sizing: border-box;
                 ">
                     ${isWin ? '✓' : ''}
                 </div>
-                
                 <div style="
                     position: absolute; top: -35px; left: 50%; transform: translateX(-50%);
                     background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 4px;
                     font-size: 0.8rem; white-space: nowrap; pointer-events: none;
-                    text-align: center; line-height: 1.2; z-index: 9999;
+                    text-align: center; line-height: 1.2; z-index: 3000;
                     border: 1px solid #555;
                 ">
                     <span style="font-weight:bold; color:${p.color}">${p.name}</span><br>
@@ -333,21 +384,24 @@ socket.on('board_reveal_map_results', (data) => {
             const icon = L.divIcon({
                 className: 'player-map-marker',
                 html: markerHtml,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2] // ZENTRIERT
             });
 
             const marker = L.marker(playerLatLng, { icon }).addTo(map);
-            const dashArrayValue = isWin ? undefined : '5, 10';
 
-            L.polyline([playerLatLng, targetLatLng], { 
-                color: isWin ? '#28a745' : '#666', 
-                weight: isWin ? 3 : 1, 
-                dashArray: dashArrayValue,
-                opacity: isWin ? 0.8 : 0.5 
-            }).addTo(map);
+            // Linie zum Ziel
+           if (!(target.zone && target.zone.length > 0)) {
+                const dashArrayValue = isWin ? undefined : '5, 10';
+                L.polyline([playerLatLng, targetLatLng], { 
+                    color: isWin ? '#28a745' : '#666', 
+                    weight: isWin ? 3 : 1, 
+                    dashArray: dashArrayValue,
+                    opacity: isWin ? 0.8 : 0.5 
+                }).addTo(map);
+            }
             
-            if (isWin) marker.setZIndexOffset(500);
+            if (isWin) marker.setZIndexOffset(2500);
         });
 
         // --- ZOOM ANPASSEN ---
@@ -358,7 +412,7 @@ socket.on('board_reveal_map_results', (data) => {
             animate: true 
         });
 
-    }, 200); // 100ms warten damit DOM fertig ist
+    }, 200);
 });
 
 socket.on('board_hide_question', () => {
@@ -609,31 +663,39 @@ function renderGrid() {
 }
 
 function initMap(question: IQuestion) {
-    if (!question.location) return;
-    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+    const targetIsCustom = !!question.location?.isCustomMap;
 
-    const loc = question.location;
-    const crsMode = loc.isCustomMap ? L.CRS.Simple : L.CRS.EPSG3857;
+    // PRÜFUNG: Muss die Karte neu erstellt werden?
+    if (mapInstance) {
+        // Wenn wir von Welt auf Custom (oder umgekehrt) wechseln -> Karte zerstören
+        if (mapIsCustomMode !== targetIsCustom) {
+            mapInstance.remove();
+            mapInstance = null;
+        }
+    }
 
-    mapInstance = L.map('q-map', {
-        center: [0, 0],
-        zoomSnap: 0.5,
-        zoomControl: true,
-        attributionControl: false,
-        crs: crsMode,
-        minZoom: loc.isCustomMap ? -5 : 1
-    });
-
-    if (loc.isCustomMap && loc.customMapPath) {
-        const bounds: L.LatLngBoundsExpression = [[0,0], [loc.mapHeight,loc.mapWidth]];
-        L.imageOverlay(loc.customMapPath, bounds).addTo(mapInstance);
-        mapInstance.fitBounds(bounds);
-    } else {
-        // OSM
-        mapInstance.setView([0,0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
+    // Wenn Karte (noch) nicht existiert -> Neu erstellen mit korrektem CRS
+    if (!mapInstance) {
+        if (targetIsCustom) {
+            // CUSTOM MAP (BILD) -> CRS.Simple
+            mapInstance = L.map('q-map', {
+                crs: L.CRS.Simple,
+                minZoom: -5,
+                zoomControl: false,
+                attributionControl: false
+            });
+        } else {
+            // WELTKARTE -> Standard
+            mapInstance = L.map('q-map', {
+                crs: L.CRS.EPSG3857,
+                zoomControl: false,
+                attributionControl: false
+            });
+        }
+        mapIsCustomMode = targetIsCustom; // Modus merken
     }
     
+    // Größe sofort aktualisieren
     mapInstance.invalidateSize();
 }
 
