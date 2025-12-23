@@ -181,61 +181,128 @@ socket.on('session_rejoined', (data) => {
     localStorage.setItem('jeopardy_host_session', JSON.stringify({ roomCode: data.roomCode, gameId: data.gameId }));
 });
 
-socket.on('host_session_restored', (data: any) => {
-    roomCode = data.roomCode;
-    currentGame = data.game;
-    players = data.players;
-    
-    if(roomCodeDisplay) roomCodeDisplay.innerText = roomCode || '--';
+socket.on('host_session_restored', (data) => {
+    console.log("Session restored:", data);
 
-    renderGameGrid(data.game);
-    renderPlayerList();
+    // 1. UI RESET: Alles auf Anfangszustand
+    hostGrid.style.display = 'flex'; // Grid zeigen
+    activeQSection.style.display = 'none'; // Overlay erst aus, gleich an wenn nötig
     
-    // Frage wiederherstellen
-    if (data.activeQuestion) {
-        activeQuestion = data.activeQuestion;
-        
-        // CSS Change: Flex für Overlay
-        activeQSection.style.display = 'flex'; 
-        
-        qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
-        qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
-        aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
+    // Alle Buttons verstecken
+    if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
+    if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
+    if(resolveMapBtn) resolveMapBtn.style.display = 'none';
+    if(resolveEstimateBtn) resolveEstimateBtn.style.display = 'none';
 
+    // Alle Modi-Controls verstecken
+    mapModeControls.style.display = 'none';
+    estimateModeControls.style.display = 'none';
+    freetextModeControls.style.display = 'none';
+    pixelModeControls.style.display = 'none';
+    listModeControls.style.display = 'none';
+    buzzWinnerSection.style.display = 'none';
+
+    // 2. AKTIVE FRAGE WIEDERHERSTELLEN
+    if (data.question) {
+        activeQSection.style.display = 'flex'; // Overlay an
+        const q = data.question;
+
+        // Titel und Texte setzen
+        const catName = currentGame?.categories[data.catIndex]?.name || 'Frage';
+        qTitle.innerText = `${catName} - ${q.points} Punkte`;
+
+        // Inhalte rendern
+        qDisplay.innerHTML = renderQuestionContent(q, 'question');
+        aDisplay.innerHTML = renderQuestionContent(q, 'answer');
+
+        // Medien-Sync wieder aktivieren (WICHTIG!)
+        // (Setzt voraus, dass die Hilfsfunktion attachMediaSyncListeners existiert)
         attachMediaSyncListeners('question-display');
         attachMediaSyncListeners('answer-display');
 
+        // Grid-Button als "aktiv" markieren
         const btn = document.getElementById(`q-btn-${data.catIndex}-${data.qIndex}`);
-        if (btn) btn.classList.add('used');
+        if (btn) btn.classList.add('active');
 
-        if (data.question.type === 'map') {
-            buzzWinnerSection.style.display = 'none';
-            mapModeControls.style.display = 'flex';
-            unlockBuzzersBtn.style.display = 'none';
-            mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
-            if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
-        } else {
-            buzzWinnerSection.style.display = 'none';
-            mapModeControls.style.display = 'none';
-            // Logik ob Buzzer aktiv oder nicht
-            unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
-            if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
-            if (data.buzzWinnerId) {
-                 buzzWinnerName.innerText = players[data.buzzWinnerId]?.name || 'Spieler';
-                 buzzWinnerSection.style.display = 'block';
-            }
+        // 3. TYP-SPEZIFISCHE LOGIK
+        const totalPlayers = Object.keys(data.players || {}).length;
+        const currentCount = data.submittedCount || 0;
+
+        switch (q.type) {
+            case 'map':
+                mapModeControls.style.display = 'flex';
+                mapSubmittedCount.innerText = `${currentCount}/${totalPlayers}`;
+                
+                // Button wieder anzeigen (sofern noch nicht aufgelöst - Status müsste man theoretisch auch tracken, 
+                // aber hier gehen wir davon aus: Frage offen -> Button da)
+                if(resolveMapBtn) resolveMapBtn.style.display = 'block';
+                break;
+
+            case 'estimate':
+                estimateModeControls.style.display = 'flex';
+                estimateSubmittedCount.innerText = `${currentCount}/${totalPlayers}`;
+                
+                if(resolveEstimateBtn) resolveEstimateBtn.style.display = 'block';
+                break;
+
+            case 'freetext':
+                freetextModeControls.style.display = 'flex';
+                freetextSubmittedCount.innerText = `${currentCount}/${totalPlayers}`;
+                // Bei Freitext gibt es meist keinen globalen "Auflösen" Button, da einzeln bewertet wird
+                break;
+
+            case 'pixel':
+                pixelModeControls.style.display = 'flex';
+                qTitle.innerText += " (PIXEL PUZZLE)";
+                
+                // Pixel hat Buzzer + Auflösen
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+                if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
+                break;
+
+            case 'list':
+                listModeControls.style.display = 'block';
+                
+                // Liste hat Buzzer + Auflösen
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'block';
+                if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
+
+                // Listen-Fortschritt wiederherstellen
+                if (q.listItems) {
+                    updateListPreview(q.listItems, data.listRevealedCount || 0);
+                }
+                break;
+
+            default: // 'standard'
+                // Standard Frage
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+                if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
+                break;
         }
-    } else {
-        activeQSection.style.display = 'none';
+
+        // 4. BUZZER GEWINNER (falls vorhanden)
+        if (data.buzzWinnerId) {
+            // Wenn jemand gebuzzert hat:
+            activePlayerId = data.buzzWinnerId;
+            const winnerName = data.players[data.buzzWinnerId]?.name || 'Spieler';
+            
+            buzzWinnerName.innerText = winnerName;
+            buzzWinnerSection.style.display = 'block';
+
+            // Buttons anpassen: 
+            // Unlock Button zeigen wir oft trotzdem an (um zu resetten), 
+            // Auflösen blenden wir oft aus, um Verwirrung zu vermeiden.
+            if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'block'; 
+            if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none'; 
+            
+            // Map/Estimate Controls ausblenden, falls sie an waren (sollte bei Standard nicht passieren, aber sicher ist sicher)
+            mapModeControls.style.display = 'none';
+        }
     }
 
-    if (data.usedQuestions && Array.isArray(data.usedQuestions)) {
-        data.usedQuestions.forEach((item: {catIndex: number, qIndex: number}) => {
-            markQuestionAsUsed(item.catIndex, item.qIndex);
-        });
-    }
-    
-    initMusic(data.game);
+    // 5. Spielerliste & Punktestand aktualisieren
+    players = data.players;
+    renderPlayerList();
 });
 
 socket.on('host_rejoin_error', () => {

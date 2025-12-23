@@ -346,34 +346,53 @@ io.on('connection', (socket) => {
         socket.emit('session_created', roomCode);
     });
 
-    socket.on('host_rejoin_session', async (roomCode) => {
+    socket.on('host_rejoin_session', (roomCode) => {
         const session = sessions[roomCode];
-
-        if (session) {
-            session.hostSocketId = socket.id;
-            socket.join(roomCode);
-            
-            syncSessionState(session, socket.id, 'host');
-            console.log(`Host hat Session ${roomCode} wieder aufgenommen.`);    
-
-            // Bestätigung an Host senden
-            socket.emit('host_session_restored', {
-                roomCode: roomCode,
-                game: session.game,
-                players: session.players,              // Damit die Spielerliste sofort da ist
-                activeQuestion: session.activeQuestion,// Damit die aktuelle Frage wieder aufgeht
-                usedQuestions: session.usedQuestions || [] // Damit die Buttons grau werden
-            });
-            
-            // Aktuellen Status an den Host senden
-            socket.emit('update_player_list', session.players);
-            socket.emit('update_scores', session.players);
-            
-            
-        } else {
-            // Session existiert nicht mehr (Server Neustart oder Timeout)
-            socket.emit('host_rejoin_error');
+        if (!session) {
+            socket.emit('error_message', 'Session nicht gefunden');
+            return;
         }
+
+        // Host Socket ID aktualisieren
+        session.hostSocketId = socket.id;
+        socket.join(roomCode);
+
+        // Daten für den Restore vorbereiten
+        let submittedCount = 0;
+        let listRevealedCount = 0;
+
+        if (session.activeQuestion) {
+            const qType = session.activeQuestion.type;
+
+            // Zähler berechnen je nach Typ
+            if (qType === 'map') {
+                submittedCount = Object.keys(session.mapGuesses || {}).length;
+            } else if (qType === 'estimate') {
+                submittedCount = Object.keys(session.estimateGuesses || {}).length;
+            } else if (qType === 'freetext') {
+                submittedCount = Object.keys(session.freetextAnswers || {}).length;
+            } else if (qType === 'list') {
+                listRevealedCount = session.listRevealedCount || 0;
+            }
+        }
+
+        // Event senden
+        socket.emit('host_session_restored', {
+            gameId: session.gameId,
+            catIndex: (session as any).activeCatIndex, // Cast falls Index nicht im Interface definiert war
+            qIndex: (session as any).activeQuestionIndex,
+            question: session.activeQuestion!,
+            players: session.players,
+            buzzersActive: session.buzzersActive,
+            buzzWinnerId: session.currentBuzzWinnerId,
+            
+            // Die neuen Felder:
+            submittedCount: submittedCount,
+            listRevealedCount: listRevealedCount
+        });
+        
+        // Punktestand-Update sicherheitshalber hinterher
+        socket.emit('update_scores', session.players);
     });
     
     // NEU: Host Start Game Handler, falls das Board-Update über Socket läuft

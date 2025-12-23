@@ -89,7 +89,18 @@ export interface ISession {
 export interface ServerToClientEvents {
     session_created: (roomCode: string) => void;
     session_rejoined: (data: { roomCode: string, gameId: string }) => void;
-    host_session_restored: (data: {roomCode: string; game: IGame; players: Record<string, IPlayer>; activeQuestion: IQuestion | null; usedQuestions: { catIndex: number, qIndex: number }[];}) => void;
+    host_session_restored: (data: {
+        gameId: string;
+        catIndex: number;
+        qIndex: number;
+        question: IQuestion;
+        players: Record<string, IPlayer>;
+        buzzersActive: boolean;
+        buzzWinnerId: string | null;
+        submittedCount?: number;     
+        listRevealedCount?: number;
+        isResolved?: boolean;        
+    }) => void;
     host_rejoin_error: () => void;
     error_message: (message: string) => void;
     board_connected_success: () => void;
