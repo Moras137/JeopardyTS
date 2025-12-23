@@ -349,7 +349,7 @@ io.on('connection', (socket) => {
     socket.on('host_rejoin_session', (roomCode) => {
         const session = sessions[roomCode];
         if (!session) {
-            socket.emit('error_message', 'Session nicht gefunden');
+            socket.emit('host_rejoin_error');
             return;
         }
 

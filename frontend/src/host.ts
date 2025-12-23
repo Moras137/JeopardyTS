@@ -66,25 +66,39 @@ const resolveQuestionBtn = document.getElementById('resolve-question-btn') as HT
 // --- INIT & EVENT LISTENER ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Prüfen auf gespeicherte Session
-    const savedSession = localStorage.getItem('jeopardy_host_session');
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlGameId = urlParams.get('gameId');
+    const savedSessionStr = localStorage.getItem('jeopardy_host_session');
     
-    if (savedSession) {
+    let shouldRejoin = false;
+
+    // 1. Prüfen, ob wir rejoinen können
+    if (savedSessionStr) {
         try {
-            const data = JSON.parse(savedSession);
-            socket.emit('host_rejoin_session', data.roomCode);
-            return; 
+            const savedData = JSON.parse(savedSessionStr);
+
+            if (!urlGameId || (savedData.gameId === urlGameId)) {
+                shouldRejoin = true;
+                console.log("Versuche Rejoin mit existierender Session...");
+                socket.emit('host_rejoin_session', savedData.roomCode);
+            }
         } catch (e) {
             localStorage.removeItem('jeopardy_host_session');
         }
     }
 
-    // 2. Fallback: Neu erstellen
-    const gameId = new URLSearchParams(window.location.search).get('gameId');
-    if (gameId) {
-        socket.emit('host_create_session', gameId);
-    } else {
-        window.location.href = '/create.html';
+    // 2. Fallback: Neue Session erstellen, wenn kein Rejoin stattfindet
+    if (!shouldRejoin) {
+        // Falls wir hier sind, wollen wir ein NEUES Spiel starten -> Alten Cache löschen
+        localStorage.removeItem('jeopardy_host_session');
+
+        if (urlGameId) {
+            console.log("Starte neue Session für GameID:", urlGameId);
+            socket.emit('host_create_session', urlGameId);
+        } else {
+            // Keine ID vorhanden -> Zurück zur Auswahl
+            window.location.href = '/create.html';
+        }
     }
 });
 
