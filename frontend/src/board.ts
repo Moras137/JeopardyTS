@@ -516,7 +516,7 @@ socket.on('board_reveal_estimate_results', (data) => {
     answerTextDiv.innerHTML = `LÖSUNG: <span style="color:#ffcc00; font-size:1.5em;">${data.correctAnswer}</span>`;
     answerTextDiv.style.display = 'block';
     
-    estimateResultsDiv.style.display = 'block';
+    estimateResultsDiv.style.display = 'flex';
     estimateResultsDiv.innerHTML = '';
 
     mediaContainer.style.display = 'none'; 
@@ -528,17 +528,19 @@ socket.on('board_reveal_estimate_results', (data) => {
         const row = document.createElement('div');
         row.className = `estimate-result-row ${g.isWinner ? 'estimate-winner' : ''}`;
         
-        // Verzögerte Animation für Spannung (je weiter unten/besser, desto später?) 
-        // Oder einfach von oben nach unten.
         row.style.animationDelay = `${index * 0.2}s`;
 
         const diffDisplay = g.diff % 1 === 0 ? g.diff : g.diff.toFixed(2);
         
         row.innerHTML = `
-            <span style="font-weight:bold; text-align:left;">${index + 1}. ${g.name}</span>
-            <div style="display:flex; gap:15px; align-items:center;">
-                <span style="background:#eee; color:#000; padding:2px 10px; border-radius:4px;">${g.value}</span>
-                <span style="font-size:0.6em; opacity:0.7;">(±${diffDisplay})</span>
+            <div style="font-weight:bold; font-size: 0.8em; margin-bottom: 5px; border-bottom: 1px solid rgba(0,0,0,0.1); width:100%; padding-bottom:5px;">
+                #${index + 1} ${g.name}
+            </div>
+            <div style="font-size: 1.5em; font-weight: bold; margin: 10px 0;">
+                ${g.value}
+            </div>
+            <div style="font-size:0.6em; opacity:0.8;">
+                (±${diffDisplay})
             </div>
         `;
         estimateResultsDiv.appendChild(row);

@@ -159,4 +159,5 @@ export interface ClientToServerEvents {
     host_manual_score_update: (data: { playerId: string, newScore: number }) => void;
     host_show_podium: () => void;
     host_media_control: (data: { action: 'play' | 'pause' | 'seek', currentTime: number }) => void;
+    host_resolve_question: () => void;
 }

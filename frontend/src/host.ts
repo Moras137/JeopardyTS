@@ -61,6 +61,7 @@ const resolveFreetextBtn = document.getElementById('resolve-freetext-btn') as HT
 const freetextGradingView = document.getElementById('freetext-grading-view') as HTMLDivElement;
 const freetextList = document.getElementById('freetext-list') as HTMLDivElement;
 const btnPodium = document.getElementById('btn-podium') as HTMLButtonElement;
+const resolveQuestionBtn = document.getElementById('resolve-question-btn') as HTMLButtonElement;
 
 // --- INIT & EVENT LISTENER ---
 
@@ -112,14 +113,20 @@ if(btnCloseModalTop) btnCloseModalTop.addEventListener('click', handleClose);
 
 // Sidebar Actions
 if(toggleQRBtn) toggleQRBtn.addEventListener('click', () => socket.emit('host_toggle_qr'));
-if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => socket.emit('host_resolve_map'));
+if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => {
+    socket.emit('host_resolve_map');
+    resolveMapBtn.style.display = 'none';
+});
 if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
 if(btnRevealList) btnRevealList.addEventListener('click', () => {socket.emit('host_reveal_next_list_item');});
 
 if(btnPixelPause) btnPixelPause.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'pause'));
 if(btnPixelResume) btnPixelResume.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'resume'));
 
-if(resolveEstimateBtn) resolveEstimateBtn.addEventListener('click', () => socket.emit('host_resolve_estimate'));
+if(resolveEstimateBtn) resolveEstimateBtn.addEventListener('click', () => {
+    socket.emit('host_resolve_estimate');
+    resolveEstimateBtn.style.display = 'none';
+});
 if(resolveFreetextBtn) {
     resolveFreetextBtn.addEventListener('click', () => {
         socket.emit('host_resolve_freetext');
@@ -146,6 +153,15 @@ if(btnPodium) {
         }
     });
 }
+
+if(resolveQuestionBtn) resolveQuestionBtn.addEventListener('click', () => {
+    if(confirm("Frage wirklich auflösen?")) {
+        socket.emit('host_resolve_question');
+        // UI Update: Buttons verstecken, da aufgelöst
+        resolveQuestionBtn.style.display = 'none';
+        if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
+    }
+});
 
 toggleTheme(); // Theme init
 
@@ -197,12 +213,13 @@ socket.on('host_session_restored', (data: any) => {
             mapModeControls.style.display = 'flex';
             unlockBuzzersBtn.style.display = 'none';
             mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
+            if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
         } else {
             buzzWinnerSection.style.display = 'none';
             mapModeControls.style.display = 'none';
             // Logik ob Buzzer aktiv oder nicht
             unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
-            
+            if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
             if (data.buzzWinnerId) {
                  buzzWinnerName.innerText = players[data.buzzWinnerId]?.name || 'Spieler';
                  buzzWinnerSection.style.display = 'block';
@@ -374,6 +391,7 @@ function updateHostControls(data: any) {
             buzzWinnerSection.style.display = 'block';
             unlockBuzzersBtn.style.display = 'block';
             mapModeControls.style.display = 'none';
+            //if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
         } else {
             activePlayerId = null;
             buzzWinnerSection.style.display = 'none';
@@ -381,6 +399,9 @@ function updateHostControls(data: any) {
             if(activeQSection.style.display === 'flex' && mapModeControls.style.display === 'none') {
                 unlockBuzzersBtn.style.display = 'block';
             }
+            // if(unlockBuzzersBtn && unlockBuzzersBtn.style.display === 'block') {
+            //      if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
+            // }
         }
     }
 
@@ -519,15 +540,18 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     estimateModeControls.style.display = 'none';
     freetextModeControls.style.display = 'none'; 
     unlockBuzzersBtn.style.display = 'none';
+    if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
     // -----------------------------------
 
     if (question.type === 'map') {
         mapModeControls.style.display = 'flex';
         mapSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+        if(resolveMapBtn) resolveMapBtn.style.display = 'block';
     
     } else if (question.type === 'list') {
         listModeControls.style.display = 'block';
         unlockBuzzersBtn.style.display = 'block'; 
+        if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         
         if (question.listItems) {
             updateListPreview(question.listItems, -1); 
@@ -536,17 +560,20 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     } else if (question.type === 'pixel') {
         pixelModeControls.style.display = 'flex';
         unlockBuzzersBtn.style.display = 'block';
+        if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         qTitle.innerText += " (PIXEL PUZZLE)";
         
     } else if (question.type === 'estimate') {
         estimateModeControls.style.display = 'flex';
         estimateSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+        if(resolveEstimateBtn) resolveEstimateBtn.style.display = 'block';
 
     } else if (question.type === 'freetext') {
         freetextModeControls.style.display = 'flex';
         freetextSubmittedCount.innerText = `0/${Object.keys(players).length}`;
 
     } else {
+        if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         unlockBuzzersBtn.style.display = 'block';
     }
 

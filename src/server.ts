@@ -517,6 +517,13 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('host_resolve_question', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (info) {
+             io.to(info.code).emit('board_reveal_answer');
+        }
+    });
+
     socket.on('host_pick_question', (data) => {
         const info = getSessionBySocketId(socket.id);
         if (!info) return;
