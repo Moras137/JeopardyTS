@@ -1,7 +1,7 @@
 // src/server.ts
 import express, { Request, Response } from 'express';
 import http from 'http';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import path from 'path';
@@ -9,7 +9,7 @@ import fs from 'fs/promises';
 import os from 'os';
 
 // Typen importieren
-import { IGame, ISession, ServerToClientEvents, ClientToServerEvents } from './types';
+import { ISession, ServerToClientEvents, ClientToServerEvents } from './types';
 import { GameModel } from './models/Quiz';
 
 // --- SETUP ---
@@ -231,8 +231,8 @@ async function cleanupUnusedFiles() {
 
 // --- UPLOAD ---
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'public/uploads/'),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+    destination: (_req, _file, cb) => cb(null, 'public/uploads/'),
+    filename: (_req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage: storage });
 
@@ -245,7 +245,7 @@ app.post('/api/upload', upload.single('mediaFile'), (req: Request, res: Response
 });
 
 // --- API ROUTES ---
-app.get('/api/games', async (req, res) => {
+app.get('/api/games', async (_req, res) => {
     try {
         const games = await GameModel.find().select('_id title boardBackgroundPath');
         res.json(games);
@@ -466,7 +466,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('player_buzz', (data) => {
+    socket.on('player_buzz', () => {
         const info = getSessionBySocketId(socket.id);
         if (!info || !info.isPlayer) return;
         const { session, code, playerId } = info;
@@ -683,7 +683,6 @@ io.on('connection', (socket) => {
         const target = session.activeQuestion.location;
         const guesses = session.mapGuesses;
         const radius = target.radius || 0;
-        let anyWinnerFound = false;
         let results: any = {};
         let bestDist = Infinity;
 
@@ -702,13 +701,11 @@ io.on('connection', (socket) => {
                 // Prüfen ob Punkt im Polygon liegt
                 if (isPointInPolygon({lat: playerRes.lat, lng: playerRes.lng}, target.zone)) {
                     playerRes.isWinner = true;
-                    anyWinnerFound = true;
                     if(session.players[pid]) session.players[pid].score += session.activeQuestionPoints;
                 }
             } else if (radius > 0) {
                 if (playerRes.distance <= radius) {
                     playerRes.isWinner = true;
-                    anyWinnerFound = true;
                     if(session.players[pid]) session.players[pid].score += session.activeQuestionPoints;
                 }
             } 

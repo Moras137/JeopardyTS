@@ -142,6 +142,16 @@ export interface ServerToClientEvents {
     host_update_freetext_buttons: (data: { playerId: string; status?: 'correct' | 'incorrect'; }) => void;
     board_freetext_update_state: (data: { playerId: string, status: 'correct' | 'incorrect' | 'none' }) => void;
     board_media_control: (data: { action: 'play' | 'pause' | 'seek', currentTime: number }) => void;
+    // Integration test events
+    host_info: (data: { hostSocketId: string, playerCount: number }) => void;
+    player_joined: (data: { playerId: string, roomCode: string, playerCount: number }) => void;
+    player_joined_broadcast: (data: { playerName: string, playerCount: number, scores: { playerId: string, score: number }[] }) => void;
+    question_selected: (data: { question: IQuestion, catIndex: number, qIndex: number, playersCount: number }) => void;
+    player_buzzed: (data: { playerId: string, playerName: string }) => void;
+    answer_correct: (data: { playerId?: string, newScore?: number, scores: { playerId: string, score: number }[] }) => void;
+    answer_incorrect: (data: { playerId?: string, newScore?: number, scores: { playerId: string, score: number }[] }) => void;
+    question_ended: (data: { nextStep: string }) => void;
+    player_disconnected: (data: { playerId: string, playerCount: number }) => void;
 }
 
 export interface ClientToServerEvents {
