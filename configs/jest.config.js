@@ -1,4 +1,5 @@
 module.exports = {
+  rootDir: '..',
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/tests', '<rootDir>/src'],
@@ -8,7 +9,7 @@ module.exports = {
 
   // TypeScript Compilation
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
+    '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: '<rootDir>/configs/tsconfig.test.json' }],
   },
 
   // Coverage
@@ -18,7 +19,8 @@ module.exports = {
     '!src/types.ts',
     '!**/node_modules/**',
   ],
-  coveragePathIgnorePatterns: ['/node_modules/', '/dist/', 'types.ts'],
+  coverageDirectory: '<rootDir>/output/coverage',
+  coveragePathIgnorePatterns: ['/node_modules/', '/output/dist/', 'types.ts'],
   coverageThreshold: {
     global: {
       branches: 40,

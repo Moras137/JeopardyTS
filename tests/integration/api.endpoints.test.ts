@@ -1,5 +1,6 @@
 import request from 'supertest';
 import express, { Express } from 'express';
+import path from 'path';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { GameModel } from '../../src/models/Quiz';
@@ -20,7 +21,7 @@ const createTestApp = (): Express => {
     const testApp = express();
     
     testApp.use(express.json());
-    testApp.use(express.static('public'));
+    testApp.use(express.static(path.resolve(process.cwd(), 'output/public')));
 
     // API Routes
     testApp.get('/api/games', async (_req, res) => {

@@ -3,16 +3,16 @@ import { defineConfig } from 'vite';
 import path from 'path';
 
 export default defineConfig({
-  root: 'frontend', // Unser Quellcode liegt hier
+  root: path.resolve(__dirname, '../frontend'),
   build: {
-    outDir: '../public', // Das Ziel ist der öffentliche Server-Ordner
-    emptyOutDir: false,   // Löscht public vor jedem Build
+    outDir: path.resolve(__dirname, '../output/public'),
+    emptyOutDir: false,
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'frontend/create.html'),
-        host: path.resolve(__dirname, 'frontend/host.html'),
-        board: path.resolve(__dirname, 'frontend/board.html'),
-        player: path.resolve(__dirname, 'frontend/player.html'),
+        main: path.resolve(__dirname, '../frontend/create.html'),
+        host: path.resolve(__dirname, '../frontend/host.html'),
+        board: path.resolve(__dirname, '../frontend/board.html'),
+        player: path.resolve(__dirname, '../frontend/player.html'),
       },
     },
   },

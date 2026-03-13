@@ -52,6 +52,32 @@ let sidebarGamesCache: IGame[] = [];
 
 const mapInstances: Record<string, L.Map> = {};
 
+function normalizeMediaPath(rawPath: string | undefined | null): string {
+    if (!rawPath) return '';
+
+    let p = String(rawPath).trim().replace(/\\/g, '/');
+    if (!p) return '';
+
+    if (/^https?:\/\//i.test(p) || p.startsWith('data:')) return p;
+
+    p = p.replace(/^file:\/+/i, '/');
+
+    const lower = p.toLowerCase();
+    const uploadsIdx = lower.lastIndexOf('/uploads/');
+    if (uploadsIdx >= 0) {
+        p = p.slice(uploadsIdx);
+    } else {
+        const outPublic = lower.lastIndexOf('/output/public/');
+        if (outPublic >= 0) p = p.slice(outPublic + '/output/public'.length);
+
+        const publicIdx = p.toLowerCase().lastIndexOf('/public/');
+        if (publicIdx >= 0) p = p.slice(publicIdx + '/public'.length - 1);
+    }
+
+    if (!p.startsWith('/')) p = `/${p}`;
+    return p;
+}
+
 // --- DOM ELEMENTE ---
 const container = document.getElementById('categories-container') as HTMLDivElement;
 const titleInput = document.getElementById('gameTitle') as HTMLInputElement;
@@ -765,10 +791,10 @@ window.uploadCustomMap = async (input, qId) => {
 // --- 4. SPEICHERN & LADEN ---
 
 async function saveGame() {
-    const bgPath = (document.getElementById('background-path') as HTMLInputElement).value;
-    const musicPath = (document.getElementById('background-music-path') as HTMLInputElement).value;
-    const sfxCorrect = (document.getElementById('path-sfx-correct') as HTMLInputElement).value;
-    const sfxIncorrect = (document.getElementById('path-sfx-incorrect') as HTMLInputElement).value;
+    const bgPath = normalizeMediaPath((document.getElementById('background-path') as HTMLInputElement).value);
+    const musicPath = normalizeMediaPath((document.getElementById('background-music-path') as HTMLInputElement).value);
+    const sfxCorrect = normalizeMediaPath((document.getElementById('path-sfx-correct') as HTMLInputElement).value);
+    const sfxIncorrect = normalizeMediaPath((document.getElementById('path-sfx-incorrect') as HTMLInputElement).value);
     const cats: ICategory[] = [];
 
     document.querySelectorAll('.category').forEach(catDiv => {
@@ -829,7 +855,7 @@ async function saveGame() {
                         lat: parseFloat(lat) || 0, 
                         lng: parseFloat(lng) || 0, 
                         isCustomMap: isCustom, 
-                        customMapPath: customPath, 
+                        customMapPath: normalizeMediaPath(customPath), 
                         mapWidth: parseInt(wInput) || 1000, 
                         mapHeight: parseInt(hInput) || 1000,
                         radius: radiusVal,
@@ -856,8 +882,8 @@ async function saveGame() {
                 answerText,
                 estimationAnswer: estAns,
                 listItems: listItems, // Gespeichert als listItems
-                mediaPath: media || '', hasMedia: !!media, mediaType: 'none',
-                answerMediaPath: answerMedia || '', hasAnswerMedia: !!answerMedia, answerMediaType: 'none',
+                mediaPath: normalizeMediaPath(media || ''), hasMedia: !!media, mediaType: 'none',
+                answerMediaPath: normalizeMediaPath(answerMedia || ''), hasAnswerMedia: !!answerMedia, answerMediaType: 'none',
                 location: loc,
                 pixelConfig: pixelConf
             });
@@ -960,29 +986,29 @@ async function loadGame(id: string) {
         if (game.boardBackgroundPath) {
              const bgInput = document.getElementById('background-path') as HTMLInputElement;
              const bgPreviewContainer = document.getElementById('preview-background') as HTMLDivElement; // <--- Container nutzen
+             const normalizedBgPath = normalizeMediaPath(game.boardBackgroundPath);
              
-             if(bgInput) bgInput.value = game.boardBackgroundPath;
+             if(bgInput) bgInput.value = normalizedBgPath;
              
              if(bgPreviewContainer) {
-                const cleanPath = game.boardBackgroundPath.replace(/\\/g, '/');
-                bgPreviewContainer.innerHTML = generateMediaPreviewHtml(cleanPath);
+                bgPreviewContainer.innerHTML = generateMediaPreviewHtml(normalizedBgPath);
              }
         }
 
         if (game.backgroundMusicPath) {
-            updateMusicPreview(game.backgroundMusicPath);
+            updateMusicPreview(normalizeMediaPath(game.backgroundMusicPath));
         } else {
             updateMusicPreview(''); 
         }
 
         const sfxCorrInput = document.getElementById('path-sfx-correct') as HTMLInputElement;
         const sfxCorrPrev = document.getElementById('preview-sfx-correct') as HTMLDivElement;
-        sfxCorrInput.value = game.soundCorrectPath || '';
+        sfxCorrInput.value = normalizeMediaPath(game.soundCorrectPath || '');
         sfxCorrPrev.innerHTML = generateMediaPreviewHtml(game.soundCorrectPath || '');
 
         const sfxIncorrInput = document.getElementById('path-sfx-incorrect') as HTMLInputElement;
         const sfxIncorrPrev = document.getElementById('preview-sfx-incorrect') as HTMLDivElement;
-        sfxIncorrInput.value = game.soundIncorrectPath || '';
+        sfxIncorrInput.value = normalizeMediaPath(game.soundIncorrectPath || '');
         sfxIncorrPrev.innerHTML = generateMediaPreviewHtml(game.soundIncorrectPath || '');
 
         container.innerHTML = '';
@@ -1164,21 +1190,22 @@ window.checkQuestionFilled = checkQuestionFilled;
 function generateMediaPreviewHtml(path: string) {
     if (!path) return '';
 
-    const lowerPath = path.toLowerCase();
+    const safePath = normalizeMediaPath(path);
+    const lowerPath = safePath.toLowerCase();
 
     if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
         return `
-            <audio controls src="${path}" style="display:block; margin-top:5px; width: 100%; max-width: 250px;">
+            <audio controls src="${safePath}" style="display:block; margin-top:5px; width: 100%; max-width: 250px;">
                 Dein Browser unterstützt kein Audio.
             </audio>`;
     }
     if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
         return `
-            <video controls src="${path}" style="max-height:150px; display:block; margin-top:5px; max-width: 100%;">
+            <video controls src="${safePath}" style="max-height:150px; display:block; margin-top:5px; max-width: 100%;">
                 Dein Browser unterstützt kein Video.
             </video>`;
     }
-    return `<img src="${path}" class="media-preview" style="max-height:100px; display:block; margin-top:5px;" alt="Vorschau">`;
+    return `<img src="${safePath}" class="media-preview" style="max-height:100px; display:block; margin-top:5px;" alt="Vorschau">`;
 }
 
 function switchView(mode: string) {
@@ -1781,7 +1808,7 @@ function updateMusicPreview(filePath: string) {
         return;
     }
 
-    const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+    const normalizedPath = normalizeMediaPath(filePath);
     hiddenInput.value = normalizedPath;
     audio.style.display = 'block';
 
@@ -1838,8 +1865,9 @@ function filterAndRenderTiles(searchTerm: string) {
         const tile = document.createElement('div');
         tile.className = 'quiz-tile';
 
-        const bgStyle = game.boardBackgroundPath 
-            ? `background-image: url('${encodeURI(game.boardBackgroundPath)}');` 
+        const normalizedBg = normalizeMediaPath(game.boardBackgroundPath);
+        const bgStyle = normalizedBg
+            ? `background-image: url('${encodeURI(normalizedBg)}');` 
             : 'background: linear-gradient(45deg, #007bff, #6610f2);';
 
         tile.innerHTML = `

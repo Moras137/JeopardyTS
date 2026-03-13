@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 
 <head>
@@ -95,7 +95,6 @@
             margin: 15px 0;
             border-top: 1px solid var(--border-color);
             border-bottom: 1px solid var(--border-color);
-            scrollbar-width: thin;
         }
 
         .sidebar-footer {
@@ -131,7 +130,7 @@
             overflow: hidden;
         }
 
-        /* Scroll Area für den Editor Inhalt */
+        /* Scroll Area fuer den Editor Inhalt */
         #editor-scroll-area {
             flex-grow: 1;
             overflow-y: auto;
@@ -657,13 +656,13 @@
             background: var(--bg-body);
             padding: 20px;
             border-radius: 8px;
-            border: 2px dashed var(--border-color); /* Gestrichelt für Dropzone-Look */
+            border: 2px dashed var(--border-color); /* Gestrichelt fuer Dropzone-Look */
             transition: all 0.2s ease;
             text-align: center;
             position: relative;
         }
 
-        /* Wenn eine Datei drüber gehalten wird */
+        /* Wenn eine Datei drueber gehalten wird */
         .drag-drop-zone.drag-over {
             border-color: #007bff;
             background: rgba(0, 123, 255, 0.1);
@@ -679,7 +678,7 @@
             pointer-events: none; /* Damit Klicks durchgehen */
         }
 
-        /* NEU: Kompakte Version für Frage-Blöcke */
+        /* NEU: Kompakte Version fuer Frage-Bloecke */
         .drag-drop-zone.compact {
             padding: 10px;
             margin-top: 5px;
@@ -696,41 +695,76 @@
             margin-top: 0;
             font-size: 0.8rem;
         }
+    
+        /* Extracted inline styles */
+        .inline-display-none { display: none; }
+        .inline-margin-0 { margin: 0; }
+        .inline-margin-bottom-10px { margin-bottom: 10px; }
+        .inline-padding-bottom-10px { padding-bottom: 10px; }
+        .inline-border-0-border-top-1px-solid-border-col { border: 0; border-top: 1px solid var(--border-color); margin: 10px 0; }
+        .inline-margin-bottom-15px { margin-bottom: 15px; }
+        .inline-width-100 { width: 100%; }
+        .inline-flex-1 { flex:1; }
+        .inline-display-flex-gap-10px { display: flex; gap: 10px; }
+        .inline-flex-grow-1 { flex-grow: 1; }
+        .inline-flex-grow-1-max-width-400px { flex-grow: 1; max-width: 400px; margin: 0 20px; }
+        .inline-display-flex-gap-10px-2 { display: flex; gap: 10px; align-items: center; }
+        .inline-background-transparent-border-none { background:transparent; border:none; font-size:1.5rem; cursor:pointer; }
+        .inline-display-flex-align-items-center { display:flex; align-items:center; }
+        .inline-margin-0-margin-left-15px { margin:0; margin-left: 15px; }
+        .inline-margin-left-auto { margin-left: auto; }
+        .inline-margin-15px-0 { margin: 15px 0; }
+        .inline-display-flex-gap-20px { display: flex; gap: 20px; }
+        .inline-flex-1-2 { flex: 1; }
+        .inline-margin-top-0 { margin-top:0; }
+        .inline-display-flex-flex-wrap-wrap { display: flex; flex-wrap: wrap; gap: 20px; }
+        .inline-flex-1-min-width-250px { flex: 1; min-width: 250px; }
+        .inline-margin-top-0-color-text-muted { margin-top: 0; color: var(--text-muted); font-size: 1rem; }
+        .inline-font-size-0-9rem-margin-left-10px { font-size: 0.9rem; margin-left: 10px; }
+        .inline-margin-top-10px-min-height-20px { margin-top: 10px; min-height: 20px; }
+        .inline-display-none-max-width-100 { display:none; max-width: 100%; max-height: 100px; border-radius: 4px; border: 1px solid #ccc; }
+        .inline-margin-top-10px { margin-top: 10px; }
+        .inline-font-size-0-8rem { font-size: 0.8rem; }
+        .inline-display-none-width-100 { display:none; width: 100%; height: 35px; }
+        .inline-flex-1-min-width-250px-2 { flex: 1; min-width: 250px; display:flex; flex-direction:column; gap:10px; }
+        .inline-font-size-0-8rem-2 { font-size:0.8rem; }
+        .inline-display-grid-gap-10px { display: grid; gap: 10px; text-align: center; }
+        .inline-height-50px { height: 50px; }
     </style>
 </head>
 
 <body>
     <div id="app-container">
 
-        <div id="sidebar" class="sidebar" style="display: none;">
+        <div id="sidebar" class="sidebar inline-display-none">
             <div class="sidebar-header">
-                <h3 style="margin: 0;">Quiz Liste</h3>
+                <h3 class="inline-margin-0">Quiz Liste</h3>
                 <button id="theme-toggle-btn" class="theme-toggle-btn" title="Design wechseln">
-                    🌓
+                    &#x1F313;
                 </button>
             </div>
 
-            <button id="btn-sidebar-new" class="primary-btn full-width" style="margin-bottom: 10px;">+ Neues
+            <button id="btn-sidebar-new" class="primary-btn full-width inline-margin-bottom-10px">+ Neues
                 Quiz</button>
 
-            <div style="padding-bottom: 10px;">
-                <input type="text" id="sidebar-search" placeholder="🔍 Filtern..." class="sidebar-search-input">
+            <div class="inline-padding-bottom-10px">
+                <input type="text" id="sidebar-search" placeholder="&#x1F50D; Filtern..." class="sidebar-search-input">
             </div>
 
             <div id="game-list">Lade...</div>
 
             <div class="sidebar-footer">
-                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 10px 0;">
+                <hr class="inline-border-0-border-top-1px-solid-border-col">
 
-                <div class="view-toggle-container" style="margin-bottom: 15px;">
-                    <div class="view-toggle-group" style="width: 100%;">
-                        <button id="btn-view-list" class="view-toggle-btn active" style="flex:1;">Liste</button>
-                        <button id="btn-view-board" class="view-toggle-btn" style="flex:1;">Brett</button>
+                <div class="view-toggle-container inline-margin-bottom-15px">
+                    <div class="view-toggle-group inline-width-100">
+                        <button id="btn-view-list" class="view-toggle-btn active inline-flex-1">Liste</button>
+                        <button id="btn-view-board" class="view-toggle-btn inline-flex-1">Brett</button>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 10px;">
-                    <button class="primary-btn" id="btn-save" style="flex-grow: 1;">Speichern</button>
+                <div class="inline-display-flex-gap-10px">
+                    <button class="primary-btn inline-flex-grow-1" id="btn-save">Speichern</button>
                 </div>
             </div>
         </div>
@@ -740,12 +774,11 @@
             <div id="quiz-dashboard" class="dashboard-container">
                 <div class="dashboard-header">
                     <h1>Meine Quizze</h1>
-                    <div style="flex-grow: 1; max-width: 400px; margin: 0 20px;">
-                        <input type="text" id="dashboard-search" placeholder="🔍 Quiz suchen..." class="search-input">
+                    <div class="inline-flex-grow-1-max-width-400px">
+                        <input type="text" id="dashboard-search" placeholder="&#x1F50D; Quiz suchen..." class="search-input">
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Design wechseln"
-                            style="background:transparent; border:none; font-size:1.5rem; cursor:pointer;">🌓</button>
+                    <div class="inline-display-flex-gap-10px-2">
+                        <button class="theme-toggle-btn inline-background-transparent-border-none" onclick="toggleTheme()" title="Design wechseln">&#x1F313;</button>
                         <button id="btn-dashboard-new" class="primary-btn big-btn">+ Neues Quiz erstellen</button>
                     </div>
                 </div>
@@ -755,13 +788,13 @@
             <div id="quiz-editor">
 
                 <div class="top-bar">
-                    <div style="display:flex; align-items:center;">
-                        <button id="sidebar-toggle-btn" title="Menü auf/zu">☰</button>
-                        <h2 id="editor-title-display" style="margin:0; margin-left: 15px;">Editor</h2>
+                    <div class="inline-display-flex-align-items-center">
+                        <button id="sidebar-toggle-btn" title="Menu auf/zu">&#9776;</button>
+                        <h2 id="editor-title-display" class="inline-margin-0-margin-left-15px">Editor</h2>
                     </div>
 
-                    <button id="btn-back-dashboard" class="secondary-btn" style="margin-left: auto;">
-                        ← Zurück zur Übersicht
+                    <button id="btn-back-dashboard" class="secondary-btn inline-margin-left-auto">
+                        &larr; Zurueck zur Uebersicht
                     </button>
                 </div>
 
@@ -771,14 +804,14 @@
                         <label for="gameTitle">Name des Quiz</label>
                         <input type="text" id="gameTitle" placeholder="Titel eingeben...">
 
-                        <hr style="margin: 15px 0;">
+                        <hr class="inline-margin-15px-0">
 
-                        <div style="display: flex; gap: 20px;">
-                            <div style="flex: 1;">
+                        <div class="inline-display-flex-gap-20px">
+                            <div class="inline-flex-1-2">
                                 <label for="numCategories">Kategorien</label>
                                 <input type="number" id="numCategories" value="5" min="1" max="8">
                             </div>
-                            <div style="flex: 1;">
+                            <div class="inline-flex-1-2">
                                 <label for="numQuestions">Fragen</label>
                                 <input type="number" id="numQuestions" value="5" min="1" max="10">
                             </div>
@@ -786,65 +819,65 @@
                     </div>
 
                     <div class="card">
-                        <h2 style="margin-top:0;">Design & Audio</h2>
+                        <h2 class="inline-margin-top-0">Design & Audio</h2>
 
-                        <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                        <div class="inline-display-flex-flex-wrap-wrap">
 
-                            <div style="flex: 1; min-width: 250px;">
-                                <h3 style="margin-top: 0; color: var(--text-muted); font-size: 1rem;">Hintergrundbild</h3>
+                            <div class="inline-flex-1-min-width-250px">
+                                <h3 class="inline-margin-top-0-color-text-muted">Hintergrundbild</h3>
                                 <div id="drop-zone-bg" class="drag-drop-zone">
                                     <input type="file" id="boardBackgroundUpload" accept="image/*" title="Bild hochladen">
                                     <span class="drop-hint">Klicken oder Bild ziehen</span> 
-                                    <span class="upload-status" id="background-status" style="font-size: 0.9rem; margin-left: 10px;"></span>
-                                    <div id="preview-background" style="margin-top: 10px; min-height: 20px;">
-                                        <img src="" id="background-preview-img" style="display:none; max-width: 100%; max-height: 100px; border-radius: 4px; border: 1px solid #ccc;">
+                                    <span class="upload-status inline-font-size-0-9rem-margin-left-10px" id="background-status"></span>
+                                    <div id="preview-background" class="inline-margin-top-10px-min-height-20px">
+                                        <img src="" id="background-preview-img" class="inline-display-none-max-width-100">
                                     </div>
                                     <input type="hidden" id="background-path" value="">
-                                    <div style="margin-top: 10px;">
-                                        <button type="button" id="btn-remove-bg" class="secondary-btn" style="font-size: 0.8rem;">Entfernen</button>
+                                    <div class="inline-margin-top-10px">
+                                        <button type="button" id="btn-remove-bg" class="secondary-btn inline-font-size-0-8rem">Entfernen</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div style="flex: 1; min-width: 250px;">
-                                <h3 style="margin-top: 0; color: var(--text-muted); font-size: 1rem;">Hintergrundmusik</h3>
+                            <div class="inline-flex-1-min-width-250px">
+                                <h3 class="inline-margin-top-0-color-text-muted">Hintergrundmusik</h3>
                                 <div id="drop-zone-music" class="drag-drop-zone">
                                     <input type="file" id="backgroundMusicUpload" accept="audio/*" title="Audio hochladen">
                                     <span class="drop-hint">Klicken oder Audio ziehen</span> 
-                                    <span class="upload-status" id="music-status" style="font-size: 0.9rem; margin-left: 10px;"></span>
-                                    <div id="music-preview-container" style="margin-top: 10px; min-height: 20px;">
-                                        <audio id="music-preview" controls style="display:none; width: 100%; height: 35px;"></audio>
+                                    <span class="upload-status inline-font-size-0-9rem-margin-left-10px" id="music-status"></span>
+                                    <div id="music-preview-container" class="inline-margin-top-10px-min-height-20px">
+                                        <audio id="music-preview" controls class="inline-display-none-width-100"></audio>
                                     </div>
                                     <input type="hidden" id="background-music-path" value="">
-                                    <div style="margin-top: 10px;">
-                                        <button type="button" id="btn-remove-music" class="secondary-btn" style="font-size: 0.8rem;">Entfernen</button>
+                                    <div class="inline-margin-top-10px">
+                                        <button type="button" id="btn-remove-music" class="secondary-btn inline-font-size-0-8rem">Entfernen</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div style="flex: 1; min-width: 250px; display:flex; flex-direction:column; gap:10px;">
+                            <div class="inline-flex-1-min-width-250px-2">
                                 
                                 <div>
-                                    <h3 style="margin-top: 0; color: var(--text-muted); font-size: 1rem;">Sound "Richtig"</h3>
+                                    <h3 class="inline-margin-top-0-color-text-muted">Sound "Richtig"</h3>
                                     <div id="drop-zone-sfx-correct" class="drag-drop-zone compact">
                                         <input type="file" id="upload-sfx-correct" accept="audio/*">
-                                        <span class="drop-hint" style="font-size:0.8rem;">Hierher ziehen</span>
+                                        <span class="drop-hint inline-font-size-0-8rem-2">Hierher ziehen</span>
                                         <span class="upload-status"></span>
                                         <div id="preview-sfx-correct"></div>
                                         <input type="hidden" id="path-sfx-correct">
-                                        <button type="button" class="sidebar-delete-btn" onclick="clearSfx('correct')" title="Entfernen">🗑</button>
+                                        <button type="button" class="sidebar-delete-btn" onclick="clearSfx('correct')" title="Entfernen">&#x1F5D1;</button>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <h3 style="margin-top: 0; color: var(--text-muted); font-size: 1rem;">Sound "Falsch"</h3>
+                                    <h3 class="inline-margin-top-0-color-text-muted">Sound "Falsch"</h3>
                                     <div id="drop-zone-sfx-incorrect" class="drag-drop-zone compact">
                                         <input type="file" id="upload-sfx-incorrect" accept="audio/*">
-                                        <span class="drop-hint" style="font-size:0.8rem;">Hierher ziehen</span>
+                                        <span class="drop-hint inline-font-size-0-8rem-2">Hierher ziehen</span>
                                         <span class="upload-status"></span>
                                         <div id="preview-sfx-incorrect"></div>
                                         <input type="hidden" id="path-sfx-incorrect">
-                                        <button type="button" class="sidebar-delete-btn" onclick="clearSfx('incorrect')" title="Entfernen">🗑</button>
+                                        <button type="button" class="sidebar-delete-btn" onclick="clearSfx('incorrect')" title="Entfernen">&#x1F5D1;</button>
                                     </div>
                                 </div>
 
@@ -856,11 +889,11 @@
                         <div id="categories-container"></div>
                     </div>
 
-                    <div id="board-preview-view" style="display: none;">
-                        <div id="preview-grid" style="display: grid; gap: 10px; text-align: center;"></div>
+                    <div id="board-preview-view" class="inline-display-none">
+                        <div id="preview-grid" class="inline-display-grid-gap-10px"></div>
                     </div>
 
-                    <div style="height: 50px;"></div>
+                    <div class="inline-height-50px"></div>
                 </div>
             </div>
         </div>

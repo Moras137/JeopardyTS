@@ -6,19 +6,18 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
-    "baseUrl": ".",
+    "baseUrl": "..",
     "paths": {
       "@tests/*": ["tests/*"],
       "@/*": ["src/*"]
     }
   },
   "include": [
-    "tests/**/*",
-    "src/**/*"
+    "../tests/**/*",
+    "../src/**/*"
   ],
   "exclude": [
-    "node_modules",
-    "dist",
-    "public"
+    "../node_modules",
+    "../output"
   ]
 }

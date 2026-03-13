@@ -1,8 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: '../tests/e2e',
   testMatch: '**/*.spec.ts',
+  outputDir: '../output/test-results',
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: '../output/playwright-report', open: 'never' }],
+  ],
   
   /* Run tests in files in parallel */
   fullyParallel: false, // Sequential zuerst für weniger flakiness

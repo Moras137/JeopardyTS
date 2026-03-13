@@ -13,6 +13,8 @@ type Session = {
     gameId: string;
     hostSocketId: string;
     players: Record<string, Player>;
+    activeCatIndex?: number;
+    activeQIndex?: number;
 };
 
 const sessions: Record<string, Session> = {};
@@ -85,6 +87,23 @@ describe('Socket.io Integration Tests', () => {
 
                 io.to(roomCode).emit('player_count_updated', {
                     count: Object.keys(session.players).length,
+                });
+            });
+
+            socket.on('host_rejoin_session', (roomCode: string) => {
+                const session = sessions[roomCode];
+                if (!session) {
+                    socket.emit('host_rejoin_error');
+                    return;
+                }
+
+                session.hostSocketId = socket.id;
+                socket.join(roomCode);
+                socket.emit('host_session_restored', {
+                    gameId: session.gameId,
+                    catIndex: session.activeCatIndex ?? -1,
+                    qIndex: session.activeQIndex ?? -1,
+                    players: session.players,
                 });
             });
         });
@@ -200,5 +219,33 @@ describe('Socket.io Integration Tests', () => {
 
         expect(errorPayload.message).toBe('Session not found');
         player.disconnect();
+    });
+
+    it('should restore active indexes when host rejoins session', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        await waitForEvent(host, 'connect');
+
+        host.emit('host_create_session', 'game-rejoin-test');
+        const created = await waitForEvent<{ roomCode: string }>(host, 'session_created');
+
+        sessions[created.roomCode].activeCatIndex = 2;
+        sessions[created.roomCode].activeQIndex = 3;
+
+        host.disconnect();
+
+        const rejoinedHost = ioClient(baseUrl, { transports: ['websocket'] });
+        await waitForEvent(rejoinedHost, 'connect');
+
+        rejoinedHost.emit('host_rejoin_session', created.roomCode);
+        const restored = await waitForEvent<{ gameId: string; catIndex: number; qIndex: number }>(
+            rejoinedHost,
+            'host_session_restored'
+        );
+
+        expect(restored.gameId).toBe('game-rejoin-test');
+        expect(restored.catIndex).toBe(2);
+        expect(restored.qIndex).toBe(3);
+
+        rejoinedHost.disconnect();
     });
 });

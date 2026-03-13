@@ -205,6 +205,16 @@
             50% { opacity: 1; }
             100% { opacity: 0.6; }
         }
+    
+        /* Extracted inline styles */
+        .inline-margin-bottom-30px { margin-bottom: 30px; }
+        .inline-display-none { display:none; }
+        .inline-display-none-flex-direction-column { display: none; flex-direction: column; height: 100vh; width: 100vw; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .inline-margin-bottom-20px { margin-bottom: 20px; }
+        .inline-font-size-2rem-padding-20px { font-size: 2rem; padding: 20px; }
+        .inline-background-btn-confirm-margin-top-20px { background: var(--btn-confirm); margin-top: 20px; }
+        .inline-display-none-color-btn-buzz-wait { display:none; color: var(--btn-buzz-wait); font-size: 1.2rem; margin-top: 20px; }
+        .inline-height-auto-font-family-sans-serif { height: auto; font-family: sans-serif; resize: none; }
     </style>
 </head>
 <body>
@@ -212,13 +222,13 @@
     <div id="player-info">Nicht verbunden</div>
 
     <div id="join-section">
-        <h1 style="margin-bottom: 30px;">Quiz Beitreten</h1>
+        <h1 class="inline-margin-bottom-30px">Quiz Beitreten</h1>
         <input type="text" id="room-code" placeholder="Raum Code (z.B. 1234)" class="input-field" pattern="[0-9]*" inputmode="numeric">
         <input type="text" id="player-name" placeholder="Dein Name" class="input-field" maxlength="15">
         
         <button id="join-btn" class="action-btn">Beitreten</button>
         
-        <p id="rejoin-msg" style="display:none;">Alte Sitzung gefunden...</p>
+        <p id="rejoin-msg" class="inline-display-none">Alte Sitzung gefunden...</p>
     </div>
 
     <div id="game-section">
@@ -234,26 +244,26 @@
         <button id="confirm-guess-btn">TIPP ABSENDEN</button>
     </div>
 
-    <div id="estimate-interface" style="display: none; flex-direction: column; height: 100vh; width: 100vw; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
-        <h2 id="estimate-q-text" style="margin-bottom: 20px;">Schätzfrage...</h2>
+    <div id="estimate-interface" class="inline-display-none-flex-direction-column">
+        <h2 id="estimate-q-text" class="inline-margin-bottom-20px">Schätzfrage...</h2>
         
-        <input type="number" id="estimate-input" class="input-field" placeholder="Deine Zahl" step="any" style="font-size: 2rem; padding: 20px;">
+        <input type="number" id="estimate-input" class="input-field inline-font-size-2rem-padding-20px" placeholder="Deine Zahl" step="any">
         
-        <button id="submit-estimate-btn" class="action-btn" style="background: var(--btn-confirm); margin-top: 20px;">ABSCHICKEN</button>
+        <button id="submit-estimate-btn" class="action-btn inline-background-btn-confirm-margin-top-20px">ABSCHICKEN</button>
         
-        <p id="estimate-wait-msg" style="display:none; color: var(--btn-buzz-wait); font-size: 1.2rem; margin-top: 20px;">
+        <p id="estimate-wait-msg" class="inline-display-none-color-btn-buzz-wait">
             Gesendet! Warte auf Auflösung...
         </p>
     </div>
 
-    <div id="freetext-interface" style="display: none; flex-direction: column; height: 100vh; width: 100vw; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
-        <h2 id="freetext-q-text" style="margin-bottom: 20px;">Frage...</h2>
+    <div id="freetext-interface" class="inline-display-none-flex-direction-column">
+        <h2 id="freetext-q-text" class="inline-margin-bottom-20px">Frage...</h2>
         
-        <textarea id="freetext-input" class="input-field" placeholder="Deine Antwort..." rows="4" style="height: auto; font-family: sans-serif; resize: none;"></textarea>
+        <textarea id="freetext-input" class="input-field inline-height-auto-font-family-sans-serif" placeholder="Deine Antwort..." rows="4"></textarea>
         
-        <button id="submit-freetext-btn" class="action-btn" style="background: var(--btn-confirm); margin-top: 20px;">ABSCHICKEN</button>
+        <button id="submit-freetext-btn" class="action-btn inline-background-btn-confirm-margin-top-20px">ABSCHICKEN</button>
         
-        <p id="freetext-wait-msg" style="display:none; color: var(--btn-buzz-wait); font-size: 1.2rem; margin-top: 20px;">
+        <p id="freetext-wait-msg" class="inline-display-none-color-btn-buzz-wait">
             Gesendet! Warte auf Auflösung...
         </p>
     </div>

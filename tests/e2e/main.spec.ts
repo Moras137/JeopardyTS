@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import http from 'http';
 import express, { Express } from 'express';
+import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
@@ -37,7 +38,7 @@ async function setupTestServer() {
     // Create Express app
     app = express();
     app.use(express.json());
-    app.use(express.static('public'));
+    app.use(express.static(path.resolve(process.cwd(), 'output/public')));
 
     // Minimal API routes
     app.get('/api/games', async (_req, res) => {
@@ -183,21 +184,16 @@ test.describe('Jeopardy E2E Tests', () => {
     });
 
     test.describe('API Integration', () => {
-        test('should fetch games via API', async ({ page }) => {
-            const games = await page.evaluate(async () => {
-                const response = await fetch('/api/games');
-                return response.json();
-            });
+        test('should fetch games via API', async ({ request }) => {
+            const response = await request.get(`${TEST_URL}/api/games`);
+            const games = await response.json();
 
             expect(Array.isArray(games)).toBe(true);
         });
 
-        test('should fetch specific game by ID', async ({ page }) => {
-            const game = await page.evaluate(async (url) => {
-                const response = await fetch(`/api/games/${url}`);
-                if (!response.ok) return null;
-                return response.json();
-            }, gameId);
+        test('should fetch specific game by ID', async ({ request }) => {
+            const response = await request.get(`${TEST_URL}/api/games/${gameId}`);
+            const game = response.ok() ? await response.json() : null;
 
             expect(game).not.toBeNull();
             expect(game.title).toBe('Test Quiz');
@@ -205,13 +201,11 @@ test.describe('Jeopardy E2E Tests', () => {
             expect(Array.isArray(game.categories)).toBe(true);
         });
 
-        test('should handle 404 for non-existent game', async ({ page }) => {
-            const response = await page.evaluate(async () => {
-                const res = await fetch('/api/games/628f1234567890abcdef1234');
-                return res.status;
-            });
+        test('should handle 404 for non-existent game', async ({ request }) => {
+            const response = await request.get(`${TEST_URL}/api/games/628f1234567890abcdef1234`);
+            const status = response.status();
 
-            expect(response).toBe(404);
+            expect(status).toBe(404);
         });
     });
 

@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import path from 'path';
+import fsSync from 'fs';
 import fs from 'fs/promises';
 import os from 'os';
 
@@ -17,8 +18,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server);
 const PORT = 3000;
+const PUBLIC_DIR = path.resolve(process.cwd(), 'output/public');
+const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
 
-app.use(express.static('public'));
+if (!fsSync.existsSync(UPLOADS_DIR)) {
+    fsSync.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+app.use(express.static(PUBLIC_DIR));
 app.use(express.json());
 
 // --- MONGODB ---
@@ -129,7 +136,8 @@ function getLocalIpAddress() {
 
 async function deleteMediaFile(filePath: string) {
     if (!filePath || filePath.startsWith('http')) return;
-    const absolutePath = path.join(__dirname, '../public', filePath); // Pfad anpassen wg. /src
+    const relativePath = filePath.replace(/^\/+/, '');
+    const absolutePath = path.join(PUBLIC_DIR, relativePath);
     try {
         await fs.unlink(absolutePath);
         console.log(`Datei gelöscht: ${absolutePath}`);
@@ -196,7 +204,7 @@ async function cleanupUnusedFiles() {
  
         // 3. Inhalt des Upload-Ordners lesen
 
-        const uploadDir = path.join(__dirname, '../public/uploads');
+        const uploadDir = UPLOADS_DIR;
 
         // Prüfen ob Ordner existiert
         try {
@@ -231,7 +239,7 @@ async function cleanupUnusedFiles() {
 
 // --- UPLOAD ---
 const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, 'public/uploads/'),
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
     filename: (_req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage: storage });
@@ -319,7 +327,7 @@ io.on('connection', (socket) => {
         const gameData = await GameModel.findById(gameId); // oder deine Lade-Logik
         
         if (!gameData) {
-            alert("Spiel nicht gefunden.");
+            socket.emit('error_message', 'Spiel nicht gefunden.');
             return;
         }
 
@@ -380,7 +388,7 @@ io.on('connection', (socket) => {
         socket.emit('host_session_restored', {
             gameId: session.gameId,
             catIndex: (session as any).activeCatIndex, // Cast falls Index nicht im Interface definiert war
-            qIndex: (session as any).activeQuestionIndex,
+            qIndex: (session as any).activeQIndex,
             question: session.activeQuestion!,
             players: session.players,
             buzzersActive: session.buzzersActive,

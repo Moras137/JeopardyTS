@@ -317,24 +317,60 @@
             text-transform: uppercase;
             font-weight: bold;
         }
+    
+        /* Extracted inline styles */
+        .inline-font-size-0-8rem-text-transform-uppercase { font-size: 0.8rem; text-transform: uppercase; opacity: 0.8; }
+        .inline-margin-bottom-10px-border-2px-solid-white { margin-bottom: 10px; border: 2px solid white; }
+        .inline-display-flex-justify-content-space-between { display:flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .inline-display-none { display:none; }
+        .inline-font-weight-bold-font-size-0-9rem { font-weight:bold; font-size:0.9rem; }
+        .inline-font-size-0-8rem { font-size:0.8rem; }
+        .inline-width-100px { width: 100px; }
+        .inline-display-flex-justify-content-space-between-2 { display:flex; justify-content: space-between; margin-top: 15px; }
+        .inline-font-size-0-8rem-padding-5px-10px { font-size: 0.8rem; padding: 5px 10px; }
+        .inline-font-size-1-5rem { font-size:1.5rem; }
+        .inline-font-size-1-2rem-margin-bottom-20px { font-size: 1.2rem; margin-bottom: 20px; }
+        .inline-border-0-border-top-1px-dashed-border-co { border:0; border-top:1px dashed var(--border-color); margin: 15px 0; }
+        .inline-font-size-1-1rem-color-text-muted { font-size: 1.1rem; color: var(--text-muted); }
+        .inline-display-none-margin-top-20px { display:none; margin-top:20px; border-top:1px solid #eee; padding-top:15px; }
+        .inline-margin-0-0-10px-0 { margin:0 0 10px 0; }
+        .inline-display-flex-flex-direction-column { display:flex; flex-direction:column; gap:10px; }
+        .inline-width-100-display-none { width: 100%; display:none; background: rgba(255, 193, 7, 0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid var(--color-warning); }
+        .inline-text-align-center-font-weight-bold { text-align: center; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px; }
+        .inline-color-color-primary-font-size-1-4rem { color: var(--color-primary); font-size: 1.4rem; }
+        .inline-display-flex-gap-10px { display: flex; gap: 10px; justify-content: center; }
+        .inline-display-none-margin-left-10px { display:none; margin-left: 10px; }
+        .inline-display-none-align-items-center { display:none; align-items: center; gap: 15px; }
+        .inline-font-weight-bold { font-weight:bold; }
+        .inline-display-none-margin-top-15px { display:none; margin-top:15px; background:#fffbe6; padding:10px; border:1px solid #ffd700; border-radius:5px; color:#333; }
+        .inline-font-weight-bold-margin-bottom-5px { font-weight:bold; margin-bottom:5px; }
+        .inline-font-size-0-9rem-color-555 { font-size:0.9rem; color:#555; margin-bottom:10px; font-style:italic; }
+        .inline-margin-left-auto { margin-left: auto; }
+        .inline-display-none-align-items-center-2 { display:none; align-items:center; gap:10px; background: #e6f7ff; padding: 10px; border-radius: 5px; border: 1px solid #1890ff; }
+        .inline-font-weight-bold-color-007bff { font-weight:bold; color:#007bff; }
+        .inline-padding-5px-10px { padding: 5px 10px; }
+        .inline-display-none-align-items-center-3 { display:none; align-items: center; gap: 15px; background: #e3f2fd; padding: 10px; border-radius: 5px; border: 1px solid #90caf9; }
+        .inline-font-weight-bold-color-0d47a1 { font-weight:bold; color: #0d47a1; }
+        .inline-display-none-align-items-center-4 { display:none; align-items: center; gap: 15px; background: #e8f5e9; padding: 10px; border-radius: 5px; border: 1px solid #a5d6a7; }
+        .inline-font-weight-bold-color-2e7d32 { font-weight:bold; color: #2e7d32; }
     </style>
 </head>
 <body>
     <div id="sidebar">
         <div class="sidebar-section">
             <div id="room-code-box">
-                <div style="font-size: 0.8rem; text-transform: uppercase; opacity: 0.8;">Raum Code</div>
+                <div class="inline-font-size-0-8rem-text-transform-uppercase">Raum Code</div>
                 <p id="room-code-display">----</p>
                 <a id="board-url" href="#" target="_blank" class="room-url">Board öffnen ↗</a>
             </div>
             <button id="toggle-qr-btn" class="host-btn btn-info btn-full">QR-Code zeigen</button>
-            <button id="btn-intro-next" class="host-btn btn-warning btn-full" style="margin-bottom: 10px; border: 2px solid white;">
+            <button id="btn-intro-next" class="host-btn btn-warning btn-full inline-margin-bottom-10px-border-2px-solid-white">
                 Start: Titel zeigen
             </button>
         </div>
 
         <div class="sidebar-section grow">
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <div class="inline-display-flex-justify-content-space-between">
                 <h3>Spieler (<span id="player-count">0</span>)</h3>
             </div>
             <ul id="player-list">
@@ -342,24 +378,24 @@
         </div>
 
         <div class="sidebar-section bottom">
-            <div id="music-controls" style="display:none;">
+            <div id="music-controls" class="inline-display-none">
                 <div class="music-row">
-                    <span style="font-weight:bold; font-size:0.9rem;">Hintergrundmusik</span>
+                    <span class="inline-font-weight-bold-font-size-0-9rem">Hintergrundmusik</span>
                     <button id="btn-music-toggle" class="icon-btn" title="Play/Pause">▶</button>
                 </div>
                 <div class="music-row">
-                    <span style="font-size:0.8rem;">Vol:</span>
-                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.3" style="width: 100px;">
+                    <span class="inline-font-size-0-8rem">Vol:</span>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.3" class="inline-width-100px">
                 </div>
             </div>
 
-            <button id="btn-podium" class="host-btn btn-success btn-full" style="margin-bottom: 10px; border: 2px solid white;">
+            <button id="btn-podium" class="host-btn btn-success btn-full inline-margin-bottom-10px-border-2px-solid-white">
                 Siegerehrung starten
             </button>
 
-            <div style="display:flex; justify-content: space-between; margin-top: 15px;">
+            <div class="inline-display-flex-justify-content-space-between-2">
                 <button id="theme-toggle-btn" class="icon-btn" title="Darkmode">🌓</button>
-                <button id="exit-quiz-btn" class="host-btn btn-danger" style="font-size: 0.8rem; padding: 5px 10px;">Beenden</button>
+                <button id="exit-quiz-btn" class="host-btn btn-danger inline-font-size-0-8rem-padding-5px-10px">Beenden</button>
             </div>
         </div>
     </div>
@@ -373,65 +409,65 @@
         <div class="question-modal-content">
             <div class="modal-header">
                 <h4 id="question-title">Kategorie - Punkte</h4>
-                <button id="btn-close-modal-top" class="icon-btn" style="font-size:1.5rem;">&times;</button>
+                <button id="btn-close-modal-top" class="icon-btn inline-font-size-1-5rem">&times;</button>
             </div>
 
             <div class="modal-body">
-                <div id="question-display" style="font-size: 1.2rem; margin-bottom: 20px;"></div>
-                <hr style="border:0; border-top:1px dashed var(--border-color); margin: 15px 0;">
-                <div id="answer-display" style="font-size: 1.1rem; color: var(--text-muted);"></div>
+                <div id="question-display" class="inline-font-size-1-2rem-margin-bottom-20px"></div>
+                <hr class="inline-border-0-border-top-1px-dashed-border-co">
+                <div id="answer-display" class="inline-font-size-1-1rem-color-text-muted"></div>
                 
-                <div id="freetext-grading-view" style="display:none; margin-top:20px; border-top:1px solid #eee; padding-top:15px;">
-                    <h5 style="margin:0 0 10px 0;">Antworten bewerten:</h5>
-                    <div id="freetext-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+                <div id="freetext-grading-view" class="inline-display-none-margin-top-20px">
+                    <h5 class="inline-margin-0-0-10px-0">Antworten bewerten:</h5>
+                    <div id="freetext-list" class="inline-display-flex-flex-direction-column"></div>
                 </div>
             </div>
 
             <div class="modal-footer">
                 
-                <div id="buzz-winner-section" style="width: 100%; display:none; background: rgba(255, 193, 7, 0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid var(--color-warning);">
-                    <div style="text-align: center; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px;">
-                        Gebuzzert: <span id="buzz-winner-name" style="color: var(--color-primary); font-size: 1.4rem;">Name</span>
+                <div id="buzz-winner-section" class="inline-width-100-display-none">
+                    <div class="inline-text-align-center-font-weight-bold">
+                        Gebuzzert: <span id="buzz-winner-name" class="inline-color-color-primary-font-size-1-4rem">Name</span>
                     </div>
-                    <div style="display: flex; gap: 10px; justify-content: center;">
+                    <div class="inline-display-flex-gap-10px">
                         <button id="correct-btn" class="host-btn btn-success">Richtig</button>
                         <button id="incorrect-btn" class="host-btn btn-danger">Falsch</button>
                     </div>
                 </div>
 
-                <button id="unlock-buzzers-btn" class="host-btn btn-warning" style="display:none;">Buzzer freigeben</button>
+                <button id="unlock-buzzers-btn" class="host-btn btn-warning inline-display-none">Buzzer freigeben</button>
 
-                <button id="resolve-question-btn" class="host-btn btn-info btn-xl" style="display:none; margin-left: 10px;">Auflösen</button>
+                <button id="resolve-question-btn" class="host-btn btn-info btn-xl inline-display-none-margin-left-10px">Auflösen</button>
 
-                <div id="map-mode-controls" style="display:none; align-items: center; gap: 15px;">
-                    <span style="font-weight:bold;">Map: <span id="map-submitted-count">0/0</span> abgegeben</span>
+                <div id="map-mode-controls" class="inline-display-none-align-items-center">
+                    <span class="inline-font-weight-bold">Map: <span id="map-submitted-count">0/0</span> abgegeben</span>
                     <button id="resolve-map-btn" class="host-btn btn-primary">Auflösen</button>
                 </div>
 
-                <div id="list-mode-controls" style="display:none; margin-top:15px; background:#fffbe6; padding:10px; border:1px solid #ffd700; border-radius:5px; color:#333;">
-                    <div style="font-weight:bold; margin-bottom:5px;">Liste: Hinweise aufdecken</div>
-                    <div id="list-items-preview" style="font-size:0.9rem; color:#555; margin-bottom:10px; font-style:italic;">
+                <div id="list-mode-controls" class="inline-display-none-margin-top-15px">
+                    <div class="inline-font-weight-bold-margin-bottom-5px">Liste: Hinweise aufdecken</div>
+                    <div id="list-items-preview" class="inline-font-size-0-9rem-color-555">
                         </div>
                     <button id="btn-reveal-list" class="host-btn btn-info">Nächsten Hinweis zeigen</button>
                 </div>
 
-                <div style="margin-left: auto;">
+                <div class="inline-margin-left-auto">
                     <button id="close-question-btn" class="host-btn btn-secondary">Frage schließen</button>
                 </div>
                 
-                <div id="pixel-mode-controls" style="display:none; align-items:center; gap:10px; background: #e6f7ff; padding: 10px; border-radius: 5px; border: 1px solid #1890ff;">
-                    <span style="font-weight:bold; color:#007bff;">Pixel:</span>
-                    <button id="btn-pixel-pause" class="host-btn btn-warning" style="padding: 5px 10px;">Pause</button>
-                    <button id="btn-pixel-resume" class="host-btn btn-success" style="padding: 5px 10px;">Weiter</button>
+                <div id="pixel-mode-controls" class="inline-display-none-align-items-center-2">
+                    <span class="inline-font-weight-bold-color-007bff">Pixel:</span>
+                    <button id="btn-pixel-pause" class="host-btn btn-warning inline-padding-5px-10px">Pause</button>
+                    <button id="btn-pixel-resume" class="host-btn btn-success inline-padding-5px-10px">Weiter</button>
                 </div>
 
-                <div id="estimate-mode-controls" style="display:none; align-items: center; gap: 15px; background: #e3f2fd; padding: 10px; border-radius: 5px; border: 1px solid #90caf9;">
-                    <span style="font-weight:bold; color: #0d47a1;">Schätzen: <span id="estimate-submitted-count">0/0</span></span>
+                <div id="estimate-mode-controls" class="inline-display-none-align-items-center-3">
+                    <span class="inline-font-weight-bold-color-0d47a1">Schätzen: <span id="estimate-submitted-count">0/0</span></span>
                     <button id="resolve-estimate-btn" class="host-btn btn-primary">Auflösen & Punkte</button>
                 </div>
                 
-                <div id="freetext-mode-controls" style="display:none; align-items: center; gap: 15px; background: #e8f5e9; padding: 10px; border-radius: 5px; border: 1px solid #a5d6a7;">
-                    <span style="font-weight:bold; color: #2e7d32;">✍️ Freitext: <span id="freetext-submitted-count">0/0</span></span>
+                <div id="freetext-mode-controls" class="inline-display-none-align-items-center-4">
+                    <span class="inline-font-weight-bold-color-2e7d32">✍️ Freitext: <span id="freetext-submitted-count">0/0</span></span>
                     <button id="resolve-freetext-btn" class="host-btn btn-success">Antworten zeigen</button>
                 </div>
             </div>

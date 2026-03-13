@@ -534,6 +534,15 @@
             animation: fall linear forwards;
         }
         @keyframes fall { to { transform: translateY(100vh) rotate(720deg); } }
+    
+        /* Extracted inline styles */
+        .inline-width-100-text-align-center { width:100%; text-align:center; margin-top: 200px; }
+        .inline-color-white-font-size-4rem { color: white; font-size: 4rem; margin-bottom: 40px; }
+        .inline-color-white-font-size-2rem { color: white; font-size: 2rem; margin-top: 40px; }
+        .inline-display-none { display:none; }
+        .inline-height-40 { height: 40%; }
+        .inline-height-60 { height: 60%; }
+        .podium-bar-third-height { height: 25%; }
     </style>
 </head>
 <body>
@@ -544,7 +553,7 @@
     <audio id="board-bg-music" loop></audio>
     
     <div id="game-grid">
-        <h1 style="width:100%; text-align:center; margin-top: 200px;">WARTE AUF SPIEL...</h1>
+        <h1 class="inline-width-100-text-align-center">WARTE AUF SPIEL...</h1>
     </div>
 
     <div id="question-overlay">
@@ -560,18 +569,18 @@
     <div id="player-bar"></div>
     
     <div id="qr-overlay">
-        <h1 style="color: white; font-size: 4rem; margin-bottom: 40px;">Zum Spiel beitreten</h1>
+        <h1 class="inline-color-white-font-size-4rem">Zum Spiel beitreten</h1>
         <canvas id="qrcode-canvas"></canvas>
-        <p style="color: white; font-size: 2rem; margin-top: 40px;">Gehe zu: <span id="join-url"></span></p>
+        <p class="inline-color-white-font-size-2rem">Gehe zu: <span id="join-url"></span></p>
     </div>
 
-    <div id="podium-overlay" style="display:none;">
+    <div id="podium-overlay" class="inline-display-none">
         <h1 class="podium-title">ERGEBNIS</h1>
         
         <div class="podium-stage">
             <div class="podium-column second">
                 <div class="p-avatar" id="p2-name"></div>
-                <div class="p-bar" style="height: 40%;">
+                <div class="p-bar inline-height-40">
                     <div class="p-rank">2</div>
                     <div class="p-score" id="p2-score">0</div>
                 </div>
@@ -580,7 +589,7 @@
             <div class="podium-column first">
                 <div class="winner-crown">👑</div>
                 <div class="p-avatar" id="p1-name"></div>
-                <div class="p-bar" style="height: 60%;">
+                <div class="p-bar inline-height-60">
                     <div class="p-rank">1</div>
                     <div class="p-score" id="p1-score">0</div>
                 </div>
@@ -588,7 +597,7 @@
 
             <div class="podium-column third">
                 <div class="p-avatar" id="p3-name"></div>
-                <div class="p-bar" style="height: 25%;">
+                <div class="p-bar podium-bar-third-height">
                     <div class="p-rank">3</div>
                     <div class="p-score" id="p3-score">0</div>
                 </div>
