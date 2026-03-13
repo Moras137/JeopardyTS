@@ -4,3 +4,14 @@ READ.ME
 /node_modules/
 /dist   
 installation.txt
+
+# Test-Artefakte und Protokolle nicht versionieren
+/coverage/
+/test-results/
+/playwright-report/
+/.nyc_output/
+*.log
+*.lcov
+junit*.xml
+/TEST-SUMMARY.md
+/TEST-SYSTEM.md

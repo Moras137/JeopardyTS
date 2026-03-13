@@ -3,7 +3,7 @@ import { Schema, model } from 'mongoose';
 import { IGame, ICategory, IQuestion } from '../types';
 
 const questionSchema = new Schema<IQuestion>({
-    type: { type: String, default: 'standard', enum: ['standard', 'map'] },
+    type: { type: String, default: 'standard', enum: ['standard', 'map', 'estimate', 'list', 'pixel', 'freetext'] },
     location: {
         lat: { type: Number },
         lng: { type: Number },
