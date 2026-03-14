@@ -48,7 +48,7 @@ test.afterAll(async () => {
 
     if (server.listening) {
         await new Promise<void>((resolve, reject) => {
-            server.close((err) => {
+            server.close((err: Error | undefined) => {
                 if (err) {
                     reject(err);
                     return;

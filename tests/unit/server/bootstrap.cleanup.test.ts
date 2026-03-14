@@ -54,7 +54,7 @@ describe('Bootstrap and Cleanup Runner', () => {
         expect(cleanupMock).toHaveBeenCalledTimes(1);
 
         if (!resolveFirst) throw new Error('resolveFirst not set');
-        resolveFirst();
+        (resolveFirst as () => void)();
         await firstRun;
 
         expect(cleanupMock).toHaveBeenCalledTimes(2);
