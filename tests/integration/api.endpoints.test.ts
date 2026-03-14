@@ -122,8 +122,8 @@ describe('API Endpoints - Integration Tests', () => {
 
         it('should handle invalid ID format gracefully', async () => {
             const res = await request(app).get('/api/games/invalid-id');
-            expect(res.status).toBe(500);
-            expect(res.body.error).toBe('Fehler');
+            expect(res.status).toBe(400);
+            expect(res.body.error).toBe('Ungültige ID');
         });
     });
 
@@ -217,7 +217,7 @@ describe('API Endpoints - Integration Tests', () => {
                 .post('/api/create-game')
                 .send(invalidData);
 
-            expect(res.status).toBe(500);
+            expect(res.status).toBe(400);
             expect(res.body.success).toBe(false);
         });
 
@@ -226,7 +226,66 @@ describe('API Endpoints - Integration Tests', () => {
                 .post('/api/create-game')
                 .send({});
 
-            expect(res.status).toBe(500);
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
+        it('should reject invalid payload types', async () => {
+            const res = await request(app)
+                .post('/api/create-game')
+                .send({ title: 1234, categories: {} });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
+        it('should reject category with invalid question shape', async () => {
+            const res = await request(app)
+                .post('/api/create-game')
+                .send({
+                    title: 'Broken',
+                    categories: [
+                        {
+                            name: 'Cat',
+                            questions: [
+                                {
+                                    questionText: 'Fehlt type',
+                                    answerText: 'A',
+                                    points: 100,
+                                },
+                            ],
+                        },
+                    ],
+                });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
+        it('should reject update with invalid _id format', async () => {
+            const res = await request(app)
+                .post('/api/create-game')
+                .send({
+                    _id: 'invalid-id',
+                    title: 'Updated',
+                    categories: [mockCategory],
+                });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
+        it('should return 404 when updating non-existent game id', async () => {
+            const nonExistentId = new mongoose.Types.ObjectId().toString();
+            const res = await request(app)
+                .post('/api/create-game')
+                .send({
+                    _id: nonExistentId,
+                    title: 'Updated',
+                    categories: [mockCategory],
+                });
+
+            expect(res.status).toBe(404);
             expect(res.body.success).toBe(false);
         });
     });
@@ -276,8 +335,8 @@ describe('API Endpoints - Integration Tests', () => {
 
         it('should handle invalid ID format', async () => {
             const res = await request(app).delete('/api/games/invalid-id');
-            expect(res.status).toBe(500);
-            expect(res.body.error).toBe('Fehler beim Löschen');
+            expect(res.status).toBe(400);
+            expect(res.body.error).toBe('Ungültige ID');
         });
     });
 
@@ -343,6 +402,30 @@ describe('API Endpoints - Integration Tests', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
+        });
+    });
+
+    describe('POST /api/upload', () => {
+        it('should upload file successfully', async () => {
+            const res = await request(app)
+                .post('/api/upload')
+                .attach('mediaFile', Buffer.from('hello world'), 'test-upload.txt');
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(typeof res.body.filePath).toBe('string');
+            expect(res.body.filePath).toContain('/uploads/');
+
+            await request(app)
+                .post('/api/delete-files')
+                .send({ files: [res.body.filePath] });
+        });
+
+        it('should return 400 when no file is provided', async () => {
+            const res = await request(app).post('/api/upload');
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
         });
     });
 

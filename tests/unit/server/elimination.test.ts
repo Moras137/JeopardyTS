@@ -1,111 +1,62 @@
-import { 
-    mockStandardQuestion, 
-    mockMapQuestion, 
-    mockEstimateQuestion,
-    mockListQuestion,
-    mockPixelQuestion,
-    mockFreetextQuestion 
-} from '@tests/fixtures/mock-data';
+import { getEleminationRemainingPlayerIds } from '../../../src/server';
+import { ISession } from '../../../src/types';
 
-describe('Question Types - Main Branch Support', () => {
-    const mockEleminationQuestion = {
-        type: 'elemination' as const,
-        points: 200,
-        negativePoints: 0,
-        questionText: 'Nenne Fruechte',
-        answerText: 'Apfel, Birne, Banane',
-        listItems: ['Apfel', 'Birne', 'Banane'],
-        mediaPath: '',
-        hasMedia: false,
-        mediaType: 'none' as const,
-        answerMediaPath: '',
-        hasAnswerMedia: false,
-        answerMediaType: 'none' as const,
+function buildSession(): ISession {
+    return {
+        gameId: 'g1',
+        game: { title: 'Quiz', categories: [] } as any,
+        hostSocketId: 'host',
+        players: {
+            p1: { id: 'p1', name: 'Alice', score: 0, socketId: 's1', color: '#111', active: true },
+            p2: { id: 'p2', name: 'Bob', score: 0, socketId: 's2', color: '#222', active: true },
+            p3: { id: 'p3', name: 'Cara', score: 0, socketId: 's3', color: '#333', active: false },
+        },
+        playerOrder: ['p1', 'p2', 'p3'],
+        currentTurnPlayerId: 'p1',
+        lastEleminationRevealerId: null,
+        buzzersActive: false,
+        currentBuzzWinnerId: null,
+        activeQuestion: null,
+        activeQuestionPoints: 100,
+        activeCatIndex: -1,
+        activeQIndex: -1,
+        mapResolved: false,
+        mapGuesses: {},
+        estimateGuesses: {},
+        usedQuestions: [],
+        introIndex: -2,
+        listRevealedCount: -1,
+        eleminationRevealedIndices: [],
+        eleminationEliminatedPlayerIds: [],
+        eleminationRoundResolved: false,
+        freetextAnswers: {},
+        lockedPlayers: [],
     };
+}
 
-    it('should have valid standard question structure', () => {
-        expect(mockStandardQuestion.type).toBe('standard');
-        expect(mockStandardQuestion.points).toBe(100);
-        expect(mockStandardQuestion.questionText).toBeTruthy();
-        expect(mockStandardQuestion.answerText).toBeTruthy();
+describe('Elimination Behavior Helpers', () => {
+    it('should return only active and not-yet-eliminated players', () => {
+        const session = buildSession();
+        session.eleminationEliminatedPlayerIds = ['p2'];
+
+        const remaining = getEleminationRemainingPlayerIds(session);
+        expect(remaining).toEqual(['p1']);
     });
 
-    it('should have valid map question with location', () => {
-        expect(mockMapQuestion.type).toBe('map');
-        expect(mockMapQuestion.location).toBeDefined();
-        expect(mockMapQuestion.location?.lat).toBe(52.52);
-        expect(mockMapQuestion.location?.lng).toBe(13.405);
-        expect(mockMapQuestion.location?.radius).toBe(100000);
+    it('should initialize missing eliminated array defensively', () => {
+        const session = buildSession();
+        session.eleminationEliminatedPlayerIds = undefined as any;
+
+        const remaining = getEleminationRemainingPlayerIds(session);
+        expect(Array.isArray(session.eleminationEliminatedPlayerIds)).toBe(true);
+        expect(remaining).toEqual(['p1', 'p2']);
     });
 
-    it('should have valid estimate question with answer value', () => {
-        expect(mockEstimateQuestion.type).toBe('estimate');
-        expect(mockEstimateQuestion.estimationAnswer).toBe(8000000000);
-        expect(mockEstimateQuestion.points).toBe(300);
-    });
+    it('should return empty when all active players are eliminated', () => {
+        const session = buildSession();
+        session.eleminationEliminatedPlayerIds = ['p1', 'p2'];
 
-    it('should have valid list question with items', () => {
-        expect(mockListQuestion.type).toBe('list');
-        expect(mockListQuestion.listItems).toBeDefined();
-        expect(mockListQuestion.listItems).toHaveLength(3);
-        expect(mockListQuestion.listItems).toContain('Belgien');
-    });
-
-    it('should have valid pixel question with media', () => {
-        expect(mockPixelQuestion.type).toBe('pixel');
-        expect(mockPixelQuestion.hasMedia).toBe(true);
-        expect(mockPixelQuestion.mediaType).toBe('image');
-        expect(mockPixelQuestion.pixelConfig).toBeDefined();
-        expect(mockPixelQuestion.pixelConfig?.effectType).toBe('pixelate');
-        expect(mockPixelQuestion.pixelConfig?.resolutionDuration).toBe(15);
-    });
-
-    it('should have valid freetext question', () => {
-        expect(mockFreetextQuestion.type).toBe('freetext');
-        expect(mockFreetextQuestion.questionText).toBeTruthy();
-        expect(mockFreetextQuestion.answerText).toBeTruthy();
-    });
-
-    it('should have valid elemination question with list items', () => {
-        expect(mockEleminationQuestion.type).toBe('elemination');
-        expect(mockEleminationQuestion.listItems).toBeDefined();
-        expect(mockEleminationQuestion.listItems).toHaveLength(3);
-    });
-
-    it('should calculate points correctly', () => {
-        const allQuestions = [
-            mockStandardQuestion,
-            mockMapQuestion,
-            mockEstimateQuestion,
-            mockListQuestion,
-            mockPixelQuestion,
-            mockFreetextQuestion,
-            mockEleminationQuestion,
-        ];
-
-        const totalPoints = allQuestions.reduce((sum, q) => sum + q.points, 0);
-        expect(totalPoints).toBe(1600); // 100+200+300+250+400+150+200
-    });
-
-    it('should handle negative points for map question', () => {
-        expect(mockMapQuestion.negativePoints).toBe(-50);
-    });
-
-    it('should validate question types are supported', () => {
-        const supportedTypes = ['standard', 'map', 'estimate', 'list', 'pixel', 'freetext', 'elemination'];
-        const testQuestions = [
-            mockStandardQuestion,
-            mockMapQuestion,
-            mockEstimateQuestion,
-            mockListQuestion,
-            mockPixelQuestion,
-            mockFreetextQuestion,
-            mockEleminationQuestion,
-        ];
-
-        testQuestions.forEach(question => {
-            expect(supportedTypes).toContain(question.type);
-        });
+        const remaining = getEleminationRemainingPlayerIds(session);
+        expect(remaining).toEqual([]);
     });
 });
-

@@ -3,6 +3,7 @@ import http from 'http';
 import express, { Express } from 'express';
 import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
+import { io as ioClient, Socket } from 'socket.io-client';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { GameModel } from '../../src/models/Quiz';
@@ -211,6 +212,19 @@ function generateRoomCode(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
+function waitForSocketEvent<T = any>(socket: Socket, event: string, timeoutMs = 4000): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`Timeout waiting for event: ${event}`));
+        }, timeoutMs);
+
+        socket.once(event, (payload: T) => {
+            clearTimeout(timer);
+            resolve(payload);
+        });
+    });
+}
+
 /**
  * Cleanup after tests
  */
@@ -337,6 +351,48 @@ test.describe('Jeopardy E2E Tests', () => {
 
             // Should not have immediate errors
             expect(errors === undefined || errors === null).toBe(true);
+        });
+
+        test('should handle host-board-2player flow with disconnect and reconnect', async () => {
+            const host = ioClient(TEST_URL, { transports: ['websocket'] });
+            const board = ioClient(TEST_URL, { transports: ['websocket'] });
+            const playerA = ioClient(TEST_URL, { transports: ['websocket'] });
+            const playerB = ioClient(TEST_URL, { transports: ['websocket'] });
+
+            await waitForSocketEvent(host, 'connect');
+            await waitForSocketEvent(board, 'connect');
+            await waitForSocketEvent(playerA, 'connect');
+            await waitForSocketEvent(playerB, 'connect');
+
+            host.emit('host_create_session', gameId);
+            const roomCode = await waitForSocketEvent<string>(host, 'session_created');
+
+            board.emit('board_join_session', roomCode);
+            await waitForSocketEvent(board, 'board_connected_success');
+
+            playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+            const joinA = await waitForSocketEvent<{ playerId: string }>(playerA, 'join_success');
+
+            playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+            const joinB = await waitForSocketEvent<{ playerId: string }>(playerB, 'join_success');
+
+            const boardTurnToBob = waitForSocketEvent<{ id: string; name: string }>(board, 'player_won_buzz');
+            host.emit('host_set_current_player', joinB.playerId);
+            await expect(boardTurnToBob).resolves.toMatchObject({ id: joinB.playerId, name: 'Bob' });
+
+            const boardTurnAfterDisconnect = waitForSocketEvent<{ id: string; name: string }>(board, 'player_won_buzz');
+            playerB.disconnect();
+            await expect(boardTurnAfterDisconnect).resolves.toMatchObject({ id: joinA.playerId, name: 'Alice' });
+
+            const playerBReconnect = ioClient(TEST_URL, { transports: ['websocket'] });
+            await waitForSocketEvent(playerBReconnect, 'connect');
+            playerBReconnect.emit('player_join_session', { roomCode, name: 'Bob' });
+            await expect(waitForSocketEvent(playerBReconnect, 'join_success')).resolves.toBeDefined();
+
+            host.disconnect();
+            board.disconnect();
+            playerA.disconnect();
+            playerBReconnect.disconnect();
         });
     });
 

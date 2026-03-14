@@ -42,7 +42,7 @@ const sessions: Record<string, ISession> = {};
 let cleanupInProgress = false;
 let cleanupRerunRequested = false;
 
-async function runCleanupUnusedFilesSafely() {
+async function runCleanupUnusedFilesSafely(cleanupFn: () => Promise<void> = cleanupUnusedFiles) {
     if (cleanupInProgress) {
         cleanupRerunRequested = true;
         return;
@@ -52,7 +52,7 @@ async function runCleanupUnusedFilesSafely() {
     try {
         do {
             cleanupRerunRequested = false;
-            await cleanupUnusedFiles();
+            await cleanupFn();
         } while (cleanupRerunRequested);
     } finally {
         cleanupInProgress = false;
@@ -222,6 +222,29 @@ function getEleminationRemainingPlayerIds(session: ISession): string[] {
     return Object.values(session.players)
     .filter((p) => p.active && !session.eleminationEliminatedPlayerIds.includes(p.id))
         .map((p) => p.id);
+}
+
+function isValidGamePayload(gameData: any): boolean {
+    if (!gameData || typeof gameData !== 'object') return false;
+    if (typeof gameData.title !== 'string' || gameData.title.trim().length === 0) return false;
+    if (!Array.isArray(gameData.categories) || gameData.categories.length === 0) return false;
+
+    for (const category of gameData.categories) {
+        if (!category || typeof category !== 'object') return false;
+        if (typeof category.name !== 'string' || category.name.trim().length === 0) return false;
+        if (!Array.isArray(category.questions) || category.questions.length === 0) return false;
+
+        for (const question of category.questions) {
+            if (!question || typeof question !== 'object') return false;
+            if (typeof question.type !== 'string' || question.type.trim().length === 0) return false;
+            if (typeof question.questionText !== 'string' || question.questionText.trim().length === 0) return false;
+            if (typeof question.answerText !== 'string' || question.answerText.trim().length === 0) return false;
+            if (typeof question.points !== 'number' || Number.isNaN(question.points)) return false;
+            if (question.negativePoints !== undefined && typeof question.negativePoints !== 'number') return false;
+        }
+    }
+
+    return true;
 }
 
 function ensurePlayerOrder(session: ISession) {
@@ -474,6 +497,9 @@ app.get('/api/games', async (_req, res) => {
 
 app.get('/api/games/:id', async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Ungültige ID' });
+        }
         const game = await GameModel.findById(req.params.id);
         if (!game) return res.status(404).json({ error: 'Nicht gefunden' });
         res.json(game);
@@ -485,9 +511,20 @@ app.get('/api/games/:id', async (req, res) => {
 app.post('/api/create-game', async (req, res) => {
     try {
         const gameData = req.body;
+
+        if (!isValidGamePayload(gameData)) {
+            return res.status(400).json({ success: false, error: 'Ungültige Spieldaten' });
+        }
+
         let savedGame;
         if (gameData._id) {
-            savedGame = await GameModel.findByIdAndUpdate(gameData._id, gameData, { new: true });
+            if (!mongoose.Types.ObjectId.isValid(gameData._id)) {
+                return res.status(400).json({ success: false, error: 'Ungültige ID' });
+            }
+            savedGame = await GameModel.findByIdAndUpdate(gameData._id, gameData, { new: true, runValidators: true });
+            if (!savedGame) {
+                return res.status(404).json({ success: false, error: 'Nicht gefunden' });
+            }
         } else {
             savedGame = await new GameModel(gameData).save();
         }
@@ -498,6 +535,9 @@ app.post('/api/create-game', async (req, res) => {
 
         return res.json({ success: true, gameId: savedGame?._id });
     } catch (err: any) {
+        if (err?.name === 'ValidationError' || err?.name === 'CastError') {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -505,6 +545,9 @@ app.post('/api/create-game', async (req, res) => {
 app.delete('/api/games/:id', async (req, res) => {
     try {
         const id = req.params.id;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Ungültige ID' });
+        }
         const game = await GameModel.findById(id);
         if (game) {
             const files: string[] = [];
@@ -1382,9 +1425,28 @@ function startServer(port: number = PORT) {
     });
 }
 
-if (process.env.NODE_ENV !== 'test') {
-    connectDatabase().catch(err => console.error('MongoDB Fehler:', err));
-    startServer();
+function bootstrapServer(
+    nodeEnv: string | undefined = process.env.NODE_ENV,
+    connectFn: () => Promise<void> = () => connectDatabase(),
+    startFn: () => void = () => startServer()
+) {
+    if (nodeEnv !== 'test') {
+        connectFn().catch(err => console.error('MongoDB Fehler:', err));
+        startFn();
+    }
 }
 
+bootstrapServer();
+
 export { app, server, io, sessions, connectDatabase, startServer, PUBLIC_DIR, UPLOADS_DIR };
+export {
+    generateRoomCode,
+    getLocalIpAddress,
+    deleteMediaFile,
+    calculateDistance,
+    isPointInPolygon,
+    getEleminationRemainingPlayerIds,
+    isValidGamePayload,
+    runCleanupUnusedFilesSafely,
+    bootstrapServer,
+};

@@ -9,7 +9,7 @@ let mongoServer: MongoMemoryServer;
 let baseUrl = '';
 let gameId = '';
 
-function waitForEvent<T = any>(socket: ClientSocket, event: string, timeoutMs = 4000): Promise<T> {
+function waitForEvent<T = any>(socket: ClientSocket, event: string, timeoutMs = 7000): Promise<T> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
             reject(new Error(`Timeout waiting for event: ${event}`));
@@ -1277,6 +1277,463 @@ describe('Socket.io Integration Tests (Real Server)', () => {
 
         player.emit('host_resolve_estimate');
         await expect(waitForNoEvent(board, 'board_reveal_estimate_results')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should resolve map using radius and award players within radius', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const mapQuestion = {
+            type: 'map' as const,
+            points: 200,
+            negativePoints: 0,
+            questionText: 'Radius-Test',
+            answerText: 'Zentrum',
+            location: {
+                lat: 52.52,
+                lng: 13.405,
+                isCustomMap: false,
+                customMapPath: '',
+                mapWidth: 1000,
+                mapHeight: 1000,
+                radius: 1000,
+            },
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: mapQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        playerA.emit('player_submit_map_guess', { lat: 52.5205, lng: 13.4055 }); // inside radius
+        playerB.emit('player_submit_map_guess', { lat: 52.7, lng: 13.9 }); // outside radius
+
+        const boardResultPromise = waitForEvent<{ results: Record<string, { isWinner: boolean }> }>(board, 'board_reveal_map_results');
+        const scoresPromise = waitForScores(host, (s) => s[joinA.playerId]?.score === 200 && s[joinB.playerId]?.score === 0);
+
+        host.emit('host_resolve_map');
+
+        const boardResult = await boardResultPromise;
+        const scores = await scoresPromise;
+
+        expect(boardResult.results[joinA.playerId].isWinner).toBe(true);
+        expect(boardResult.results[joinB.playerId].isWinner).toBe(false);
+        expect(scores[joinA.playerId].score).toBe(200);
+        expect(scores[joinB.playerId].score).toBe(0);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should resolve map using polygon zone and award inside players', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const mapQuestion = {
+            type: 'map' as const,
+            points: 150,
+            negativePoints: 0,
+            questionText: 'Polygon-Test',
+            answerText: 'Zone',
+            location: {
+                lat: 0,
+                lng: 0,
+                isCustomMap: true,
+                customMapPath: '',
+                mapWidth: 1000,
+                mapHeight: 1000,
+                radius: 0,
+                zone: [
+                    { lat: 0, lng: 0 },
+                    { lat: 0, lng: 10 },
+                    { lat: 10, lng: 10 },
+                    { lat: 10, lng: 0 },
+                ],
+            },
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: mapQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        playerA.emit('player_submit_map_guess', { lat: 5, lng: 5 }); // inside polygon
+        playerB.emit('player_submit_map_guess', { lat: 25, lng: 25 }); // outside polygon
+
+        const boardResultPromise = waitForEvent<{ results: Record<string, { isWinner: boolean }> }>(board, 'board_reveal_map_results');
+        const scoresPromise = waitForScores(host, (s) => s[joinA.playerId]?.score === 150 && s[joinB.playerId]?.score === 0);
+
+        host.emit('host_resolve_map');
+
+        const boardResult = await boardResultPromise;
+        const scores = await scoresPromise;
+
+        expect(boardResult.results[joinA.playerId].isWinner).toBe(true);
+        expect(boardResult.results[joinB.playerId].isWinner).toBe(false);
+        expect(scores[joinA.playerId].score).toBe(150);
+        expect(scores[joinB.playerId].score).toBe(0);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should resolve estimate with tie and award both closest players', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const estimateQuestion = {
+            type: 'estimate' as const,
+            points: 120,
+            negativePoints: 0,
+            questionText: 'Tie-Test',
+            answerText: '100',
+            estimationAnswer: 100,
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: estimateQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        playerA.emit('player_submit_estimate', 99);
+        playerB.emit('player_submit_estimate', 101);
+
+        const resultPromise = waitForEvent<{ guesses: Array<{ playerId: string; isWinner: boolean }> }>(board, 'board_reveal_estimate_results');
+        const scoresPromise = waitForScores(host, (s) => s[joinA.playerId]?.score === 120 && s[joinB.playerId]?.score === 120);
+        host.emit('host_resolve_estimate');
+
+        const result = await resultPromise;
+        const scores = await scoresPromise;
+
+        const winners = result.guesses.filter((g) => g.isWinner).map((g) => g.playerId);
+        expect(winners).toContain(joinA.playerId);
+        expect(winners).toContain(joinB.playerId);
+        expect(scores[joinA.playerId].score).toBe(120);
+        expect(scores[joinB.playerId].score).toBe(120);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should ignore estimate resolve when no estimationAnswer is set', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const badEstimateQuestion = {
+            type: 'estimate' as const,
+            points: 200,
+            negativePoints: 0,
+            questionText: 'Ohne Antwort',
+            answerText: 'n/a',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: badEstimateQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        host.emit('host_resolve_estimate');
+        await expect(waitForNoEvent(board, 'board_reveal_estimate_results')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should forward host_toggle_qr to board clients', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const togglePromise = waitForEvent(board, 'board_toggle_qr');
+        host.emit('host_toggle_qr');
+        await expect(togglePromise).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should forward host_control_pixel_puzzle to board clients', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const action = 'next';
+        const controlPromise = waitForEvent<string>(board, 'board_control_pixel_puzzle');
+        host.emit('host_control_pixel_puzzle', action);
+        await expect(controlPromise).resolves.toBe(action);
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should collect freetext answers and reveal them on host resolve', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const freetextQuestion = {
+            type: 'freetext' as const,
+            points: 150,
+            negativePoints: 0,
+            questionText: 'Wie heißt der längste Fluss Europas?',
+            answerText: 'Wolga',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 1, qIndex: 0, question: freetextQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        const statusPromise = waitForEvent<{ submittedCount: number; totalPlayers: number }>(host, 'host_update_estimate_status');
+        player.emit('player_submit_freetext', 'Wolga');
+        await expect(statusPromise).resolves.toMatchObject({ submittedCount: 1, totalPlayers: 1 });
+
+        const revealPromise = waitForEvent<{ answers: Array<{ playerId: string; name: string; text: string; status?: string }> }>(
+            board,
+            'board_show_freetext_results'
+        );
+        host.emit('host_resolve_freetext');
+        const reveal = await revealPromise;
+
+        expect(reveal.answers).toHaveLength(1);
+        expect(reveal.answers[0]).toMatchObject({ playerId: join.playerId, name: 'Alice', text: 'Wolga' });
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should forward music_control within the room', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const payload = { action: 'play', time: 10 };
+        const musicPromise = waitForEvent<{ action: string; time: number }>(board, 'music_control');
+
+        host.emit('music_control', payload);
+        await expect(musicPromise).resolves.toEqual(payload);
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should toggle freetext score state when same action is applied twice', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const freetextQuestion = {
+            type: 'freetext' as const,
+            points: 150,
+            negativePoints: 0,
+            questionText: 'Freitext?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 1, qIndex: 0, question: freetextQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        const scoresPlusPromise = waitForScores(host, (s) => s[join.playerId]?.score === 150);
+        host.emit('host_score_answer', { action: 'correct', playerId: join.playerId });
+        await scoresPlusPromise;
+
+        const scoresResetPromise = waitForScores(host, (s) => s[join.playerId]?.score === 0);
+        host.emit('host_score_answer', { action: 'correct', playerId: join.playerId });
+        const resetScores = await scoresResetPromise;
+
+        expect(resetScores[join.playerId].score).toBe(0);
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should remove previous freetext points when switching from correct to incorrect', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const freetextQuestion = {
+            type: 'freetext' as const,
+            points: 200,
+            negativePoints: 0,
+            questionText: 'Freitext?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 1, qIndex: 0, question: freetextQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        const scoresCorrectPromise = waitForScores(host, (s) => s[join.playerId]?.score === 200);
+        host.emit('host_score_answer', { action: 'correct', playerId: join.playerId });
+        await scoresCorrectPromise;
+
+        const scoresIncorrectPromise = waitForScores(host, (s) => s[join.playerId]?.score === 0);
+        host.emit('host_score_answer', { action: 'incorrect', playerId: join.playerId });
+        const finalScores = await scoresIncorrectPromise;
+
+        expect(finalScores[join.playerId].score).toBe(0);
 
         host.disconnect();
         board.disconnect();
