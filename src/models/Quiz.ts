@@ -1,9 +1,9 @@
-// src/models/Quiz.ts
+﻿// src/models/Quiz.ts
 import { Schema, model } from 'mongoose';
 import { IGame, ICategory, IQuestion } from '../types';
 
 const questionSchema = new Schema<IQuestion>({
-    type: { type: String, default: 'standard', enum: ['standard', 'map', 'estimate', 'list', 'pixel', 'freetext'] },
+    type: { type: String, default: 'standard', enum: ['standard', 'map', 'estimate', 'list', 'pixel', 'freetext', 'elemination'] },
     location: {
         lat: { type: Number },
         lng: { type: Number },

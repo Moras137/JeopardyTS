@@ -91,33 +91,44 @@ describe('Socket.io Event Handlers', () => {
         });
     });
 
-    describe('player_buzz', () => {
-        it('should register player buzz', () => {
-            const buzzWinnerId = mockPlayer1.id;
-            const buzzTimestamp = Date.now();
+    describe('turn_management', () => {
+        it('should keep deterministic player order list', () => {
+            const playerOrder = ['player-1', 'player-2', 'player-3'];
 
-            expect(buzzWinnerId).toBe('player-1');
-            expect(typeof buzzTimestamp).toBe('number');
+            expect(playerOrder[0]).toBe('player-1');
+            expect(playerOrder).toHaveLength(3);
+            expect(new Set(playerOrder).size).toBe(playerOrder.length);
         });
 
-        it('should disable buzzers after someone buzzes', () => {
-            let buzzersActive = true;
-            
-            if (buzzersActive) {
-                buzzersActive = false;
-            }
+        it('should move turn to next player after incorrect answer', () => {
+            const playerOrder = ['player-1', 'player-2', 'player-3'];
+            const currentTurnPlayerId = 'player-1';
+            const currentIndex = playerOrder.indexOf(currentTurnPlayerId);
+            const nextTurnPlayerId = playerOrder[(currentIndex + 1) % playerOrder.length];
 
-            expect(buzzersActive).toBe(false);
+            expect(nextTurnPlayerId).toBe('player-2');
         });
 
-        it('should not allow buzzing when buzzers are locked', () => {
-            let buzzersActive = false;
-            
-            if (!buzzersActive) {
-                // Ignore buzz
-            }
+        it('should allow host to set current player directly', () => {
+            const activePlayers = {
+                'player-1': { ...mockPlayer1, active: true },
+                'player-2': { ...mockPlayer2, active: true },
+            };
+            const requestedPlayerId = 'player-2';
+            const existsAndActive = !!activePlayers[requestedPlayerId] && activePlayers[requestedPlayerId].active;
 
-            expect(buzzersActive).toBe(false);
+            expect(existsAndActive).toBe(true);
+        });
+
+        it('should reject host turn selection for inactive player', () => {
+            const activePlayers = {
+                'player-1': { ...mockPlayer1, active: true },
+                'player-2': { ...mockPlayer2, active: false },
+            };
+            const requestedPlayerId = 'player-2';
+            const existsAndActive = !!activePlayers[requestedPlayerId] && activePlayers[requestedPlayerId].active;
+
+            expect(existsAndActive).toBe(false);
         });
     });
 

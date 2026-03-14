@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -179,6 +179,42 @@
             
             /* Layout im Flex-Container */
             flex: 0 0 auto; 
+        }
+
+        #elemination-container {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+            margin: 10px auto;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: stretch;
+        }
+
+        .elemination-answer-card {
+            min-width: 260px;
+            max-width: 45%;
+            padding: 16px 20px;
+            border-radius: 10px;
+            border: 3px solid #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            text-align: center;
+            font-size: clamp(1.1rem, 2.4vh, 1.8rem);
+            font-weight: bold;
+            letter-spacing: 0.03em;
+        }
+
+        .elemination-answer-card.hidden {
+            background: rgba(0, 0, 0, 0.45);
+            color: #ffcc00;
+        }
+
+        .elemination-answer-card.revealed {
+            background: #ffffff;
+            color: #000000;
+            animation: popIn 0.35s ease;
         }
 
         #answer-text { 
@@ -561,6 +597,7 @@
         <div id="media-container"></div>
         <div id="q-map"></div>
         <div id="list-container"></div>
+        <div id="elemination-container"></div>
         <div id="freetext-container"></div>
         <div id="estimate-results"></div>
         <div id="answer-text"></div>

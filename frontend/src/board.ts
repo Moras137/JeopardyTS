@@ -1,4 +1,4 @@
-import { socket } from './socket';
+﻿import { socket } from './socket';
 import L from 'leaflet';
 import QRCode from 'qrcode'; 
 import { IGame, IQuestion, IPlayer } from '../../src/types';
@@ -16,6 +16,7 @@ let serverPort = window.location.port;
 let currentPixelAnim: number | null = null;
 let pixelControlCalls: { pause: () => void, resume: () => void } | null = null;
 let mapIsCustomMode = false;
+let currentTurnPlayerId: string | null = null;
 
 // --- DOM ELEMENTE ---
 const gameGrid = document.getElementById('game-grid') as HTMLDivElement;
@@ -32,6 +33,7 @@ const audioEl = document.getElementById('board-bg-music') as HTMLAudioElement;
 const introOverlay = document.getElementById('intro-overlay') as HTMLDivElement;
 const introMain = document.getElementById('intro-main-text') as HTMLDivElement;
 const listContainer = document.getElementById('list-container') as HTMLDivElement;
+const eleminationContainer = document.getElementById('elemination-container') as HTMLDivElement;
 const estimateResultsDiv = document.getElementById('estimate-results') as HTMLDivElement;
 const freetextContainer = document.getElementById('freetext-container') as HTMLDivElement;
 const podiumOverlay = document.getElementById('podium-overlay') as HTMLDivElement;
@@ -105,6 +107,8 @@ socket.on('board_show_question', (data) => {
     mapDiv.style.display = 'none';
     listContainer.style.display = 'none';
     listContainer.innerHTML = '';
+    eleminationContainer.style.display = 'none';
+    eleminationContainer.innerHTML = '';
     answerTextDiv.style.display = 'none';
     answerTextDiv.innerHTML = "";
     estimateResultsDiv.style.display = 'none';
@@ -128,6 +132,9 @@ socket.on('board_show_question', (data) => {
                 addListItemToBoard(question.listItems[i]);
             }
         }
+    }
+    else if (question.type === 'elemination') {
+        initEleminationBoard(question, data.eleminationRevealedIndices || []);
     }
     else if (question.type === 'pixel' && question.mediaPath) {
         // Starte den Effekt im Media Container
@@ -157,12 +164,17 @@ socket.on('board_reveal_list_item', (index: number) => {
     }
 });
 
+socket.on('board_reveal_elemination_answer', (index: number) => {
+    revealEleminationAnswer(index);
+});
+
 socket.on('board_reveal_answer', () => {
     if (!currentQuestion) return;
 
     // 1. Frage-Elemente ausblenden
     questionText.style.display = 'none';
     if(listContainer) listContainer.style.display = 'none'; // Liste weg (aus vorherigem Fix)
+    if(eleminationContainer) eleminationContainer.style.display = 'none';
 
     // 2. Lösungstext zeigen
     answerTextDiv.innerHTML = `<span style="color:var(--text-success); font-size:0.5em; display:block;">LÖSUNG:</span>${currentQuestion.answerText || ''}`;
@@ -421,6 +433,8 @@ socket.on('board_hide_question', () => {
     mediaContainer.innerHTML = "";
     const audios = document.querySelectorAll('audio, video');
     audios.forEach((a: any) => a.pause());
+    eleminationContainer.style.display = 'none';
+    eleminationContainer.innerHTML = '';
 });
 
 socket.on('board_toggle_qr', () => {
@@ -438,6 +452,7 @@ socket.on('update_scores', renderPlayerBar);
 socket.on('update_player_list', renderPlayerBar);
 
 socket.on('player_won_buzz', (data) => {
+    currentTurnPlayerId = data.id;
     document.querySelectorAll('.player-card').forEach(c => c.classList.remove('buzzing'));
     const winner = document.getElementById('p-' + data.id);
     if(winner) winner.classList.add('buzzing');
@@ -815,6 +830,9 @@ function renderPlayerBar(players: Record<string, IPlayer>) {
         div.style.color = p.color;
         div.style.borderColor = p.color;
         div.innerText = `${p.name}: ${p.score}`;
+        if (currentTurnPlayerId === p.id) {
+            div.classList.add('buzzing');
+        }
         playerBar.appendChild(div);
     }
 }
@@ -1054,4 +1072,34 @@ function startConfetti() {
         div.style.top = -10 + 'px';
         container.appendChild(div);
     }
+}
+
+function initEleminationBoard(question: IQuestion, revealedIndices: number[]) {
+    eleminationContainer.innerHTML = '';
+    eleminationContainer.style.display = 'flex';
+    const answers = question.listItems || [];
+
+    answers.forEach((answer, idx) => {
+        const card = document.createElement('div');
+        card.className = 'elemination-answer-card hidden';
+        card.id = `elemination-answer-${idx}`;
+        card.innerText = `${idx + 1}. ???`;
+        eleminationContainer.appendChild(card);
+
+        if (revealedIndices.includes(idx)) {
+            revealEleminationAnswer(idx, answer);
+        }
+    });
+}
+
+function revealEleminationAnswer(index: number, answerOverride?: string) {
+    if (!currentQuestion || currentQuestion.type !== 'elemination') return;
+    const answers = currentQuestion.listItems || [];
+    const answer = answerOverride || answers[index];
+    const card = document.getElementById(`elemination-answer-${index}`) as HTMLDivElement;
+    if (!card || !answer) return;
+
+    card.classList.remove('hidden');
+    card.classList.add('revealed');
+    card.innerText = `${index + 1}. ${answer}`;
 }

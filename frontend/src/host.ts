@@ -7,6 +7,9 @@ let currentGame: IGame | null = null;
 let players: Record<string, IPlayer> = {};
 let activeQuestion: IQuestion | null = null;
 let activePlayerId: string | null = null;
+let currentChooserPlayerId: string | null = null;
+let eleminationRevealedIndices: number[] = [];
+let eleminationEliminatedPlayerIds: string[] = [];
 
 // --- DOM ELEMENTE ---
 // Sidebar & Info
@@ -46,6 +49,9 @@ const resolveMapBtn = document.getElementById('resolve-map-btn') as HTMLButtonEl
 const listModeControls = document.getElementById('list-mode-controls') as HTMLDivElement;
 const listItemsPreview = document.getElementById('list-items-preview') as HTMLDivElement;
 const btnRevealList = document.getElementById('btn-reveal-list') as HTMLButtonElement;
+const eleminationModeControls = document.getElementById('elemination-mode-controls') as HTMLDivElement;
+const eleminationStatus = document.getElementById('elemination-status') as HTMLDivElement;
+const eleminationAnswerButtons = document.getElementById('elemination-answer-buttons') as HTMLDivElement;
 
 const pixelModeControls = document.getElementById('pixel-mode-controls') as HTMLDivElement;
 const btnPixelPause = document.getElementById('btn-pixel-pause') as HTMLButtonElement;
@@ -72,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let shouldRejoin = false;
 
-    // 1. Prüfen, ob wir rejoinen können
+    // 1. Pr�fen, ob wir rejoinen k�nnen
     if (savedSessionStr) {
         try {
             const savedData = JSON.parse(savedSessionStr);
@@ -89,14 +95,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Fallback: Neue Session erstellen, wenn kein Rejoin stattfindet
     if (!shouldRejoin) {
-        // Falls wir hier sind, wollen wir ein NEUES Spiel starten -> Alten Cache löschen
+        // Falls wir hier sind, wollen wir ein NEUES Spiel starten -> Alten Cache l�schen
         localStorage.removeItem('jeopardy_host_session');
 
         if (urlGameId) {
-            console.log("Starte neue Session für GameID:", urlGameId);
+            console.log("Starte neue Session f�r GameID:", urlGameId);
             socket.emit('host_create_session', urlGameId);
         } else {
-            // Keine ID vorhanden -> Zurück zur Auswahl
+            // Keine ID vorhanden -> Zur�ck zur Auswahl
             window.location.href = '/create.html';
         }
     }
@@ -106,7 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
 if(correctBtn) correctBtn.addEventListener('click', () => {
     if (activePlayerId) {
         socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId });
-        buzzWinnerSection.style.display = 'none'; 
+        if (activeQuestion?.type !== 'elemination') {
+            buzzWinnerSection.style.display = 'none';
+        }
     }
 });
 
@@ -114,8 +122,6 @@ if(incorrectBtn) incorrectBtn.addEventListener('click', () => {
     if (activePlayerId) {
         socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId });
         buzzWinnerSection.style.display = 'none';
-        
-        if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'block';
     }
 });
 
@@ -169,9 +175,9 @@ if(btnPodium) {
 }
 
 if(resolveQuestionBtn) resolveQuestionBtn.addEventListener('click', () => {
-    if(confirm("Frage wirklich auflösen?")) {
+    if(confirm("Frage wirklich aufl�sen?")) {
         socket.emit('host_resolve_question');
-        // UI Update: Buttons verstecken, da aufgelöst
+        // UI Update: Buttons verstecken, da aufgel�st
         resolveQuestionBtn.style.display = 'none';
         if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
     }
@@ -200,13 +206,15 @@ socket.on('host_session_restored', (data) => {
 
     // 1. UI RESET: Alles auf Anfangszustand
     hostGrid.style.display = 'flex'; // Grid zeigen
-    activeQSection.style.display = 'none'; // Overlay erst aus, gleich an wenn nötig
+    activeQSection.style.display = 'none'; // Overlay erst aus, gleich an wenn n�tig
     
     // Alle Buttons verstecken
     if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
     if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
     if(resolveMapBtn) resolveMapBtn.style.display = 'none';
     if(resolveEstimateBtn) resolveEstimateBtn.style.display = 'none';
+    eleminationRevealedIndices = [];
+    eleminationEliminatedPlayerIds = [];
 
     // Alle Modi-Controls verstecken
     mapModeControls.style.display = 'none';
@@ -214,6 +222,7 @@ socket.on('host_session_restored', (data) => {
     freetextModeControls.style.display = 'none';
     pixelModeControls.style.display = 'none';
     listModeControls.style.display = 'none';
+    eleminationModeControls.style.display = 'none';
     buzzWinnerSection.style.display = 'none';
 
     // 2. AKTIVE FRAGE WIEDERHERSTELLEN
@@ -247,7 +256,7 @@ socket.on('host_session_restored', (data) => {
                 mapModeControls.style.display = 'flex';
                 mapSubmittedCount.innerText = `${currentCount}/${totalPlayers}`;
                 
-                // Button wieder anzeigen (sofern noch nicht aufgelöst - Status müsste man theoretisch auch tracken, 
+                // Button wieder anzeigen (sofern noch nicht aufgel�st - Status m�sste man theoretisch auch tracken, 
                 // aber hier gehen wir davon aus: Frage offen -> Button da)
                 if(resolveMapBtn) resolveMapBtn.style.display = 'block';
                 break;
@@ -262,23 +271,23 @@ socket.on('host_session_restored', (data) => {
             case 'freetext':
                 freetextModeControls.style.display = 'flex';
                 freetextSubmittedCount.innerText = `${currentCount}/${totalPlayers}`;
-                // Bei Freitext gibt es meist keinen globalen "Auflösen" Button, da einzeln bewertet wird
+                // Bei Freitext gibt es meist keinen globalen "Aufl�sen" Button, da einzeln bewertet wird
                 break;
 
             case 'pixel':
                 pixelModeControls.style.display = 'flex';
                 qTitle.innerText += " (PIXEL PUZZLE)";
                 
-                // Pixel hat Buzzer + Auflösen
-                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+                // Pixel hat Buzzer + Aufl�sen
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
                 break;
 
             case 'list':
                 listModeControls.style.display = 'block';
                 
-                // Liste hat Buzzer + Auflösen
-                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'block';
+                // Liste hat Buzzer + Aufl�sen
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
 
                 // Listen-Fortschritt wiederherstellen
@@ -287,9 +296,18 @@ socket.on('host_session_restored', (data) => {
                 }
                 break;
 
+            case 'elemination':
+                eleminationModeControls.style.display = 'block';
+                eleminationRevealedIndices = data.eleminationRevealedIndices || [];
+                eleminationEliminatedPlayerIds = data.eleminationEliminatedPlayerIds || [];
+                renderEleminationControls();
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
+                if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
+                break;
+
             default: // 'standard'
                 // Standard Frage
-                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
                 break;
         }
@@ -305,12 +323,13 @@ socket.on('host_session_restored', (data) => {
 
             // Buttons anpassen: 
             // Unlock Button zeigen wir oft trotzdem an (um zu resetten), 
-            // Auflösen blenden wir oft aus, um Verwirrung zu vermeiden.
-            if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'block'; 
+            // Aufl�sen blenden wir oft aus, um Verwirrung zu vermeiden.
+            if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none'; 
             if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none'; 
             
             // Map/Estimate Controls ausblenden, falls sie an waren (sollte bei Standard nicht passieren, aber sicher ist sicher)
             mapModeControls.style.display = 'none';
+
         }
     }
 
@@ -349,12 +368,11 @@ socket.on('player_won_buzz', (data) => {
     activePlayerId = data.id;
     updateHostControls({
         buzzWinnerId: data.id,
-        buzzWinnerName: data.name,
-        mapMode: false 
+        buzzWinnerName: data.name
     });
 });
 
-// WICHTIG: Hier kommt auch das Update für den Intro-Button an
+// WICHTIG: Hier kommt auch das Update f�r den Intro-Button an
 socket.on('update_host_controls', updateHostControls);
 
 socket.on('host_update_map_status', (data) => {
@@ -380,28 +398,45 @@ socket.on('host_restore_active_question', (data) => {
         mapModeControls.style.display = 'flex';
         unlockBuzzersBtn.style.display = 'none';
         mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
+        eleminationModeControls.style.display = 'none';
     } else if (data.question.type === 'list') {
         listModeControls.style.display = 'block';
         mapModeControls.style.display = 'none';
+        eleminationModeControls.style.display = 'none';
         
         if (data.question.listItems) {
             const idx = (data as any).listRevealedCount ?? -1;
             updateListPreview(data.question.listItems, idx);
         }
+    } else if (data.question.type === 'elemination') {
+        buzzWinnerSection.style.display = 'none';
+        mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none';
+        estimateModeControls.style.display = 'none';
+        freetextModeControls.style.display = 'none';
+        pixelModeControls.style.display = 'none';
+        eleminationModeControls.style.display = 'block';
+        eleminationRevealedIndices = data.eleminationRevealedIndices || [];
+        eleminationEliminatedPlayerIds = data.eleminationEliminatedPlayerIds || [];
+        renderEleminationControls();
+        unlockBuzzersBtn.style.display = 'none';
     } else if (data.question.type === 'pixel') {
         listModeControls.style.display = 'none';
         mapModeControls.style.display = 'none';
-        unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+        eleminationModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'none';
     } else if (data.question.type === 'estimate') {
          buzzWinnerSection.style.display = 'none';
          mapModeControls.style.display = 'none';
          listModeControls.style.display = 'none';
+         eleminationModeControls.style.display = 'none';
          unlockBuzzersBtn.style.display = 'none';
          estimateModeControls.style.display = 'flex';
     } else if (data.question.type === 'freetext') {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
         listModeControls.style.display = 'none';
+        eleminationModeControls.style.display = 'none';
         estimateModeControls.style.display = 'none';
         pixelModeControls.style.display = 'none';
         unlockBuzzersBtn.style.display = 'none';
@@ -411,10 +446,11 @@ socket.on('host_restore_active_question', (data) => {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
         listModeControls.style.display = 'none'; 
+        eleminationModeControls.style.display = 'none';
         estimateModeControls.style.display = 'none';
         freetextModeControls.style.display = 'none';
         pixelModeControls.style.display = 'none';   
-        unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
+        unlockBuzzersBtn.style.display = 'none';
     }
 
     if (freetextGradingView) freetextGradingView.style.display = 'none';
@@ -443,6 +479,7 @@ socket.on('host_update_freetext_buttons', (data) => {
 // --- HELPER FUNKTIONEN ---
 
 function updateHostControls(data: any) {
+    const correctButton = document.getElementById('correct-btn') as HTMLButtonElement;
     
     // 1. INTRO LOGIK
     if (data.nextIntroStep !== undefined) {
@@ -452,12 +489,12 @@ function updateHostControls(data: any) {
             if(btnIntroNext) {
                 btnIntroNext.style.display = 'block';
                 btnIntroNext.innerText = data.nextIntroStep;
-                // Farbe ändern wenn es "Zum Spielbrett" ist
+                // Farbe �ndern wenn es "Zum Spielbrett" ist
                 if(data.nextIntroStep.includes('Spielbrett')) {
                      btnIntroNext.className = "host-btn btn-success btn-full";
                 } else {
                      btnIntroNext.className = "host-btn btn-warning btn-full";
-                     // Style für Border zurücksetzen falls nötig
+                     // Style f�r Border zur�cksetzen falls n�tig
                      btnIntroNext.style.border = "2px solid white";
                 }
             }
@@ -470,16 +507,17 @@ function updateHostControls(data: any) {
             activePlayerId = data.buzzWinnerId;
             buzzWinnerName.innerText = data.buzzWinnerName || 'Spieler';
             buzzWinnerSection.style.display = 'block';
-            unlockBuzzersBtn.style.display = 'block';
+            unlockBuzzersBtn.style.display = 'none';
             mapModeControls.style.display = 'none';
+            if (correctButton) {
+                correctButton.style.display = 'inline-flex';
+            }
             //if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
         } else {
             activePlayerId = null;
             buzzWinnerSection.style.display = 'none';
-            // Nur anzeigen, wenn NICHT MapMode und Frage offen
-            if(activeQSection.style.display === 'flex' && mapModeControls.style.display === 'none') {
-                unlockBuzzersBtn.style.display = 'block';
-            }
+            if (correctButton) correctButton.style.display = 'inline-flex';
+            unlockBuzzersBtn.style.display = 'none';
             // if(unlockBuzzersBtn && unlockBuzzersBtn.style.display === 'block') {
             //      if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
             // }
@@ -490,15 +528,16 @@ function updateHostControls(data: any) {
         // Umschalten der Ansicht
         listModeControls.style.display = data.listMode ? 'block' : 'none';
         mapModeControls.style.display = 'none';
+        eleminationModeControls.style.display = 'none';
         
-        // Wenn Liste aktiv, Buzzer Buttons meist anzeigen (da parallel gebuzzert wird)
+        // Im Reihum-Modus bleibt der Unlock-Button immer ausgeblendet
         if (data.listMode && !activePlayerId) {
-            unlockBuzzersBtn.style.display = 'block';
+            unlockBuzzersBtn.style.display = 'none';
             buzzWinnerSection.style.display = 'none';
         }
     }
 
-    // Wenn ein Update zum Zähler kommt (oder beim Restore)
+    // Wenn ein Update zum Z�hler kommt (oder beim Restore)
     if (data.listRevealedCount !== undefined && activeQuestion?.listItems) {
         updateListPreview(activeQuestion.listItems, data.listRevealedCount);
     }
@@ -508,6 +547,9 @@ function updateHostControls(data: any) {
         activePlayerId = null; 
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = data.mapMode ? 'flex' : 'none';
+        if (data.mapMode) {
+            eleminationModeControls.style.display = 'none';
+        }
         
         if (data.mapMode) {
             unlockBuzzersBtn.style.display = 'none';
@@ -524,7 +566,8 @@ function updateHostControls(data: any) {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
         listModeControls.style.display = 'none';
-        unlockBuzzersBtn.style.display = 'none'; // Keine Buzzer bei Schätzfragen
+        eleminationModeControls.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'none'; // Keine Buzzer bei Sch�tzfragen
         
         estimateModeControls.style.display = data.estimateMode ? 'flex' : 'none';
     }
@@ -534,12 +577,13 @@ function updateHostControls(data: any) {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'none';
         listModeControls.style.display = 'none';
+        eleminationModeControls.style.display = 'none';
         estimateModeControls.style.display = 'none';
         unlockBuzzersBtn.style.display = 'none'; // Keine Buzzer
 
         freetextModeControls.style.display = data.freetextMode ? 'flex' : 'none';
         
-        // Zähler nutzen wir denselben Generic Count oder ein eigenes Feld
+        // Z�hler nutzen wir denselben Generic Count oder ein eigenes Feld
         // Im Server hatten wir 'submittedCount' allgemein gesendet
         if (data.submittedCount !== undefined && data.freetextMode) {
              freetextSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
@@ -548,6 +592,30 @@ function updateHostControls(data: any) {
     
     if (data.submittedCount !== undefined && freetextModeControls.style.display === 'flex') {
         freetextSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
+    }
+
+    if (data.eleminationMode !== undefined) {
+        mapModeControls.style.display = 'none';
+        listModeControls.style.display = 'none';
+        estimateModeControls.style.display = 'none';
+        freetextModeControls.style.display = 'none';
+        eleminationModeControls.style.display = data.eleminationMode ? 'block' : 'none';
+        unlockBuzzersBtn.style.display = 'none';
+    }
+
+    if (data.eleminationRevealedIndices !== undefined) {
+        eleminationRevealedIndices = data.eleminationRevealedIndices;
+        renderEleminationControls();
+    }
+
+    if (data.eleminationEliminatedPlayerIds !== undefined) {
+        eleminationEliminatedPlayerIds = data.eleminationEliminatedPlayerIds;
+        renderEleminationStatus();
+    }
+
+    if (data.chooserPlayerId !== undefined) {
+        currentChooserPlayerId = data.chooserPlayerId || null;
+        renderPlayerList();
     }
 }
 
@@ -568,12 +636,40 @@ function updateListPreview(items: string[], revealedIndex: number) {
         btnRevealList.disabled = true;
         btnRevealList.classList.add('used');
     } else {
-        btnRevealList.innerText = "Nächsten Hinweis zeigen";
+        btnRevealList.innerText = "N�chsten Hinweis zeigen";
         btnRevealList.disabled = false;
         btnRevealList.classList.remove('used');
     }
     
     listItemsPreview.innerHTML = html;
+}
+
+function renderEleminationStatus() {
+    if (!eleminationStatus || !activeQuestion || activeQuestion.type !== 'elemination') return;
+    const total = activeQuestion.listItems?.length || 0;
+    const remaining = Math.max(0, Object.keys(players).length - eleminationEliminatedPlayerIds.length);
+    eleminationStatus.innerText = `Aufgedeckt: ${eleminationRevealedIndices.length}/${total} | Im Rennen: ${remaining}`;
+}
+
+function renderEleminationControls() {
+    if (!eleminationAnswerButtons || !activeQuestion || activeQuestion.type !== 'elemination') return;
+    const answers = activeQuestion.listItems || [];
+
+    eleminationAnswerButtons.innerHTML = '';
+    answers.forEach((ans, idx) => {
+        const btn = document.createElement('button');
+        const isRevealed = eleminationRevealedIndices.includes(idx);
+        btn.className = `host-btn ${isRevealed ? 'btn-secondary' : 'btn-success'}`;
+        btn.disabled = isRevealed;
+        btn.style.marginBottom = '6px';
+        btn.innerText = isRevealed ? `Aufgedeckt: ${ans}` : `Aufdecken: ${ans}`;
+        btn.addEventListener('click', () => {
+            socket.emit('host_reveal_elemination_answer', idx);
+        });
+        eleminationAnswerButtons.appendChild(btn);
+    });
+
+    renderEleminationStatus();
 }
 
 function renderGameGrid(game: IGame) {
@@ -603,6 +699,8 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     if (!roomCode) return;
     
     activeQuestion = question;
+    eleminationRevealedIndices = [];
+    eleminationEliminatedPlayerIds = [];
     activeQSection.style.display = 'flex'; // Overlay zeigen
     qTitle.innerText = `${currentGame?.categories[catIndex].name} - ${question.points} Punkte`;
     qDisplay.innerHTML = renderQuestionContent(question, 'question');
@@ -620,6 +718,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     pixelModeControls.style.display = 'none';
     estimateModeControls.style.display = 'none';
     freetextModeControls.style.display = 'none'; 
+    eleminationModeControls.style.display = 'none';
     unlockBuzzersBtn.style.display = 'none';
     if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
     // -----------------------------------
@@ -631,16 +730,22 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     
     } else if (question.type === 'list') {
         listModeControls.style.display = 'block';
-        unlockBuzzersBtn.style.display = 'block'; 
+        unlockBuzzersBtn.style.display = 'none'; 
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         
         if (question.listItems) {
             updateListPreview(question.listItems, -1); 
         }
 
+    } else if (question.type === 'elemination') {
+        eleminationModeControls.style.display = 'block';
+        unlockBuzzersBtn.style.display = 'none';
+        if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
+        renderEleminationControls();
+
     } else if (question.type === 'pixel') {
         pixelModeControls.style.display = 'flex';
-        unlockBuzzersBtn.style.display = 'block';
+        unlockBuzzersBtn.style.display = 'none';
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         qTitle.innerText += " (PIXEL PUZZLE)";
         
@@ -655,7 +760,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
 
     } else {
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
-        unlockBuzzersBtn.style.display = 'block';
+        unlockBuzzersBtn.style.display = 'none';
     }
 
     markQuestionAsUsed(catIndex, qIndex);
@@ -672,18 +777,29 @@ function renderPlayerList() {
     allPlayers.sort((a, b) => b.score - a.score).forEach(p => {
         const item = document.createElement('li');
         item.className = 'player-item';
+        item.title = 'Doppelklick: als aktuellen Spieler setzen';
         
         // Visuelles Feedback wenn offline
         if (!p.active) {
             item.style.opacity = '0.5';
             item.style.filter = 'grayscale(100%)';
+        } else {
+            item.style.cursor = 'pointer';
+            item.ondblclick = () => {
+                socket.emit('host_set_current_player', p.id);
+            };
+        }
+
+        if (currentChooserPlayerId && p.id === currentChooserPlayerId) {
+            item.style.border = '2px solid #007bff';
         }
 
         // --- Linke Seite: Name ---
         const nameSpan = document.createElement('span');
         nameSpan.style.color = p.color;
         nameSpan.style.fontWeight = 'bold';
-        nameSpan.innerHTML = `${p.name} ${!p.active ? '<small>(Offline)</small>' : ''}`;
+        const chooserLabel = currentChooserPlayerId === p.id ? ' <small>(wählt als Nächstes)</small>' : '';
+        nameSpan.innerHTML = `${p.name}${chooserLabel} ${!p.active ? '<small>(Offline)</small>' : ''}`;
 
         // --- Rechte Seite: Score + Edit Button ---
         const scoreContainer = document.createElement('div');
@@ -697,7 +813,7 @@ function renderPlayerList() {
 
         // Edit Button (Stift)
         const editBtn = document.createElement('button');
-        editBtn.innerText = '✎';
+        editBtn.innerText = 'Edit';
         editBtn.title = 'Punkte korrigieren';
         editBtn.style.background = 'transparent';
         editBtn.style.border = '1px solid #ccc';
@@ -707,15 +823,15 @@ function renderPlayerList() {
         editBtn.style.fontSize = '0.8rem';
         editBtn.style.color = '#555';
 
-        // Klick-Event für Korrektur
+        // Klick-Event f�r Korrektur
         editBtn.onclick = () => {
-            const input = prompt(`Neue Punktzahl für ${p.name}:`, p.score.toString());
+            const input = prompt(`Neue Punktzahl fuer ${p.name}:`, p.score.toString());
             if (input !== null) {
                 const newScore = parseInt(input);
                 if (!isNaN(newScore)) {
                     socket.emit('host_manual_score_update', { playerId: p.id, newScore });
                 } else {
-                    alert("Bitte eine gültige Zahl eingeben.");
+                    alert("Bitte eine g�ltige Zahl eingeben.");
                 }
             }
         };
@@ -731,6 +847,12 @@ function renderPlayerList() {
 }
 
 function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): string {
+    if (part === 'answer' && q.type === 'elemination') {
+        const items = q.listItems || [];
+        const rows = items.map((it, idx) => `<li>${idx + 1}. ${it}</li>`).join('');
+        return `<p style="color: var(--color-success); font-weight: bold;">Antwortmoeglichkeiten:</p><ol>${rows}</ol>`;
+    }
+
     const text = part === 'question' ? q.questionText : q.answerText;
     const path = part === 'question' ? q.mediaPath : q.answerMediaPath;
 
@@ -741,9 +863,9 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
         let mediaHtml = '';
 
         if (lowerPath.endsWith('.mp3') || lowerPath.endsWith('.wav') || lowerPath.endsWith('.ogg') || lowerPath.endsWith('.m4a')) {
-            mediaHtml = `<audio controls muted src="${path}" style="width: 100%;">Dein Browser unterstützt kein Audio.</audio>`;
+            mediaHtml = `<audio controls muted src="${path}" style="width: 100%;">Dein Browser unterstuetzt kein Audio.</audio>`;
         } else if (lowerPath.endsWith('.mp4') || lowerPath.endsWith('.webm') || lowerPath.endsWith('.mov')) {
-            mediaHtml = `<video controls muted src="${path}" style="max-height: 300px; width:100%; object-fit:contain;">Dein Browser unterstützt kein Video.</video>`;
+            mediaHtml = `<video controls muted src="${path}" style="max-height: 300px; width:100%; object-fit:contain;">Dein Browser unterstuetzt kein Video.</video>`;
         } else {
             mediaHtml = `<img src="${path}" style="max-height: 300px; width:100%; object-fit:contain;" alt="Medien">`;
         }
@@ -752,7 +874,7 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
     }
     
     if (part === 'answer') {
-        html = `<p style="color: var(--color-success); font-weight: bold;">Lösung: ${text}</p>` + html;
+        html = `<p style="color: var(--color-success); font-weight: bold;">Loesung: ${text}</p>` + html;
         if (q.type === 'map' && q.location) {
             html += `<p style="font-style: italic; font-size: 0.9rem; color: var(--text-muted);">Ziel: LAT ${q.location.lat.toFixed(4)}, LNG ${q.location.lng.toFixed(4)}</p>`;
         }
@@ -801,7 +923,7 @@ async function initMusic(game: IGame) {
     if(toggleBtn) {
         toggleBtn.onclick = () => {
             isPlaying = !isPlaying;
-            toggleBtn.innerText = isPlaying ? "⏸" : "▶";
+            toggleBtn.innerText = isPlaying ? "Pause" : "Play";
             socket.emit('music_control', { gameId: gameId, action: isPlaying ? 'play' : 'pause' });
         };
     }
@@ -821,10 +943,10 @@ function adjustHeaderHeights() {
     const titles = document.querySelectorAll('.host-cat-title') as NodeListOf<HTMLElement>;
     if (titles.length === 0) return;
 
-    // 1. Höhe zurücksetzen (wichtig falls das Fenster kleiner gezogen wird)
+    // 1. H�he zur�cksetzen (wichtig falls das Fenster kleiner gezogen wird)
     titles.forEach(t => t.style.height = 'auto');
 
-    // 2. Maximale Höhe ermitteln
+    // 2. Maximale H�he ermitteln
     let maxHeight = 0;
     titles.forEach(t => {
         if (t.offsetHeight > maxHeight) {
@@ -832,7 +954,7 @@ function adjustHeaderHeights() {
         }
     });
 
-    // 3. Allen Elementen die gleiche Höhe geben
+    // 3. Allen Elementen die gleiche H�he geben
     titles.forEach(t => {
         t.style.height = `${maxHeight}px`;
     });
@@ -856,8 +978,8 @@ function renderFreetextGradingList(answers: any[]) {
                 <div class="grading-text">${entry.text}</div>
             </div>
             <div style="display:flex; gap:8px; flex-shrink: 0;">
-                <button class="host-btn btn-correct" id="btn-correct-${entry.playerId}" data-pid="${entry.playerId}" style="background:#e0e0e0; min-width: 40px;">✔</button>
-                <button class="host-btn btn-incorrect" id="btn-incorrect-${entry.playerId}" data-pid="${entry.playerId}" style="background:#e0e0e0; min-width: 40px;">✘</button>
+                <button class="host-btn btn-correct" id="btn-correct-${entry.playerId}" data-pid="${entry.playerId}" style="background:#e0e0e0; min-width: 40px;">OK</button>
+                <button class="host-btn btn-incorrect" id="btn-incorrect-${entry.playerId}" data-pid="${entry.playerId}" style="background:#e0e0e0; min-width: 40px;">X</button>
             </div>
         `;
         
@@ -869,7 +991,7 @@ function renderFreetextGradingList(answers: any[]) {
         }
     });
 
-    // Event Listener für Buttons (wie gehabt)
+    // Event Listener f�r Buttons (wie gehabt)
     freetextList.querySelectorAll('.btn-correct').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const pid = (e.target as HTMLElement).dataset.pid;
@@ -903,7 +1025,7 @@ function updateFreetextButtonStyles(playerId: string, status: 'correct' | 'incor
     btnInc.style.color = '#333';
     btnInc.style.border = '1px solid #ccc';
 
-    // 2. Status anwenden (Klassen hinzufügen)
+    // 2. Status anwenden (Klassen hinzuf�gen)
     if (status === 'correct') {
         row.classList.add('correct');
         

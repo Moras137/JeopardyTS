@@ -22,6 +22,23 @@ const TEST_URL = `http://localhost:${TEST_PORT}`;
 
 let gameId: string;
 
+type E2EPlayer = {
+    id: string;
+    name: string;
+    score: number;
+    socketId: string;
+    color: string;
+    active: boolean;
+};
+
+type E2ESession = {
+    gameId: string;
+    game: any;
+    hostSocketId: string;
+    players: Record<string, E2EPlayer>;
+    currentTurnPlayerId: string | null;
+};
+
 /**
  * Setup Express server with minimal implementation for E2E tests
  */
@@ -61,28 +78,52 @@ async function setupTestServer() {
     io = new SocketIOServer(httpServer);
 
     // Setup Socket.io event handlers (minimal for E2E)
-    let sessions: Record<string, any> = {};
+    let sessions: Record<string, E2ESession> = {};
     
     io.on('connection', (socket) => {
+        const findSessionByHost = () => Object.values(sessions).find((s) => s.hostSocketId === socket.id);
+
         socket.on('host_create_session', async (gameId: string) => {
             const roomCode = generateRoomCode();
             const game = await GameModel.findById(gameId);
-            
+
             sessions[roomCode] = {
                 gameId,
                 game,
                 hostSocketId: socket.id,
                 players: {},
+                currentTurnPlayerId: null,
             };
 
             socket.join(roomCode);
-            socket.emit('session_created', { roomCode, gameId, hostId: socket.id });
+            socket.emit('session_created', roomCode);
         });
 
-        socket.on('player_join_session', (roomCode: string, playerName: string) => {
+        socket.on('host_start_game', async (startedGameId: string) => {
+            const game = await GameModel.findById(startedGameId);
+            if (game) socket.emit('load_game_on_host', game);
+        });
+
+        socket.on('board_join_session', (roomCode: string) => {
+            const session = sessions[roomCode];
+            if (!session) return;
+
+            socket.join(roomCode);
+            socket.emit('board_connected_success');
+            socket.emit('board_init_game', session.game);
+            socket.emit('load_game_on_board', {
+                game: session.game,
+                usedQuestions: [],
+            });
+            socket.emit('update_scores', session.players);
+        });
+
+        socket.on('player_join_session', (data: any, legacyName?: string) => {
+            const roomCode = typeof data === 'string' ? data : data?.roomCode;
+            const playerName = typeof data === 'string' ? legacyName : data?.name;
             const session = sessions[roomCode];
             if (!session) {
-                socket.emit('error', { message: 'Invalid room' });
+                socket.emit('join_error', 'Invalid room');
                 return;
             }
 
@@ -91,25 +132,68 @@ async function setupTestServer() {
                 id: playerId,
                 name: playerName,
                 score: 0,
+                socketId: socket.id,
+                color: '#0088ff',
+                active: true,
             };
 
+            if (!session.currentTurnPlayerId) {
+                session.currentTurnPlayerId = playerId;
+            }
+
             socket.join(roomCode);
-            socket.emit('player_joined', {
+            socket.emit('join_success', {
                 playerId,
                 roomCode,
-                playerCount: Object.keys(session.players).length,
+                name: playerName,
             });
 
-            io.to(roomCode).emit('player_count_updated', {
-                count: Object.keys(session.players).length,
+            io.to(roomCode).emit('update_player_list', session.players);
+            io.to(roomCode).emit('update_scores', session.players);
+            io.to(session.hostSocketId).emit('update_host_controls', {
+                chooserPlayerId: session.currentTurnPlayerId,
+                chooserPlayerName: Object.values(session.players).find((p) => p.id === session.currentTurnPlayerId)?.name,
+            });
+        });
+
+        socket.on('host_set_current_player', (playerId: string) => {
+            const session = findSessionByHost();
+            if (!session) return;
+
+            const roomCode = Object.keys(sessions).find((code) => sessions[code] === session);
+            if (!roomCode) return;
+
+            const target = Object.values(session.players).find((p) => p.id === playerId && p.active);
+            if (!target) return;
+
+            session.currentTurnPlayerId = target.id;
+            io.to(roomCode).emit('player_won_buzz', {
+                id: target.id,
+                name: target.name,
+            });
+            io.to(session.hostSocketId).emit('update_host_controls', {
+                buzzWinnerId: target.id,
+                buzzWinnerName: target.name,
+                chooserPlayerId: target.id,
+                chooserPlayerName: target.name,
             });
         });
 
         socket.on('disconnect', () => {
-            for (const roomCode in sessions) {
+            for (const roomCode of Object.keys(sessions)) {
                 const session = sessions[roomCode];
-                if (session.players[socket.id]) {
-                    delete session.players[socket.id];
+                const player = session.players[socket.id];
+                if (!player) continue;
+
+                player.active = false;
+                io.to(roomCode).emit('update_player_list', session.players);
+
+                if (session.currentTurnPlayerId === player.id) {
+                    const next = Object.values(session.players).find((p) => p.active);
+                    session.currentTurnPlayerId = next ? next.id : null;
+                    if (next) {
+                        io.to(roomCode).emit('player_won_buzz', { id: next.id, name: next.name });
+                    }
                 }
             }
         });
@@ -279,6 +363,86 @@ test.describe('Jeopardy E2E Tests', () => {
             await page.goto(`${TEST_URL}/create.html`);
             const pageContent = await page.content();
             expect(pageContent.length).toBeGreaterThan(0);
+        });
+
+        test('host can set active player via double click and it is visible on board and players', async ({ page, browser }) => {
+            const hostPage = page;
+            const boardContext = await browser.newContext();
+            const playerAContext = await browser.newContext();
+            const playerBContext = await browser.newContext();
+
+            const boardPage = await boardContext.newPage();
+            const playerAPage = await playerAContext.newPage();
+            const playerBPage = await playerBContext.newPage();
+
+            await hostPage.goto(`${TEST_URL}/host.html?gameId=${gameId}`);
+            await expect(hostPage.locator('#room-code-display')).toHaveText(/\d{4}/, { timeout: 10000 });
+            const roomCode = (await hostPage.locator('#room-code-display').innerText()).trim();
+
+            await boardPage.goto(`${TEST_URL}/board.html?room=${roomCode}`);
+            await playerAPage.goto(`${TEST_URL}/player.html?room=${roomCode}`);
+            await playerBPage.goto(`${TEST_URL}/player.html?room=${roomCode}`);
+
+            await playerAPage.fill('#player-name', 'Alice');
+            await playerAPage.click('#join-btn');
+
+            await playerBPage.fill('#player-name', 'Bob');
+            await playerBPage.click('#join-btn');
+
+            const bobHostListEntry = hostPage.locator('#player-list li', { hasText: 'Bob' });
+            await expect(bobHostListEntry).toBeVisible({ timeout: 10000 });
+            await bobHostListEntry.dblclick();
+
+            await expect(boardPage.locator('.player-card.buzzing')).toContainText('Bob', { timeout: 10000 });
+            await expect(playerAPage.locator('#current-turn-player')).toContainText('Bob', { timeout: 10000 });
+            await expect(playerBPage.locator('#status-message')).toContainText('DU BIST DRAN!', { timeout: 10000 });
+
+            await boardContext.close();
+            await playerAContext.close();
+            await playerBContext.close();
+        });
+
+        test('host cannot select inactive player via double click', async ({ page, browser }) => {
+            const hostPage = page;
+            const boardContext = await browser.newContext();
+            const playerAContext = await browser.newContext();
+            const playerBContext = await browser.newContext();
+
+            const boardPage = await boardContext.newPage();
+            const playerAPage = await playerAContext.newPage();
+            const playerBPage = await playerBContext.newPage();
+
+            await hostPage.goto(`${TEST_URL}/host.html?gameId=${gameId}`);
+            await expect(hostPage.locator('#room-code-display')).toHaveText(/\d{4}/, { timeout: 10000 });
+            const roomCode = (await hostPage.locator('#room-code-display').innerText()).trim();
+
+            await boardPage.goto(`${TEST_URL}/board.html?room=${roomCode}`);
+            await playerAPage.goto(`${TEST_URL}/player.html?room=${roomCode}`);
+            await playerBPage.goto(`${TEST_URL}/player.html?room=${roomCode}`);
+
+            await playerAPage.fill('#player-name', 'Alice');
+            await playerAPage.click('#join-btn');
+
+            await playerBPage.fill('#player-name', 'Bob');
+            await playerBPage.click('#join-btn');
+
+            const bobHostListEntry = hostPage.locator('#player-list li', { hasText: 'Bob' });
+            await expect(bobHostListEntry).toBeVisible({ timeout: 10000 });
+
+            // Bob aktiv setzen
+            await bobHostListEntry.dblclick();
+            await expect(boardPage.locator('.player-card.buzzing')).toContainText('Bob', { timeout: 10000 });
+
+            // Bob wird inaktiv (Disconnect)
+            await playerBContext.close();
+            await expect(hostPage.locator('#player-list li', { hasText: 'Bob' })).toContainText('Offline', { timeout: 10000 });
+
+            // Doppelklick auf inaktiven Bob darf den aktiven Spieler nicht wieder auf Bob setzen
+            await hostPage.locator('#player-list li', { hasText: 'Bob' }).dblclick();
+            await expect(boardPage.locator('.player-card.buzzing')).toContainText('Alice', { timeout: 10000 });
+
+            await boardContext.close();
+            await playerAContext.close();
         });
     });
 

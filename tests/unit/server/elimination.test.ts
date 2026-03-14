@@ -8,6 +8,21 @@ import {
 } from '@tests/fixtures/mock-data';
 
 describe('Question Types - Main Branch Support', () => {
+    const mockEleminationQuestion = {
+        type: 'elemination' as const,
+        points: 200,
+        negativePoints: 0,
+        questionText: 'Nenne Fruechte',
+        answerText: 'Apfel, Birne, Banane',
+        listItems: ['Apfel', 'Birne', 'Banane'],
+        mediaPath: '',
+        hasMedia: false,
+        mediaType: 'none' as const,
+        answerMediaPath: '',
+        hasAnswerMedia: false,
+        answerMediaType: 'none' as const,
+    };
+
     it('should have valid standard question structure', () => {
         expect(mockStandardQuestion.type).toBe('standard');
         expect(mockStandardQuestion.points).toBe(100);
@@ -51,6 +66,12 @@ describe('Question Types - Main Branch Support', () => {
         expect(mockFreetextQuestion.answerText).toBeTruthy();
     });
 
+    it('should have valid elemination question with list items', () => {
+        expect(mockEleminationQuestion.type).toBe('elemination');
+        expect(mockEleminationQuestion.listItems).toBeDefined();
+        expect(mockEleminationQuestion.listItems).toHaveLength(3);
+    });
+
     it('should calculate points correctly', () => {
         const allQuestions = [
             mockStandardQuestion,
@@ -59,10 +80,11 @@ describe('Question Types - Main Branch Support', () => {
             mockListQuestion,
             mockPixelQuestion,
             mockFreetextQuestion,
+            mockEleminationQuestion,
         ];
 
         const totalPoints = allQuestions.reduce((sum, q) => sum + q.points, 0);
-        expect(totalPoints).toBe(1400); // 100+200+300+250+400+150
+        expect(totalPoints).toBe(1600); // 100+200+300+250+400+150+200
     });
 
     it('should handle negative points for map question', () => {
@@ -70,7 +92,7 @@ describe('Question Types - Main Branch Support', () => {
     });
 
     it('should validate question types are supported', () => {
-        const supportedTypes = ['standard', 'map', 'estimate', 'list', 'pixel', 'freetext'];
+        const supportedTypes = ['standard', 'map', 'estimate', 'list', 'pixel', 'freetext', 'elemination'];
         const testQuestions = [
             mockStandardQuestion,
             mockMapQuestion,
@@ -78,6 +100,7 @@ describe('Question Types - Main Branch Support', () => {
             mockListQuestion,
             mockPixelQuestion,
             mockFreetextQuestion,
+            mockEleminationQuestion,
         ];
 
         testQuestions.forEach(question => {

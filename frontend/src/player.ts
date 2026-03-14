@@ -16,6 +16,7 @@ const playerInfoDiv = document.getElementById('player-info') as HTMLDivElement;
 
 const buzzerBtn = document.getElementById('buzzer-button') as HTMLButtonElement;
 const statusMsg = document.getElementById('status-message') as HTMLDivElement;
+const currentTurnPlayerDisplay = document.getElementById('current-turn-player') as HTMLDivElement;
 
 const mapQText = document.getElementById('map-q-text') as HTMLSpanElement;
 const confirmGuessBtn = document.getElementById('confirm-guess-btn') as HTMLButtonElement;
@@ -35,7 +36,7 @@ const freetextWaitMsg = document.getElementById('freetext-wait-msg') as HTMLPara
 // --- 2. STATE VARIABLEN ---
 let mySocketId: string | null = null;
 let playerName = "";
-let playerBuzzed = true; // Startet gesperrt
+let playerBuzzed = true;
 
 // Leaflet Variablen
 let playerMap: L.Map | null = null;
@@ -103,15 +104,7 @@ joinBtn.addEventListener('click', () => {
 });
 
 buzzerBtn.addEventListener('click', () => {
-    if (!playerBuzzed) {
-        // Lokales Feedback sofort anzeigen
-        playerBuzzed = true;
-        setBuzzerState('waiting');
-        
-        if (mySocketId) {
-            socket.emit('player_buzz', { id: mySocketId, name: playerName });
-        }
-    }
+    // Kein Buzzern mehr: Button dient nur als Turn-Indikator.
 });
 
 confirmGuessBtn.addEventListener('click', () => {
@@ -194,6 +187,7 @@ socket.on('join_success', (data) => {
     
     // Reset für den Fall eines Rejoins mitten im Spiel
     setBuzzerState('locked');
+    buzzerBtn.disabled = true;
 
     // WAKE LOCK AKTIVIEREN
     requestWakeLock();
@@ -210,16 +204,8 @@ socket.on('join_error', (msg) => {
 // --- BUZZER LOGIK ---
 
 socket.on('buzzers_unlocked', (lockedIds?: string[]) => {
-    if (myPlayerId && lockedIds && lockedIds.includes(myPlayerId)) {
-        playerBuzzed = true;
-        setBuzzerState('locked'); 
-        const statusMsg = document.getElementById('status-message');
-        if(statusMsg) statusMsg.innerText = "Du hast bereits geantwortet.";
-        return;
-    }
-
-    playerBuzzed = false;
-    setBuzzerState('active');
+    playerBuzzed = true;
+    setBuzzerState('locked');
 });
 
 socket.on('buzzers_locked', () => {
@@ -228,14 +214,18 @@ socket.on('buzzers_locked', () => {
 });
 
 socket.on('player_won_buzz', (data) => {
-    setBuzzerState('locked');
-    
+    if (currentTurnPlayerDisplay) {
+        currentTurnPlayerDisplay.innerText = `Aktuell dran: ${data.name}`;
+    }
+
     if (data.id === myPlayerId) { 
+        setBuzzerState('active');
         statusMsg.innerText = 'DU BIST DRAN!';
         document.body.style.backgroundColor = '#155724'; // Dunkelgrün
         // Vibrations-Feedback (falls unterstützt)
         if(navigator.vibrate) navigator.vibrate(200);
     } else {
+        setBuzzerState('waiting');
         statusMsg.innerText = `${data.name} ist dran!`;
         document.body.style.backgroundColor = 'var(--bg-body)';
     }
@@ -320,6 +310,7 @@ socket.on('board_hide_question', () => {
         gameSection.style.display = 'flex';
         setBuzzerState('locked');
         statusMsg.innerText = "Warte auf nächste Frage...";
+        if (currentTurnPlayerDisplay) currentTurnPlayerDisplay.innerText = 'Aktuell dran: -';
         document.body.style.backgroundColor = 'var(--bg-body)';
     }
 
@@ -402,17 +393,19 @@ socket.on('player_start_freetext', (data) => {
 // --- HELPER ---
 
 function setBuzzerState(state: 'active' | 'locked' | 'waiting') {
+    buzzerBtn.disabled = true;
+
     if (state === 'active') {
         buzzerBtn.style.backgroundColor = 'var(--btn-buzz-active)';
-        buzzerBtn.innerText = "DRÜCKEN!";
-        statusMsg.innerText = 'LOS!';
+        buzzerBtn.innerText = "DU BIST DRAN";
+        statusMsg.innerText = 'Du bist dran!';
     } else if (state === 'waiting') {
         buzzerBtn.style.backgroundColor = 'var(--btn-buzz-wait)';
-        buzzerBtn.innerText = "...";
+        buzzerBtn.innerText = "WARTEN";
     } else {
         buzzerBtn.style.backgroundColor = 'var(--btn-buzz-locked)';
-        buzzerBtn.innerText = "GESPERRT";
-        if(statusMsg.innerText === 'LOS!') statusMsg.innerText = 'Gesperrt';
+        buzzerBtn.innerText = "WARTEN";
+        if(statusMsg.innerText === 'Du bist dran!') statusMsg.innerText = 'Warte auf Freigabe';
     }
 }
 

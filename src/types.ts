@@ -1,4 +1,4 @@
-export type QuestionType = 'standard' | 'map' | 'estimate' | 'list' | 'pixel' | 'freetext';
+﻿export type QuestionType = 'standard' | 'map' | 'estimate' | 'list' | 'pixel' | 'freetext' | 'elemination';
 export type MediaType = 'none' | 'image' | 'video' | 'audio';
 
 export interface ILocation {
@@ -69,6 +69,9 @@ export interface ISession {
     hostSocketId: string;
     boardSocketId?: string;
     players: Record<string, IPlayer>;
+    playerOrder: string[];
+    currentTurnPlayerId: string | null;
+    lastEleminationRevealerId?: string | null;
     buzzersActive: boolean;
     currentBuzzWinnerId: string | null;
     activeQuestion: IQuestion | null;
@@ -78,6 +81,9 @@ export interface ISession {
     usedQuestions: { catIndex: number, qIndex: number }[];
     introIndex: number;
     listRevealedCount: number;
+    eleminationRevealedIndices: number[];
+    eleminationEliminatedPlayerIds: string[];
+    eleminationRoundResolved: boolean;
     freetextAnswers: Record<string, string>;
     freetextGrading?: Record<string, 'correct' | 'incorrect'>;
     lockedPlayers: string[];
@@ -99,6 +105,8 @@ export interface ServerToClientEvents {
         buzzWinnerId: string | null;
         submittedCount?: number;     
         listRevealedCount?: number;
+        eleminationRevealedIndices?: number[];
+        eleminationEliminatedPlayerIds?: string[];
         isResolved?: boolean;        
     }) => void;
     host_rejoin_error: () => void;
@@ -116,15 +124,30 @@ export interface ServerToClientEvents {
     join_error: (msg: string) => void;
     player_start_map_guess: (data: { questionText: string, location?: ILocation, points: number }) => void;
     player_new_question: (data: { text: string, points: number }) => void;
-    board_show_question: (data: { catIndex: number, qIndex: number, question: IQuestion, currentListIndex?: number }) => void;
+    board_show_question: (data: {
+        catIndex: number,
+        qIndex: number,
+        question: IQuestion,
+        currentListIndex?: number,
+        eleminationRevealedIndices?: number[]
+    }) => void;
     board_reveal_answer: () => void;
     board_hide_question: () => void;
     board_toggle_qr: () => void;
     board_reveal_map_results: (data: any) => void;
     board_reveal_list_item: (index: number) => void;
+    board_reveal_elemination_answer: (index: number) => void;
     session_ended: () => void;
     load_game_on_host: (game: IGame) => void;
-    host_restore_active_question: (data: { question: IQuestion, catIndex: number, qIndex: number, buzzersActive: boolean,mapGuessesCount: number }) => void;
+    host_restore_active_question: (data: {
+        question: IQuestion,
+        catIndex: number,
+        qIndex: number,
+        buzzersActive: boolean,
+        mapGuessesCount: number,
+        eleminationRevealedIndices?: number[],
+        eleminationEliminatedPlayerIds?: string[]
+    }) => void;
     music_control: (data: { action: 'play' | 'pause' | 'volume', value?: number }) => void;
     server_network_info: (data: { ip: string, port: number }) => void;
     load_game_on_board: (data: { game: IGame, usedQuestions: { catIndex: number, qIndex: number }[] }) => void;
@@ -181,4 +204,6 @@ export interface ClientToServerEvents {
     host_show_podium: () => void;
     host_media_control: (data: { action: 'play' | 'pause' | 'seek', currentTime: number }) => void;
     host_resolve_question: () => void;
+    host_reveal_elemination_answer: (index: number) => void;
+    host_set_current_player: (playerId: string) => void;
 }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -353,6 +353,7 @@
         .inline-font-weight-bold-color-0d47a1 { font-weight:bold; color: #0d47a1; }
         .inline-display-none-align-items-center-4 { display:none; align-items: center; gap: 15px; background: #e8f5e9; padding: 10px; border-radius: 5px; border: 1px solid #a5d6a7; }
         .inline-font-weight-bold-color-2e7d32 { font-weight:bold; color: #2e7d32; }
+        .inline-display-none-margin-top-15px-elemination { display:none; margin-top:15px; background:#f0f8ff; padding:10px; border:1px solid #8ec5ff; border-radius:5px; color:#222; }
     </style>
 </head>
 <body>
@@ -427,7 +428,7 @@
                 
                 <div id="buzz-winner-section" class="inline-width-100-display-none">
                     <div class="inline-text-align-center-font-weight-bold">
-                        Gebuzzert: <span id="buzz-winner-name" class="inline-color-color-primary-font-size-1-4rem">Name</span>
+                        Dran: <span id="buzz-winner-name" class="inline-color-color-primary-font-size-1-4rem">Name</span>
                     </div>
                     <div class="inline-display-flex-gap-10px">
                         <button id="correct-btn" class="host-btn btn-success">Richtig</button>
@@ -435,7 +436,7 @@
                     </div>
                 </div>
 
-                <button id="unlock-buzzers-btn" class="host-btn btn-warning inline-display-none">Buzzer freigeben</button>
+                <button id="unlock-buzzers-btn" class="host-btn btn-warning inline-display-none">Nicht verwendet</button>
 
                 <button id="resolve-question-btn" class="host-btn btn-info btn-xl inline-display-none-margin-left-10px">Auflösen</button>
 
@@ -449,6 +450,12 @@
                     <div id="list-items-preview" class="inline-font-size-0-9rem-color-555">
                         </div>
                     <button id="btn-reveal-list" class="host-btn btn-info">Nächsten Hinweis zeigen</button>
+                </div>
+
+                <div id="elemination-mode-controls" class="inline-display-none-margin-top-15px-elemination">
+                    <div class="inline-font-weight-bold-margin-bottom-5px">Elemination: passende Antwort aufdecken</div>
+                    <div id="elemination-status" class="inline-font-size-0-9rem-color-555"></div>
+                    <div id="elemination-answer-buttons" class="inline-display-flex-flex-direction-column"></div>
                 </div>
 
                 <div class="inline-margin-left-auto">

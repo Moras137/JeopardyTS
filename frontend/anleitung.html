@@ -1,0 +1,475 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anleitung - Jeopardy Quiz</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --card: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --line: #d1d5db;
+            --primary: #0b66d0;
+            --primary-strong: #084f9e;
+            --ok: #1f8f4e;
+            --warn: #9a6a00;
+            --danger: #b42318;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0b1220;
+            --card: #111827;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --line: #374151;
+            --primary: #60a5fa;
+            --primary-strong: #93c5fd;
+            --ok: #34d399;
+            --warn: #fbbf24;
+            --danger: #f87171;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 10% -10%, #dbeafe 0%, transparent 40%),
+                radial-gradient(circle at 90% -20%, #e0f2fe 0%, transparent 38%),
+                var(--bg);
+            line-height: 1.55;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+
+        [data-theme="dark"] body {
+            background:
+                radial-gradient(circle at 10% -10%, #1e293b 0%, transparent 40%),
+                radial-gradient(circle at 90% -20%, #1f2937 0%, transparent 38%),
+                var(--bg);
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .hero {
+            background: linear-gradient(120deg, #0f172a, #1e3a8a);
+            color: #fff;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.25);
+        }
+
+        [data-theme="dark"] .hero {
+            background: linear-gradient(120deg, #020617, #172554);
+        }
+
+        .hero h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.5rem, 2.2vw, 2.2rem);
+        }
+
+        .hero p {
+            margin: 0;
+            color: #dbeafe;
+        }
+
+        .hero-actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-block;
+            text-decoration: none;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary {
+            background: #fff;
+            color: #111827;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border-color: #93c5fd;
+            color: #dbeafe;
+        }
+
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid #93c5fd;
+            color: #dbeafe;
+            cursor: pointer;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+        }
+
+        h2 {
+            margin: 0 0 10px;
+            font-size: 1.25rem;
+        }
+
+        h3 {
+            margin: 16px 0 8px;
+            font-size: 1.05rem;
+        }
+
+        .muted { color: var(--muted); }
+
+        .toc {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
+            margin: 10px 0 0;
+        }
+
+        .toc a {
+            text-decoration: none;
+            color: var(--primary-strong);
+            background: #eef4ff;
+            border: 1px solid #c7dbff;
+            border-radius: 8px;
+            padding: 10px;
+            font-weight: 600;
+        }
+
+        [data-theme="dark"] .toc a {
+            background: #0f1b34;
+            border-color: #1d4ed8;
+            color: #bfdbfe;
+        }
+
+        .kbd {
+            font-family: Consolas, "Courier New", monospace;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-bottom-width: 2px;
+            border-radius: 5px;
+            padding: 1px 6px;
+            font-size: 0.9em;
+        }
+
+        [data-theme="dark"] .kbd {
+            background: #1f2937;
+            border-color: #4b5563;
+        }
+
+        .tag {
+            display: inline-block;
+            font-size: 0.82rem;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-weight: 700;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .tag-ok { background: #d9fbe6; color: var(--ok); }
+        .tag-warn { background: #fff3d2; color: var(--warn); }
+        .tag-danger { background: #fee4e2; color: var(--danger); }
+
+        .note {
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-top: 10px;
+        }
+
+        [data-theme="dark"] .note {
+            background: #111827;
+            border-color: #4b5563;
+        }
+
+        ul, ol { margin: 8px 0 0 20px; }
+
+        li { margin: 5px 0; }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        @media (min-width: 900px) {
+            .two-col {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="wrap">
+        <section class="hero">
+            <h1>Anleitung: Quiz erstellen, hosten und spielen</h1>
+            <p>Diese Seite erklärt alle wichtigen Funktionen für Erstellung, Hosting, Spielrunden und Auswertung.</p>
+            <div class="hero-actions">
+                <a class="btn btn-primary" href="/create.html">Zum Dashboard</a>
+                <a class="btn btn-secondary" href="#schnellstart">Direkt zum Schnellstart</a>
+                <button id="theme-toggle" class="btn theme-toggle" type="button" aria-label="Darkmode ein" title="Darkmode ein">🌙 Darkmode ein</button>
+            </div>
+        </section>
+
+        <section class="card" id="inhalt">
+            <h2>Inhalt</h2>
+            <div class="toc">
+                <a href="#schnellstart">Schnellstart</a>
+                <a href="#dashboard">Dashboard</a>
+                <a href="#editor">Quiz-Editor</a>
+                <a href="#fragetypen">Fragetypen</a>
+                <a href="#hosting">Hosting Ablauf</a>
+                <a href="#turn">Reihum und Turnlogik</a>
+                <a href="#elemination">Elemination-Modus</a>
+                <a href="#board-player">Board und Spieleransicht</a>
+                <a href="#tipps">Tipps</a>
+                <a href="#faq">FAQ</a>
+            </div>
+        </section>
+
+        <section class="card" id="schnellstart">
+            <h2>Schnellstart</h2>
+            <ol>
+                <li>Oeffne das Dashboard unter <span class="kbd">/create.html</span>.</li>
+                <li>Klicke <strong>+ Neues Quiz erstellen</strong> und trage Titel/Kategorien/Fragen ein.</li>
+                <li>Speichere das Quiz.</li>
+                <li>Klicke auf <strong>Starten</strong> beim gewünschten Quiz.</li>
+                <li>Im Hostfenster wird ein Raumcode angezeigt. Das Board öffnest du über den Board-Link.</li>
+                <li>Spieler treten über <span class="kbd">/player.html?room=CODE</span> bei (oder per QR).</li>
+            </ol>
+            <div class="note">Hinweis: Die App arbeitet mit Reihum-Turns. Nach Bewertung ist der nächste Spieler dran.</div>
+        </section>
+
+        <section class="card" id="dashboard">
+            <h2>Dashboard</h2>
+            <ul>
+                <li><strong>Quiz suchen</strong>: Filtert die Liste nach Titel.</li>
+                <li><strong>Starten</strong>: Öffnet Hostansicht für ein Quiz.</li>
+                <li><strong>Bearbeiten</strong>: Öffnet den Editor für das Quiz.</li>
+                <li><strong>Löschen</strong>: Entfernt das Quiz aus der Liste.</li>
+                <li><strong>Anleitung</strong>: Diese Seite ist direkt vom Dashboard aus erreichbar.</li>
+            </ul>
+        </section>
+
+        <section class="card" id="editor">
+            <h2>Quiz-Editor</h2>
+            <div class="two-col">
+                <div>
+                    <h3>Grundaufbau</h3>
+                    <ul>
+                        <li>Quiz-Titel vergeben</li>
+                        <li>Kategorien anlegen</li>
+                        <li>Pro Kategorie Fragen mit Punktwert erstellen</li>
+                    </ul>
+
+                    <h3>Medien</h3>
+                    <ul>
+                        <li>Frage und Antwort können eigene Medien haben (Bild/Audio/Video).</li>
+                        <li>Medien kannst du per Drag-and-drop direkt in die Upload-Bereiche ziehen.</li>
+                        <li>Map-Fragen unterstützen Zielpunkt, Radius oder Zone.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>Speichern und Laden</h3>
+                    <ul>
+                        <li>Nach Änderungen speichern.</li>
+                        <li>Bereits angelegte Quizze können jederzeit erneut bearbeitet werden.</li>
+                    </ul>
+
+                    <h3>Board-Vorschau</h3>
+                    <ul>
+                        <li>Im Board-View siehst du die Struktur wie später auf dem Spielbrett.</li>
+                        <li>Du kannst Fragen auch direkt in der Boardansicht anklicken und bearbeiten.</li>
+                        <li>In der Boardansicht kannst du Medien ebenfalls per Drag-and-drop anfügen.</li>
+                        <li>In der Kachelansicht ziehst du die Datei direkt auf die gewünschte Frage-Kachel: <strong>linke Hälfte</strong> = Frage-Medien, <strong>rechte Hälfte</strong> = Antwort-Medien.</li>
+                        <li>Auch Medien lassen sich dort nachträglich ändern, austauschen oder entfernen.</li>
+                        <li>Hilft beim schnellen Check von Punkten und Kategorieaufbau.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="card" id="fragetypen">
+            <h2>Fragetypen</h2>
+            <h3>Standard <span class="tag tag-ok">Klassisch</span></h3>
+            <ul>
+                <li>Frage + Lösung, optional Medien.</li>
+                <li>Host bewertet Antwort, danach nächster Spieler.</li>
+            </ul>
+
+            <h3>List <span class="tag tag-warn">Hinweis-Modus</span></h3>
+            <ul>
+                <li>Hinweise können schrittweise aufgedeckt werden.</li>
+                <li>Gut für Begriffsrätsel mit steigender Leichtigkeit.</li>
+            </ul>
+
+            <h3>Elemination <span class="tag tag-danger">Mdl. Antworten + Aufdecken</span></h3>
+            <ul>
+                <li>Spieler antworten mündlich, Host bewertet richtig/falsch.</li>
+                <li>Host deckt passende Antworten einzeln auf.</li>
+                <li>Falsche Antwort kann zur Elimination führen.</li>
+            </ul>
+
+            <h3>Map</h3>
+            <ul>
+                <li>Spieler setzen Marker auf Karte.</li>
+                <li>Host löst gesammelt auf, Punkte nach Regel (Radius/Nähe/Zone).</li>
+            </ul>
+
+            <h3>Estimate</h3>
+            <ul>
+                <li>Alle geben eine Zahl ab.</li>
+                <li>Auswertung nach Nähe zum Zielwert.</li>
+            </ul>
+
+            <h3>Pixel</h3>
+            <ul>
+                <li>Bild wird stufenweise deutlicher.</li>
+                <li>Host kann Verlauf steuern und bewertet Antwort.</li>
+            </ul>
+
+            <h3>Freetext</h3>
+            <ul>
+                <li>Freie Texteingabe durch Spieler.</li>
+                <li>Host vergibt Korrekt/Inkorekt und Punkte.</li>
+            </ul>
+        </section>
+
+        <section class="card" id="hosting">
+            <h2>Hosting Ablauf</h2>
+            <ol>
+                <li>Quiz im Dashboard starten.</li>
+                <li>Hostansicht zeigt Raumcode und Board-Link.</li>
+                <li>Board auf separatem Bildschirm/Fenster öffnen.</li>
+                <li>Spieler treten bei.</li>
+                <li>Host wählt Frage und moderiert Bewertung/Steuerung.</li>
+                <li>Nach jeder Bewertung geht der Turn weiter.</li>
+                <li>Am Ende kann die Siegerehrung gestartet werden.</li>
+            </ol>
+        </section>
+
+        <section class="card" id="turn">
+            <h2>Reihum und Turnlogik</h2>
+            <ul>
+                <li>Es wird nicht mehr gebuzzert, sondern in Reihenfolge gespielt.</li>
+                <li>Der aktive Spieler wird auf Host, Board und in Spieleransichten angezeigt.</li>
+                <li>Der Host kann den aktuellen Spieler in der Host-Spielerliste per Doppelklick setzen.</li>
+                <li>Nach Bewertung (richtig oder falsch) wechselt der Turn zum nächsten Spieler.</li>
+            </ul>
+        </section>
+
+        <section class="card" id="elemination">
+            <h2>Elemination-Modus im Detail</h2>
+            <ol>
+                <li>Frage starten, erster Spieler ist dran.</li>
+                <li>Host bewertet Antwort mit <strong>Richtig</strong> oder <strong>Falsch</strong>.</li>
+                <li>Passende Antwort wird über die Aufdecken-Buttons einzeln gezeigt.</li>
+                <li>Bei Falsch kann der Spieler eliminiert werden.</li>
+                <li>Turn geht an den nächsten nicht eliminierten Spieler.</li>
+                <li>Am Rundenende werden je nach Zustand Punkte vergeben und restliche Antworten aufgedeckt.</li>
+            </ol>
+            <div class="note">Wichtig: Aufgedeckte Antworten erscheinen direkt auf dem Board.</div>
+        </section>
+
+        <section class="card" id="board-player">
+            <h2>Board- und Spieleransicht</h2>
+            <h3>Board</h3>
+            <ul>
+                <li>Zeigt Fragen, Medien, Aufdeckungen und Punktestand.</li>
+                <li>Markiert den aktuell aktiven Spieler.</li>
+            </ul>
+
+            <h3>Spieleransicht</h3>
+            <ul>
+                <li>Zeigt für alle sichtbar, wer gerade dran ist.</li>
+                <li>Eigener Turn wird deutlich hervorgehoben.</li>
+                <li>Map/Estimate/Freetext bekommen eigene Eingabebereiche.</li>
+            </ul>
+        </section>
+
+        <section class="card" id="tipps">
+            <h2>Tipps für gute Quizze</h2>
+            <ul>
+                <li>Starte leicht und steigere Schwierigkeit/Punkte pro Kategorie.</li>
+                <li>Mische Fragetypen für Tempo und Abwechslung.</li>
+                <li>Verwende kurze, klare Frageformulierungen.</li>
+                <li>Teste Medien vor dem Live-Spiel (Dateien und Lautstärke).</li>
+                <li>Bei Elemination: Antwortliste klar und eindeutig halten.</li>
+            </ul>
+        </section>
+
+        <section class="card" id="faq">
+            <h2>FAQ</h2>
+            <h3>Warum sieht ein Spieler keinen Turnwechsel?</h3>
+            <p class="muted">Prüfe die Verbindung und lade die Seite neu. Danach sollte die Anzeige wieder aktuell sein.</p>
+
+            <h3>Wie öffne ich das Board schnell?</h3>
+            <p class="muted">In der Hostansicht auf den Board-Link klicken oder URL mit Raumcode nutzen.</p>
+
+            <h3>Kann der Host den aktiven Spieler korrigieren?</h3>
+            <p class="muted">Ja. In der Host-Spielerliste den gewünschten Spieler doppelklicken.</p>
+        </section>
+    </main>
+    <script>
+        (function () {
+            const root = document.documentElement;
+            const btn = document.getElementById('theme-toggle');
+
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    root.setAttribute('data-theme', 'dark');
+                    if (btn) {
+                        btn.textContent = '☀️ Darkmode aus';
+                        btn.setAttribute('aria-label', 'Darkmode aus');
+                        btn.setAttribute('title', 'Darkmode aus');
+                    }
+                } else {
+                    root.removeAttribute('data-theme');
+                    if (btn) {
+                        btn.textContent = '🌙 Darkmode ein';
+                        btn.setAttribute('aria-label', 'Darkmode ein');
+                        btn.setAttribute('title', 'Darkmode ein');
+                    }
+                }
+            }
+
+            const stored = localStorage.getItem('anleitung-theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const initial = stored || (prefersDark ? 'dark' : 'light');
+            applyTheme(initial);
+
+            if (btn) {
+                btn.addEventListener('click', function () {
+                    const current = root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                    const next = current === 'dark' ? 'light' : 'dark';
+                    localStorage.setItem('anleitung-theme', next);
+                    applyTheme(next);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

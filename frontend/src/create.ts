@@ -1,4 +1,4 @@
-import L from 'leaflet';
+﻿import L from 'leaflet';
 // Interfaces importieren
 import { IGame, ICategory, IQuestion, QuestionType } from '../../src/types';
 
@@ -371,6 +371,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const aText = qData.answerText ?? ''; 
     const estAns = qData.estimationAnswer ?? '';
     const listItems = qData.listItems ? qData.listItems.join('\n') : ''; 
+    const eleminationItems = qData.listItems ? qData.listItems.join('\n') : '';
     
     const lat = qData.location?.lat ?? '';
     const lng = qData.location?.lng ?? '';
@@ -399,6 +400,7 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
                 <option value="map" ${type === 'map' ? 'selected' : ''}>Map (Karte)</option>
                 <option value="estimate" ${type === 'estimate' ? 'selected' : ''}>Schätzfrage (Zahl)</option>
                 <option value="list" ${type === 'list' ? 'selected' : ''}>Liste (Begriffe aufdecken)</option>
+                <option value="elemination" ${type === 'elemination' ? 'selected' : ''}>Elemination (Host deckt auf)</option>
                 <option value="pixel" ${type === 'pixel' ? 'selected' : ''}>Pixel-Puzzle (Bild)</option>
                 <option value="freetext" ${type === 'freetext' ? 'selected' : ''}>Freie Antwort (Punktevergabe)</option>
             </select>
@@ -455,6 +457,12 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
             <label style="font-weight:bold;">Hinweise/Begriffe (Einer pro Zeile):</label>
             <textarea class="q-list-items" rows="4" placeholder="Begriff 1\nBegriff 2\nBegriff 3">${listItems}</textarea>
             <small>Diese Begriffe werden nacheinander aufgedeckt.</small>
+        </div>
+
+        <div class="type-section section-elemination list-hint-box" style="display:none;">
+            <label style="font-weight:bold;">Antwortmöglichkeiten (eine pro Zeile):</label>
+            <textarea class="q-elemination-items" rows="5" placeholder="Antwort 1\nAntwort 2\nAntwort 3">${eleminationItems}</textarea>
+            <small>Spieler antworten mündlich. Der Host deckt passende Antworten manuell auf.</small>
         </div>
 
         <div class="type-section section-standard section-pixel section-freetext section-list" style="display:none;">
@@ -830,6 +838,11 @@ async function saveGame() {
             else if (type === 'list') {
                 const raw = (qBlock.querySelector('.q-list-items') as HTMLTextAreaElement).value;
                 listItems = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            }
+            else if (type === 'elemination') {
+                const raw = (qBlock.querySelector('.q-elemination-items') as HTMLTextAreaElement).value;
+                listItems = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+                answerText = listItems.join(', ');
             } 
             else if (type === 'map') {
                 answerText = (qBlock.querySelector('.q-answer-map') as HTMLInputElement).value; // Map hat eigenes Antwortfeld
@@ -1099,6 +1112,9 @@ function changeQuestionType(select: HTMLSelectElement, qId: string) {
     } 
     else if (type === 'list') {
         block.querySelectorAll('.section-list').forEach(el => (el as HTMLElement).style.display = 'block');
+    }
+    else if (type === 'elemination') {
+        block.querySelectorAll('.section-elemination').forEach(el => (el as HTMLElement).style.display = 'block');
     } 
     else if (type === 'estimate') {
         (block.querySelector('.section-estimate') as HTMLElement).style.display = 'block';
@@ -1162,6 +1178,12 @@ function checkQuestionFilled(el: HTMLElement | null) {
                 // Braucht Text im Listenfeld
                 const listItems = (block.querySelector('.q-list-items') as HTMLTextAreaElement).value.trim();
                 if(listItems) filled = true;
+                break;
+
+            case 'elemination':
+                // Braucht mindestens eine Antwortoption
+                const eleminationItems = (block.querySelector('.q-elemination-items') as HTMLTextAreaElement).value.trim();
+                if(eleminationItems) filled = true;
                 break;
 
             case 'map':
@@ -1449,7 +1471,12 @@ function renderBoardPreview() {
                 const qInput = qBlock.querySelector('.q-text') as HTMLTextAreaElement | HTMLInputElement;
                 const aInput = qBlock.querySelector('.q-answer') as HTMLTextAreaElement | HTMLInputElement;
                 const qText = qInput ? qInput.value : '';
-                const aText = aInput ? aInput.value : '';
+                const typeSelect = qBlock.querySelector('.q-type-select') as HTMLSelectElement;
+                const type = typeSelect ? typeSelect.value : 'standard';
+                const eleminationInput = qBlock.querySelector('.q-elemination-items') as HTMLTextAreaElement | null;
+                const aText = aInput
+                    ? aInput.value
+                    : (type === 'elemination' && eleminationInput ? eleminationInput.value.split('\n').filter(Boolean).join(', ') : '');
                 
                 checkQuestionFilled(qBlock);
 
@@ -1477,8 +1504,6 @@ function renderBoardPreview() {
 
                 const pointsInput = qBlock.querySelector('.q-points') as HTMLInputElement;
                 const points = pointsInput.value;
-                const typeSelect = qBlock.querySelector('.q-type-select') as HTMLSelectElement;
-                const type = typeSelect ? typeSelect.value : 'standard';
                 
                 const qMedia = (qBlock.querySelector('.q-media-path') as HTMLInputElement)?.value;
                 const aMedia = (qBlock.querySelector('.q-answer-media-path') as HTMLInputElement)?.value;
@@ -1490,6 +1515,7 @@ function renderBoardPreview() {
                     case 'map':      typeIcon = 'Karte'; break;
                     case 'estimate': typeIcon = 'Schätzen'; break;
                     case 'list':     typeIcon = 'Liste'; break;
+                    case 'elemination': typeIcon = 'Elemination'; break;
                     case 'pixel':    typeIcon = 'Bild'; break;
                     case 'freetext': typeIcon = 'Freie Frage'; break; 
                     case 'standard': typeIcon = 'Standard';   break; 

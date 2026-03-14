@@ -1,4 +1,4 @@
-import { IGame, ICategory, IQuestion, IPlayer, ISession } from '../../src/types';
+﻿import { IGame, ICategory, IQuestion, IPlayer, ISession } from '../../src/types';
 
 // ========== MOCK QUESTIONS ==========
 
@@ -177,6 +177,9 @@ export const mockSession: ISession = {
         'player-1': mockPlayer1,
         'player-2': mockPlayer2,
     },
+    playerOrder: ['player-1', 'player-2'],
+    currentTurnPlayerId: 'player-1',
+    lastEleminationRevealerId: null,
     buzzersActive: true,
     currentBuzzWinnerId: null,
     activeQuestion: null,
@@ -186,6 +189,9 @@ export const mockSession: ISession = {
     usedQuestions: [],
     introIndex: 0,
     listRevealedCount: 0,
+    eleminationRevealedIndices: [],
+    eleminationEliminatedPlayerIds: [],
+    eleminationRoundResolved: false,
     freetextAnswers: {},
     lockedPlayers: [],
 };

@@ -1,4 +1,4 @@
-// src/server.ts
+﻿// src/server.ts
 import express, { Request, Response } from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -50,7 +50,8 @@ const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'b
             question: q,
             // Wir nutzen gespeicherte Indizes oder -1, falls wir sie nicht haben (siehe host_pick_question)
             catIndex: (session as any).activeCatIndex ?? -1,
-            qIndex: (session as any).activeQIndex ?? -1
+            qIndex: (session as any).activeQIndex ?? -1,
+            eleminationRevealedIndices: q.type === 'elemination' ? [...session.eleminationRevealedIndices] : undefined
         });
         
         // Falls Maps-Auflösung schon passiert ist:
@@ -73,9 +74,12 @@ const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'b
                     text: q.questionText, 
                     points: q.points 
                 });
-                // Buzzer Status prüfen
-                if (session.buzzersActive) io.to(socketId).emit('buzzers_unlocked');
-                else io.to(socketId).emit('buzzers_locked');
+                if (session.currentBuzzWinnerId && session.players[session.currentBuzzWinnerId]) {
+                    io.to(socketId).emit('player_won_buzz', {
+                        id: session.currentBuzzWinnerId,
+                        name: session.players[session.currentBuzzWinnerId].name
+                    });
+                }
         }
     }
 
@@ -87,8 +91,18 @@ const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'b
             catIndex: (session as any).activeCatIndex,
             qIndex: (session as any).activeQIndex,
             buzzersActive: session.buzzersActive,
-            mapGuessesCount: Object.keys(session.mapGuesses || {}).length
+            mapGuessesCount: Object.keys(session.mapGuesses || {}).length,
+            eleminationRevealedIndices: q.type === 'elemination' ? [...session.eleminationRevealedIndices] : undefined,
+            eleminationEliminatedPlayerIds: q.type === 'elemination' ? [...session.eleminationEliminatedPlayerIds] : undefined
         });
+        if (session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]) {
+            io.to(socketId).emit('update_host_controls', {
+                buzzWinnerId: session.currentTurnPlayerId,
+                buzzWinnerName: session.players[session.currentTurnPlayerId].name,
+                chooserPlayerId: session.currentTurnPlayerId,
+                chooserPlayerName: session.players[session.currentTurnPlayerId].name
+            });
+        }
     }
 };
 
@@ -173,6 +187,174 @@ function isPointInPolygon(point: {lat: number, lng: number}, vs: {lat: number, l
         if (intersect) inside = !inside;
     }
     return inside;
+}
+
+function getEleminationRemainingPlayerIds(session: ISession): string[] {
+    if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
+    return Object.values(session.players)
+    .filter((p) => p.active && !session.eleminationEliminatedPlayerIds.includes(p.id))
+        .map((p) => p.id);
+}
+
+function ensurePlayerOrder(session: ISession) {
+    if (!session.playerOrder) session.playerOrder = [];
+
+    const existingIds = new Set(Object.keys(session.players));
+    session.playerOrder = session.playerOrder.filter((pid) => existingIds.has(pid));
+
+    Object.keys(session.players).forEach((pid) => {
+        if (!session.playerOrder.includes(pid)) {
+            session.playerOrder.push(pid);
+        }
+    });
+
+    if (session.currentTurnPlayerId && !session.playerOrder.includes(session.currentTurnPlayerId)) {
+        session.currentTurnPlayerId = null;
+    }
+}
+
+function setRandomTurnPlayerIfNeeded(session: ISession) {
+    ensurePlayerOrder(session);
+    if (session.currentTurnPlayerId) return;
+
+    const activePlayers = session.playerOrder.filter((pid) => session.players[pid]?.active);
+    if (activePlayers.length === 0) {
+        session.currentTurnPlayerId = null;
+        return;
+    }
+
+    const idx = Math.floor(Math.random() * activePlayers.length);
+    session.currentTurnPlayerId = activePlayers[idx];
+}
+
+function setTurnPlayer(session: ISession, playerId: string | null) {
+    ensurePlayerOrder(session);
+    if (!playerId || !session.playerOrder.includes(playerId) || !session.players[playerId]?.active) {
+        session.currentTurnPlayerId = null;
+        return;
+    }
+    session.currentTurnPlayerId = playerId;
+}
+
+function advanceTurnPlayer(session: ISession, options?: { skipEleminated?: boolean }) {
+    ensurePlayerOrder(session);
+    if (session.playerOrder.length === 0) {
+        session.currentTurnPlayerId = null;
+        return;
+    }
+
+    const skipEleminated = !!options?.skipEleminated;
+    const blocked = skipEleminated ? new Set(session.eleminationEliminatedPlayerIds || []) : new Set<string>();
+
+    let startIndex = session.currentTurnPlayerId ? session.playerOrder.indexOf(session.currentTurnPlayerId) : -1;
+    if (startIndex < 0) startIndex = 0;
+
+    for (let step = 1; step <= session.playerOrder.length; step++) {
+        const idx = (startIndex + step) % session.playerOrder.length;
+        const candidate = session.playerOrder[idx];
+        if (!blocked.has(candidate) && session.players[candidate]?.active) {
+            session.currentTurnPlayerId = candidate;
+            return;
+        }
+    }
+
+    session.currentTurnPlayerId = null;
+}
+
+function emitCurrentTurn(session: ISession, code: string) {
+    if (!session.currentTurnPlayerId || !session.players[session.currentTurnPlayerId] || !session.players[session.currentTurnPlayerId].active) return;
+    const p = session.players[session.currentTurnPlayerId];
+    io.to(code).emit('player_won_buzz', { id: p.id, name: p.name });
+    io.to(session.hostSocketId).emit('update_host_controls', {
+        buzzWinnerId: p.id,
+        buzzWinnerName: p.name,
+        chooserPlayerId: p.id,
+        chooserPlayerName: p.name
+    });
+}
+
+function awardPointsToPlayers(session: ISession, playerIds: string[], points: number) {
+    playerIds.forEach((pid) => {
+        if (session.players[pid]) {
+            session.players[pid].score += points;
+        }
+    });
+}
+
+function closeActiveQuestion(session: ISession, code: string) {
+    session.buzzersActive = false;
+    session.currentBuzzWinnerId = null;
+    session.activeQuestion = null;
+    (session as any).activeCatIndex = -1;
+    (session as any).activeQIndex = -1;
+
+    io.to(code).emit('board_hide_question');
+    io.to(session.hostSocketId).emit('update_host_controls', {
+        buzzWinnerId: null,
+        eleminationMode: false,
+        eleminationRevealedIndices: [],
+        eleminationEliminatedPlayerIds: [],
+        chooserPlayerId: session.currentTurnPlayerId,
+        chooserPlayerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+            ? session.players[session.currentTurnPlayerId].name
+            : undefined
+    });
+}
+
+function revealRemainingEleminationAnswersThenClose(session: ISession, code: string) {
+    if (!session.eleminationRevealedIndices) session.eleminationRevealedIndices = [];
+    if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
+    const question = session.activeQuestion;
+    const total = question?.listItems?.length || 0;
+
+    if (!question || question.type !== 'elemination' || total === 0) {
+        closeActiveQuestion(session, code);
+        return;
+    }
+
+    const remaining = [] as number[];
+    for (let i = 0; i < total; i++) {
+        if (!session.eleminationRevealedIndices.includes(i)) {
+            remaining.push(i);
+        }
+    }
+
+    if (remaining.length === 0) {
+        closeActiveQuestion(session, code);
+        return;
+    }
+
+    session.buzzersActive = false;
+    io.to(code).emit('buzzers_locked');
+
+    let pos = 0;
+    const timer = setInterval(() => {
+        const idx = remaining[pos];
+        if (idx === undefined) {
+            clearInterval(timer);
+            closeActiveQuestion(session, code);
+            return;
+        }
+
+        if (!session.eleminationRevealedIndices.includes(idx)) {
+            session.eleminationRevealedIndices.push(idx);
+            io.to(code).emit('board_reveal_elemination_answer', idx);
+            io.to(session.hostSocketId).emit('update_host_controls', {
+                eleminationRevealedIndices: [...session.eleminationRevealedIndices]
+            });
+        }
+
+        pos++;
+        if (pos >= remaining.length) {
+            clearInterval(timer);
+            setTimeout(() => {
+                if (session.lastEleminationRevealerId) {
+                    setTurnPlayer(session, session.lastEleminationRevealerId);
+                }
+                closeActiveQuestion(session, code);
+            }, 700);
+        }
+    }, 900);
 }
 
 async function cleanupUnusedFiles() {
@@ -337,6 +519,9 @@ io.on('connection', (socket) => {
             game: gameData,
             hostSocketId: socket.id,
             players: {},
+            playerOrder: [],
+            currentTurnPlayerId: null,
+            lastEleminationRevealerId: null,
             buzzersActive: false,
             currentBuzzWinnerId: null,
             activeQuestion: null,
@@ -344,6 +529,9 @@ io.on('connection', (socket) => {
             mapGuesses: {},
             estimateGuesses: {},
             listRevealedCount: -1, 
+            eleminationRevealedIndices: [],
+            eleminationEliminatedPlayerIds: [],
+            eleminationRoundResolved: false,
             usedQuestions: [],
             introIndex: -2,
             freetextAnswers: {},
@@ -368,6 +556,8 @@ io.on('connection', (socket) => {
         // Daten für den Restore vorbereiten
         let submittedCount = 0;
         let listRevealedCount = 0;
+        let eleminationRevealedIndices: number[] = [];
+        let eleminationEliminatedPlayerIds: string[] = [];
 
         if (session.activeQuestion) {
             const qType = session.activeQuestion.type;
@@ -381,6 +571,9 @@ io.on('connection', (socket) => {
                 submittedCount = Object.keys(session.freetextAnswers || {}).length;
             } else if (qType === 'list') {
                 listRevealedCount = session.listRevealedCount || 0;
+            } else if (qType === 'elemination') {
+                eleminationRevealedIndices = [...(session.eleminationRevealedIndices || [])];
+                eleminationEliminatedPlayerIds = [...(session.eleminationEliminatedPlayerIds || [])];
             }
         }
 
@@ -396,7 +589,9 @@ io.on('connection', (socket) => {
             
             // Die neuen Felder:
             submittedCount: submittedCount,
-            listRevealedCount: listRevealedCount
+            listRevealedCount: listRevealedCount,
+            eleminationRevealedIndices,
+            eleminationEliminatedPlayerIds
         });
         
         // Punktestand-Update sicherheitshalber hinterher
@@ -410,6 +605,17 @@ io.on('connection', (socket) => {
             if(game) {
                 // Sende das Spiel zurück an den Host zur Anzeige
                 socket.emit('load_game_on_host', game ) ; 
+
+                const info = getSessionBySocketId(socket.id);
+                if (info && info.isHost) {
+                    setRandomTurnPlayerIfNeeded(info.session);
+                    io.to(info.session.hostSocketId).emit('update_host_controls', {
+                        chooserPlayerId: info.session.currentTurnPlayerId,
+                        chooserPlayerName: info.session.currentTurnPlayerId && info.session.players[info.session.currentTurnPlayerId]
+                            ? info.session.players[info.session.currentTurnPlayerId].name
+                            : undefined
+                    });
+                }
             }
         } catch(e) { console.error(e); }
     });
@@ -450,6 +656,7 @@ io.on('connection', (socket) => {
             const p = session.players[existingPlayerId];
             p.socketId = socket.id;
             p.active = true;
+            ensurePlayerOrder(session);
             socket.join(roomCode);
             socket.emit('join_success', { playerId: existingPlayerId, roomCode, name: p.name });
         } else {
@@ -462,12 +669,29 @@ io.on('connection', (socket) => {
                 color: '#' + Math.floor(Math.random()*16777215).toString(16),
                 active: true
             };
+            ensurePlayerOrder(session);
             socket.join(roomCode);
             socket.emit('join_success', { playerId: newPlayerId, roomCode, name });
+        }
+
+        if (!session.activeQuestion && (session.usedQuestions?.length ?? 0) === 0) {
+            ensurePlayerOrder(session);
+            const activeCandidates = session.playerOrder.filter((pid) => session.players[pid]?.active);
+            session.currentTurnPlayerId = activeCandidates.length > 0
+                ? activeCandidates[Math.floor(Math.random() * activeCandidates.length)]
+                : null;
+        } else {
+            setRandomTurnPlayerIfNeeded(session);
         }
         
         io.to(roomCode).emit('update_player_list', session.players);
         io.to(roomCode).emit('update_scores', session.players);
+        io.to(session.hostSocketId).emit('update_host_controls', {
+            chooserPlayerId: session.currentTurnPlayerId,
+            chooserPlayerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                ? session.players[session.currentTurnPlayerId].name
+                : undefined
+        });
 
         if (session) {
             syncSessionState(session, socket.id, 'player');
@@ -475,26 +699,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('player_buzz', () => {
-        const info = getSessionBySocketId(socket.id);
-        if (!info || !info.isPlayer) return;
-        const { session, code, playerId } = info;
-
-        if (session.buzzersActive && playerId) {
-            session.buzzersActive = false;
-            session.currentBuzzWinnerId = playerId;
-            
-            if (!session.lockedPlayers.includes(playerId)) {
-                session.lockedPlayers.push(playerId);
-            }
-
-            io.to(code).emit('buzzers_locked');
-            io.to(code).emit('player_won_buzz', { id: playerId, name: session.players[playerId].name });
-            io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: playerId, buzzWinnerName: session.players[playerId].name });
-
-            if (session.activeQuestion?.type === 'pixel') {
-                io.to(code).emit('board_control_pixel_puzzle', 'pause');
-            }
-        }
+        // Buzzer sind im Turn-Mode deaktiviert.
+        return;
     });
 
     socket.on('host_score_answer', (data) => {
@@ -504,6 +710,56 @@ io.on('connection', (socket) => {
         
         const player = session.players[data.playerId];
         if (player) {
+            if (session.activeQuestion?.type === 'elemination') {
+                if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
+                if (!session.eleminationRevealedIndices) session.eleminationRevealedIndices = [];
+                if (data.action === 'correct') {
+                    io.to(code).emit('board_play_sfx', 'correct');
+
+                    advanceTurnPlayer(session, { skipEleminated: true });
+                    session.currentBuzzWinnerId = session.currentTurnPlayerId;
+                    emitCurrentTurn(session, code);
+
+                    io.to(session.hostSocketId).emit('update_host_controls', {
+                        eleminationRevealedIndices: [...session.eleminationRevealedIndices],
+                        eleminationEliminatedPlayerIds: [...session.eleminationEliminatedPlayerIds]
+                    });
+                    return;
+                }
+                if (data.action === 'incorrect') {
+                    if (!session.eleminationEliminatedPlayerIds.includes(data.playerId)) {
+                        session.eleminationEliminatedPlayerIds.push(data.playerId);
+                    }
+
+                    session.lockedPlayers = [...session.eleminationEliminatedPlayerIds];
+                    session.currentBuzzWinnerId = null;
+
+                    io.to(code).emit('board_play_sfx', 'incorrect');
+                    io.to(session.hostSocketId).emit('update_host_controls', {
+                        buzzWinnerId: null,
+                        eleminationEliminatedPlayerIds: [...session.eleminationEliminatedPlayerIds]
+                    });
+
+                    const remaining = getEleminationRemainingPlayerIds(session);
+                    if (remaining.length <= 1 && !session.eleminationRoundResolved) {
+                        session.eleminationRoundResolved = true;
+                        if (remaining.length === 1) {
+                            awardPointsToPlayers(session, remaining, session.activeQuestionPoints);
+                            io.to(code).emit('board_play_sfx', 'correct');
+                        }
+                        io.to(code).emit('update_scores', session.players);
+                        revealRemainingEleminationAnswersThenClose(session, code);
+                    } else {
+                        advanceTurnPlayer(session, { skipEleminated: true });
+                        session.currentBuzzWinnerId = session.currentTurnPlayerId;
+                        emitCurrentTurn(session, code);
+                    }
+                }
+
+                io.to(code).emit('update_scores', session.players);
+                return;
+            }
+
             const points = session.activeQuestionPoints;
             const newAction = data.action;
             
@@ -541,13 +797,24 @@ io.on('connection', (socket) => {
                 playerId: data.playerId, 
                 status: session.freetextGrading[data.playerId] 
             });
+
+            const qType = session.activeQuestion?.type;
+            if (qType === 'standard' || qType === 'pixel' || qType === 'list') {
+                advanceTurnPlayer(session);
+                session.currentBuzzWinnerId = session.currentTurnPlayerId;
+                emitCurrentTurn(session, code);
+            }
         }
     });
 
     socket.on('host_resolve_question', () => {
         const info = getSessionBySocketId(socket.id);
         if (info) {
-             io.to(info.code).emit('board_reveal_answer');
+            if (info.session.activeQuestion?.type === 'elemination') {
+                revealRemainingEleminationAnswersThenClose(info.session, info.code);
+                return;
+            }
+            io.to(info.code).emit('board_reveal_answer');
         }
     });
 
@@ -558,9 +825,14 @@ io.on('connection', (socket) => {
         
         session.activeQuestion = data.question;
         session.activeQuestionPoints = data.question.points;
+        setRandomTurnPlayerIfNeeded(session);
         session.mapGuesses = {};
         session.lockedPlayers = [];
         session.freetextGrading = {};
+        session.eleminationRevealedIndices = [];
+        session.eleminationEliminatedPlayerIds = [];
+        session.eleminationRoundResolved = false;
+        session.lastEleminationRevealerId = null;
         
         (session as any).activeCatIndex = data.catIndex;
         (session as any).activeQIndex = data.qIndex;
@@ -593,17 +865,43 @@ io.on('connection', (socket) => {
             });
         
         } else if (data.question.type === 'list') {
-            // NEU: Liste
-            session.buzzersActive = true; // Bei Listen darf man meist sofort buzzern
+            session.buzzersActive = false;
+            session.currentBuzzWinnerId = session.currentTurnPlayerId;
             io.to(session.hostSocketId).emit('update_host_controls', { 
-                buzzWinnerId: null, 
+                buzzWinnerId: session.currentTurnPlayerId,
+                buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                    ? session.players[session.currentTurnPlayerId].name
+                    : undefined,
                 mapMode: false,
                 listMode: true,           // Flag für Host UI
                 listRevealedCount: -1 
             });
-            // Spieler bekommen nur "Neue Frage" (Text)
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
-            io.to(code).emit('buzzers_unlocked');
+            emitCurrentTurn(session, code);
+        } else if (data.question.type === 'elemination') {
+            session.buzzersActive = false;
+            session.lockedPlayers = [];
+            session.currentBuzzWinnerId = session.currentTurnPlayerId;
+
+            io.to(session.hostSocketId).emit('update_host_controls', {
+                buzzWinnerId: session.currentTurnPlayerId,
+                buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                    ? session.players[session.currentTurnPlayerId].name
+                    : undefined,
+                mapMode: false,
+                listMode: false,
+                estimateMode: false,
+                freetextMode: false,
+                eleminationMode: true,
+                eleminationRevealedIndices: [],
+                eleminationEliminatedPlayerIds: []
+            });
+
+            io.to(code).emit('player_new_question', {
+                text: data.question.questionText,
+                points: data.question.points
+            });
+            emitCurrentTurn(session, code);
         } else if (data.question.type === 'estimate') {
             // NEU: Schätzfrage Initialisierung
             session.buzzersActive = false;
@@ -643,12 +941,23 @@ io.on('connection', (socket) => {
             });
         } 
         else {
-            session.buzzersActive = true;
-            io.to(session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null, mapMode: false });
+            session.buzzersActive = false;
+            session.currentBuzzWinnerId = session.currentTurnPlayerId;
+            io.to(session.hostSocketId).emit('update_host_controls', {
+                buzzWinnerId: session.currentTurnPlayerId,
+                buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                    ? session.players[session.currentTurnPlayerId].name
+                    : undefined,
+                mapMode: false
+            });
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
-            io.to(code).emit('buzzers_unlocked');
+            emitCurrentTurn(session, code);
         }
-        io.to(code).emit('board_show_question', { ...data, currentListIndex: session.listRevealedCount });
+        io.to(code).emit('board_show_question', {
+            ...data,
+            currentListIndex: session.listRevealedCount,
+            eleminationRevealedIndices: data.question.type === 'elemination' ? [] : undefined
+        });
     });
 
     socket.on('host_reveal_next_list_item', () => {
@@ -665,6 +974,51 @@ io.on('connection', (socket) => {
             
             // 2. Bestätigung an Host: "Wir sind bei Item X" (damit der Button Status updatet)
             socket.emit('update_host_controls', { listRevealedCount: session.listRevealedCount });
+        }
+    });
+
+    socket.on('host_reveal_elemination_answer', (index) => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+
+        const { session, code } = info;
+        const q = session.activeQuestion;
+        if (!session.eleminationRevealedIndices) session.eleminationRevealedIndices = [];
+        if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
+        if (!q || q.type !== 'elemination' || !Array.isArray(q.listItems)) return;
+        if (session.currentBuzzWinnerId === null) return;
+        const revealingPlayerId = session.currentBuzzWinnerId;
+        if (index < 0 || index >= q.listItems.length) return;
+
+        if (session.eleminationRevealedIndices.includes(index)) return;
+
+        session.eleminationRevealedIndices.push(index);
+        io.to(code).emit('board_reveal_elemination_answer', index);
+        io.to(code).emit('board_play_sfx', 'correct');
+        session.lastEleminationRevealerId = revealingPlayerId;
+
+        advanceTurnPlayer(session, { skipEleminated: true });
+        session.currentBuzzWinnerId = session.currentTurnPlayerId;
+
+        io.to(session.hostSocketId).emit('update_host_controls', {
+            buzzWinnerId: session.currentTurnPlayerId,
+            buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                ? session.players[session.currentTurnPlayerId].name
+                : undefined,
+            eleminationRevealedIndices: [...session.eleminationRevealedIndices],
+            eleminationEliminatedPlayerIds: [...session.eleminationEliminatedPlayerIds]
+        });
+
+        if (session.currentTurnPlayerId) {
+            emitCurrentTurn(session, code);
+        }
+
+        if (session.eleminationRevealedIndices.length >= q.listItems.length && !session.eleminationRoundResolved) {
+            session.eleminationRoundResolved = true;
+            const remaining = getEleminationRemainingPlayerIds(session);
+            awardPointsToPlayers(session, remaining, session.activeQuestionPoints);
+            io.to(code).emit('update_scores', session.players);
+            revealRemainingEleminationAnswersThenClose(session, code);
         }
     });
 
@@ -784,14 +1138,22 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('host_unlock_buzzers', () => {
+    socket.on('host_set_current_player', (playerId) => {
         const info = getSessionBySocketId(socket.id);
-        if(info) {
-            info.session.buzzersActive = true;
-            info.session.currentBuzzWinnerId = null;
-            io.to(info.code).emit('buzzers_unlocked', info.session.lockedPlayers);
-            io.to(info.session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
-        }
+        if (!info || !info.isHost) return;
+
+        const { session, code } = info;
+        if (!playerId || !session.players[playerId] || !session.players[playerId].active) return;
+
+        setTurnPlayer(session, playerId);
+        session.currentBuzzWinnerId = session.currentTurnPlayerId;
+
+        if (!session.currentTurnPlayerId) return;
+        emitCurrentTurn(session, code);
+    });
+
+    socket.on('host_unlock_buzzers', () => {
+        return;
     });
 
     socket.on('music_control', (data) => {
@@ -805,14 +1167,11 @@ io.on('connection', (socket) => {
     socket.on('host_close_question', () => {
         const info = getSessionBySocketId(socket.id);
         if(info) {
-            info.session.buzzersActive = false;
-            
-            info.session.activeQuestion = null;
-            (info.session as any).activeCatIndex = -1;
-            (info.session as any).activeQIndex = -1;
-
-            io.to(info.code).emit('board_hide_question');
-            io.to(info.session.hostSocketId).emit('update_host_controls', { buzzWinnerId: null });
+            if (info.session.activeQuestion?.type === 'elemination') {
+                revealRemainingEleminationAnswersThenClose(info.session, info.code);
+            } else {
+                closeActiveQuestion(info.session, info.code);
+            }
         }
     });
 
@@ -828,6 +1187,19 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (info && info.isPlayer && info.playerId) {
             info.session.players[info.playerId].active = false;
+            if (info.session.currentTurnPlayerId === info.playerId) {
+                advanceTurnPlayer(info.session, { skipEleminated: info.session.activeQuestion?.type === 'elemination' });
+                info.session.currentBuzzWinnerId = info.session.currentTurnPlayerId;
+                if (info.session.currentTurnPlayerId) {
+                    emitCurrentTurn(info.session, info.code);
+                }
+                io.to(info.session.hostSocketId).emit('update_host_controls', {
+                    chooserPlayerId: info.session.currentTurnPlayerId,
+                    chooserPlayerName: info.session.currentTurnPlayerId && info.session.players[info.session.currentTurnPlayerId]
+                        ? info.session.players[info.session.currentTurnPlayerId].name
+                        : undefined
+                });
+            }
             io.to(info.code).emit('update_player_list', info.session.players);
         }
     });
