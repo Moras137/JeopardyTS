@@ -34,10 +34,6 @@ const freetextQText = document.getElementById('freetext-q-text') as HTMLHeadingE
 const freetextWaitMsg = document.getElementById('freetext-wait-msg') as HTMLParagraphElement;
 
 // --- 2. STATE VARIABLEN ---
-let mySocketId: string | null = null;
-let playerName = "";
-let playerBuzzed = true;
-
 // Leaflet Variablen
 let playerMap: L.Map | null = null;
 let playerMarker: L.Marker | null = null;
@@ -164,14 +160,9 @@ if(freetextBtn) {
 
 // --- 5. SOCKET EVENTS (Server Antworten) ---
 
-socket.on('connect', () => {
-    mySocketId = socket.id ?? null;
-});
-
 socket.on('join_success', (data) => {
     myPlayerId = data.playerId;
     currentRoom = data.roomCode;
-    playerName = data.name;
 
     // Speichern für Reconnect
     localStorage.setItem('jeopardy_session', JSON.stringify({
@@ -203,13 +194,11 @@ socket.on('join_error', (msg) => {
 
 // --- BUZZER LOGIK ---
 
-socket.on('buzzers_unlocked', (lockedIds?: string[]) => {
-    playerBuzzed = true;
+socket.on('buzzers_unlocked', () => {
     setBuzzerState('locked');
 });
 
 socket.on('buzzers_locked', () => {
-    playerBuzzed = true;
     setBuzzerState('locked');
 });
 

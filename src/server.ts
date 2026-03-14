@@ -30,12 +30,34 @@ app.use(express.json());
 
 // --- MONGODB ---
 const DB_URI = 'mongodb://localhost:27017/jeopardyquiz';
-mongoose.connect(DB_URI)
-    .then(() => console.log('MongoDB verbunden'))
-    .catch(err => console.error('MongoDB Fehler:', err));
+
+async function connectDatabase(uri: string = DB_URI) {
+    if (mongoose.connection.readyState === 1) return;
+    await mongoose.connect(uri);
+    console.log('MongoDB verbunden');
+}
 
 // --- STATE MANAGEMENT ---
 const sessions: Record<string, ISession> = {};
+let cleanupInProgress = false;
+let cleanupRerunRequested = false;
+
+async function runCleanupUnusedFilesSafely() {
+    if (cleanupInProgress) {
+        cleanupRerunRequested = true;
+        return;
+    }
+
+    cleanupInProgress = true;
+    try {
+        do {
+            cleanupRerunRequested = false;
+            await cleanupUnusedFiles();
+        } while (cleanupRerunRequested);
+    } finally {
+        cleanupInProgress = false;
+    }
+}
 
 const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'board' | 'player') => {
         // Wenn keine Frage aktiv ist, gibt es nichts Spezielles zu tun (außer Scores, die eh gesendet werden)
@@ -49,13 +71,13 @@ const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'b
         io.to(socketId).emit('board_show_question', {
             question: q,
             // Wir nutzen gespeicherte Indizes oder -1, falls wir sie nicht haben (siehe host_pick_question)
-            catIndex: (session as any).activeCatIndex ?? -1,
-            qIndex: (session as any).activeQIndex ?? -1,
+            catIndex: session.activeCatIndex,
+            qIndex: session.activeQIndex,
             eleminationRevealedIndices: q.type === 'elemination' ? [...session.eleminationRevealedIndices] : undefined
         });
         
         // Falls Maps-Auflösung schon passiert ist:
-        if ((session as any).mapResolved) {
+        if (session.mapResolved) {
                 // Hier müsste man theoretisch auch das Ergebnis nochmal senden, 
                 // aber für den Anfang reicht es, die Frage wieder anzuzeigen.
         }
@@ -88,8 +110,8 @@ const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'b
         // Spezielles Event für den Host, um die UI wiederherzustellen
         io.to(socketId).emit('host_restore_active_question', {
             question: q,
-            catIndex: (session as any).activeCatIndex,
-            qIndex: (session as any).activeQIndex,
+            catIndex: session.activeCatIndex,
+            qIndex: session.activeQIndex,
             buzzersActive: session.buzzersActive,
             mapGuessesCount: Object.keys(session.mapGuesses || {}).length,
             eleminationRevealedIndices: q.type === 'elemination' ? [...session.eleminationRevealedIndices] : undefined,
@@ -150,8 +172,14 @@ function getLocalIpAddress() {
 
 async function deleteMediaFile(filePath: string) {
     if (!filePath || filePath.startsWith('http')) return;
-    const relativePath = filePath.replace(/^\/+/, '');
-    const absolutePath = path.join(PUBLIC_DIR, relativePath);
+    const relativePath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    const absolutePath = path.resolve(PUBLIC_DIR, relativePath);
+    const relativeToPublic = path.relative(PUBLIC_DIR, absolutePath);
+
+    if (relativeToPublic.startsWith('..') || path.isAbsolute(relativeToPublic)) {
+        console.warn(`Unsicherer Dateipfad verworfen: ${filePath}`);
+        return;
+    }
     try {
         await fs.unlink(absolutePath);
         console.log(`Datei gelöscht: ${absolutePath}`);
@@ -285,8 +313,8 @@ function closeActiveQuestion(session: ISession, code: string) {
     session.buzzersActive = false;
     session.currentBuzzWinnerId = null;
     session.activeQuestion = null;
-    (session as any).activeCatIndex = -1;
-    (session as any).activeQIndex = -1;
+    session.activeCatIndex = -1;
+    session.activeQIndex = -1;
 
     io.to(code).emit('board_hide_question');
     io.to(session.hostSocketId).emit('update_host_controls', {
@@ -464,7 +492,9 @@ app.post('/api/create-game', async (req, res) => {
             savedGame = await new GameModel(gameData).save();
         }
 
-        cleanupUnusedFiles();
+        if (process.env.NODE_ENV !== 'test') {
+            void runCleanupUnusedFilesSafely();
+        }
 
         return res.json({ success: true, gameId: savedGame?._id });
     } catch (err: any) {
@@ -479,11 +509,11 @@ app.delete('/api/games/:id', async (req, res) => {
         if (game) {
             const files: string[] = [];
             if (game.boardBackgroundPath) files.push(game.boardBackgroundPath);
+            if (game.soundCorrectPath) files.push(game.soundCorrectPath);
+            if (game.soundIncorrectPath) files.push(game.soundIncorrectPath);
             game.categories.forEach(c => c.questions.forEach(q => {
                 if(q.mediaPath) files.push(q.mediaPath);
                 if(q.answerMediaPath) files.push(q.answerMediaPath);
-                if (game.soundCorrectPath) files.push(game.soundCorrectPath);
-                if (game.soundIncorrectPath) files.push(game.soundIncorrectPath);
             }));
             await Promise.all(files.map(deleteMediaFile));
             await GameModel.findByIdAndDelete(id);
@@ -526,6 +556,9 @@ io.on('connection', (socket) => {
             currentBuzzWinnerId: null,
             activeQuestion: null,
             activeQuestionPoints: 0,
+            activeCatIndex: -1,
+            activeQIndex: -1,
+            mapResolved: false,
             mapGuesses: {},
             estimateGuesses: {},
             listRevealedCount: -1, 
@@ -580,12 +613,13 @@ io.on('connection', (socket) => {
         // Event senden
         socket.emit('host_session_restored', {
             gameId: session.gameId,
-            catIndex: (session as any).activeCatIndex, // Cast falls Index nicht im Interface definiert war
-            qIndex: (session as any).activeQIndex,
+            catIndex: session.activeCatIndex,
+            qIndex: session.activeQIndex,
             question: session.activeQuestion!,
             players: session.players,
             buzzersActive: session.buzzersActive,
             buzzWinnerId: session.currentBuzzWinnerId,
+            isResolved: session.mapResolved,
             
             // Die neuen Felder:
             submittedCount: submittedCount,
@@ -834,9 +868,9 @@ io.on('connection', (socket) => {
         session.eleminationRoundResolved = false;
         session.lastEleminationRevealerId = null;
         
-        (session as any).activeCatIndex = data.catIndex;
-        (session as any).activeQIndex = data.qIndex;
-        (session as any).mapResolved = false;
+        session.activeCatIndex = data.catIndex;
+        session.activeQIndex = data.qIndex;
+        session.mapResolved = false;
         
         session.listRevealedCount = -1;
 
@@ -1079,6 +1113,8 @@ io.on('connection', (socket) => {
                 }
             }
         }
+
+        session.mapResolved = true;
 
         io.to(code).emit('board_reveal_map_results', { results, players: session.players, target });
         io.to(code).emit('update_scores', session.players);
@@ -1343,6 +1379,15 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(PORT, () => {
-    console.log(`Server läuft auf http://localhost:${PORT}`);
-});
+function startServer(port: number = PORT) {
+    server.listen(port, () => {
+        console.log(`Server läuft auf http://localhost:${port}`);
+    });
+}
+
+if (process.env.NODE_ENV !== 'test') {
+    connectDatabase().catch(err => console.error('MongoDB Fehler:', err));
+    startServer();
+}
+
+export { app, server, io, sessions, connectDatabase, startServer, PUBLIC_DIR, UPLOADS_DIR };

@@ -76,6 +76,9 @@ export interface ISession {
     currentBuzzWinnerId: string | null;
     activeQuestion: IQuestion | null;
     activeQuestionPoints: number;
+    activeCatIndex: number;
+    activeQIndex: number;
+    mapResolved: boolean;
     mapGuesses: Record<string, { lat: number; lng: number }>;
     estimateGuesses: Record<string, number>; 
     usedQuestions: { catIndex: number, qIndex: number }[];

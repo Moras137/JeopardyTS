@@ -1,9 +1,9 @@
 import request from 'supertest';
-import express, { Express } from 'express';
-import path from 'path';
+import { Express } from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { GameModel } from '../../src/models/Quiz';
+import { app as realApp } from '../../src/server';
 import { mockCategory } from '../fixtures/mock-data';
 
 /**
@@ -13,72 +13,6 @@ import { mockCategory } from '../fixtures/mock-data';
 
 let app: Express;
 let mongoServer: MongoMemoryServer;
-
-/**
- * Setup Express app with minimal API routes for testing
- */
-const createTestApp = (): Express => {
-    const testApp = express();
-    
-    testApp.use(express.json());
-    testApp.use(express.static(path.resolve(process.cwd(), 'output/public')));
-
-    // API Routes
-    testApp.get('/api/games', async (_req, res) => {
-        try {
-            const games = await GameModel.find().select('_id title boardBackgroundPath');
-            res.json(games);
-        } catch (err) {
-            res.status(500).json({ error: 'Fehler beim Laden' });
-        }
-    });
-
-    testApp.get('/api/games/:id', async (req, res) => {
-        try {
-            const game = await GameModel.findById(req.params.id);
-            if (!game) return res.status(404).json({ error: 'Nicht gefunden' });
-            res.json(game);
-        } catch (err) {
-            res.status(500).json({ error: 'Fehler' });
-        }
-    });
-
-    testApp.post('/api/create-game', async (req, res) => {
-        try {
-            const gameData = req.body;
-            let savedGame;
-            if (gameData._id) {
-                savedGame = await GameModel.findByIdAndUpdate(gameData._id, gameData, { new: true });
-            } else {
-                savedGame = await new GameModel(gameData).save();
-            }
-            return res.json({ success: true, gameId: savedGame?._id });
-        } catch (err: any) {
-            res.status(500).json({ success: false, error: err.message });
-        }
-    });
-
-    testApp.delete('/api/games/:id', async (req, res) => {
-        try {
-            const id = req.params.id;
-            const game = await GameModel.findById(id);
-            if (game) {
-                await GameModel.findByIdAndDelete(id);
-            }
-            res.json({ success: true });
-        } catch (err) {
-            res.status(500).json({ error: 'Fehler beim Löschen' });
-        }
-    });
-
-    testApp.post('/api/delete-files', async (req, res) => {
-        req.body.files || [];
-        // In-memory test just acknowledges deletion
-        res.json({ success: true });
-    });
-
-    return testApp;
-};
 
 // ============================================================
 // TEST SETUP & TEARDOWN
@@ -92,8 +26,7 @@ beforeAll(async () => {
     // Connect mongoose to in-memory database
     await mongoose.connect(mongoUri);
 
-    // Create test app
-    app = createTestApp();
+    app = realApp as Express;
 }, 30000); // 30 second timeout for mongodb-memory-server startup
 
 afterAll(async () => {
@@ -390,6 +323,26 @@ describe('API Endpoints - Integration Tests', () => {
                 .post('/api/delete-files')
                 .send({ files: batch2 });
             expect(res2.status).toBe(200);
+        });
+
+        it('should handle traversal-like file paths safely', async () => {
+            const files = ['../../secret.txt', '/uploads/../secret.txt', '..\\..\\windows\\system.ini'];
+            const res = await request(app)
+                .post('/api/delete-files')
+                .send({ files });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+        });
+
+        it('should handle absolute-like file paths safely', async () => {
+            const files = ['C:/Windows/System32/drivers/etc/hosts', '/etc/passwd'];
+            const res = await request(app)
+                .post('/api/delete-files')
+                .send({ files });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
         });
     });
 

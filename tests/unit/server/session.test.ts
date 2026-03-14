@@ -41,14 +41,16 @@ describe('Session Management', () => {
         ioServer.addSocketToRoom(hostSocket.id, roomCode);
         ioServer.addSocketToRoom(playerSocket.id, roomCode);
 
-        // Re-assign emit to track calls instead of using the mock
-        ioServer.to(roomCode).emit('test_event', { data: 'test' });
+        const payload = { data: 'test' };
+        ioServer.to(roomCode).emit('test_event', payload);
 
         // Verify both sockets received the emit call
         const hostEmits = hostSocket.getEmittedEvents('test_event');
         const playerEmits = playerSocket.getEmittedEvents('test_event');
 
-        expect(hostEmits.length).toBeGreaterThanOrEqual(0);
-        expect(playerEmits.length).toBeGreaterThanOrEqual(0);
+        expect(hostEmits).toHaveLength(1);
+        expect(playerEmits).toHaveLength(1);
+        expect(hostEmits[0].data[0]).toEqual(payload);
+        expect(playerEmits[0].data[0]).toEqual(payload);
     });
 });
