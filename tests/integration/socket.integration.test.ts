@@ -39,6 +39,28 @@ function waitForNoEvent(socket: ClientSocket, event: string, waitMs = 500): Prom
     });
 }
 
+function waitForScores(
+    socket: ClientSocket,
+    predicate: (scores: Record<string, any>) => boolean,
+    timeoutMs = 4000
+): Promise<Record<string, any>> {
+    return new Promise((resolve, reject) => {
+        const onScores = (scores: Record<string, any>) => {
+            if (!predicate(scores)) return;
+            clearTimeout(timer);
+            socket.off('update_scores', onScores);
+            resolve(scores);
+        };
+
+        const timer = setTimeout(() => {
+            socket.off('update_scores', onScores);
+            reject(new Error('Timeout waiting for matching update_scores event'));
+        }, timeoutMs);
+
+        socket.on('update_scores', onScores);
+    });
+}
+
 async function createGameAndSession(host: ClientSocket): Promise<string> {
     const savedGame = await new GameModel(mockGame).save();
     gameId = savedGame._id!.toString();
@@ -155,6 +177,38 @@ describe('Socket.io Integration Tests (Real Server)', () => {
         player.disconnect();
     });
 
+    it('should pick deterministic chooser player when Math.random is mocked', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+
+        // Consume the host controls update emitted by player A join to avoid stale-event races.
+        await waitForEvent(host, 'update_host_controls');
+
+        const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+        const controlsPromise = waitForEvent<{ chooserPlayerId?: string }>(host, 'update_host_controls');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+        const controls = await controlsPromise;
+
+        expect([joinA.playerId, joinB.playerId]).toContain(controls.chooserPlayerId);
+
+        randomSpy.mockRestore();
+        host.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
     it('should reject player join for unknown room', async () => {
         const player = ioClient(baseUrl, { transports: ['websocket'] });
         await waitForEvent(player, 'connect');
@@ -242,6 +296,141 @@ describe('Socket.io Integration Tests (Real Server)', () => {
         expect(restored.isResolved).toBe(true);
 
         rejoinedHost.disconnect();
+    });
+
+    it('should ignore host_resolve_map when no map location is active', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        const boardShowPromise = waitForEvent(board, 'board_show_question');
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await boardShowPromise;
+
+        host.emit('host_resolve_map');
+        await expect(waitForNoEvent(board, 'board_reveal_map_results')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should ignore out-of-range elemination reveal index', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const question = {
+            type: 'elemination' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Nenne Obstsorten',
+            answerText: 'Apfel, Birne',
+            listItems: ['Apfel', 'Birne'],
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        const boardShowPromise = waitForEvent(board, 'board_show_question');
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await boardShowPromise;
+
+        host.emit('host_reveal_elemination_answer', 99);
+        await expect(waitForNoEvent(board, 'board_reveal_elemination_answer')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should reveal remaining elemination answers and close via host_resolve_question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(playerA, 'join_success');
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        await waitForEvent(playerB, 'join_success');
+
+        const question = {
+            type: 'elemination' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Nenne Farben',
+            answerText: 'Rot, Blau',
+            listItems: ['Rot', 'Blau'],
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        const boardShowPromise = waitForEvent(board, 'board_show_question');
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await boardShowPromise;
+
+        const firstRevealPromise = waitForEvent<number>(board, 'board_reveal_elemination_answer');
+        host.emit('host_reveal_elemination_answer', 0);
+        expect(await firstRevealPromise).toBe(0);
+
+        const finalRevealPromise = waitForEvent<number>(board, 'board_reveal_elemination_answer', 7000);
+        const hidePromise = waitForEvent(board, 'board_hide_question', 7000);
+        host.emit('host_resolve_question');
+
+        expect(await finalRevealPromise).toBe(1);
+        await hidePromise;
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
     });
 
     it('should set current player and broadcast turn to all clients', async () => {
@@ -483,7 +672,15 @@ describe('Socket.io Integration Tests (Real Server)', () => {
 
         host.emit('host_score_answer', { action: 'incorrect', playerId: eliminatedId });
 
-        const scoreUpdate = await waitForEvent<Record<string, any>>(host, 'update_scores', 7000);
+        const scoreUpdate = await waitForScores(
+            host,
+            (scores) =>
+                !!scores[eliminatedId]
+                && !!scores[remainingId]
+                && scores[eliminatedId].score === 0
+                && scores[remainingId].score === 100,
+            7000
+        );
         await waitForEvent(board, 'board_hide_question', 7000);
 
         expect(scoreUpdate[eliminatedId].score).toBe(0);
@@ -493,5 +690,596 @@ describe('Socket.io Integration Tests (Real Server)', () => {
         board.disconnect();
         playerA.disconnect();
         playerB.disconnect();
+    });
+
+    it('should apply manual score update from host and broadcast new scores', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+
+        // Flush initial score broadcast caused by player join.
+        await waitForEvent(host, 'update_scores');
+
+        host.emit('host_manual_score_update', { playerId: join.playerId, newScore: 321 });
+        const scoreUpdate = await waitForScores(host, (scores) => scores[join.playerId]?.score === 321);
+
+        expect(scoreUpdate[join.playerId].score).toBe(321);
+        expect(sessions[roomCode].players[join.playerId].score).toBe(321);
+
+        host.disconnect();
+        player.disconnect();
+    });
+
+    it('should ignore manual score update for unknown player id', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        await waitForEvent(host, 'connect');
+
+        await createGameAndSession(host);
+
+        host.emit('host_manual_score_update', { playerId: 'does-not-exist', newScore: 999 });
+        await expect(waitForNoEvent(host, 'update_scores')).resolves.toBeUndefined();
+
+        host.disconnect();
+    });
+
+    it('should ignore manual score update from non-host socket', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+
+        // Flush initial score broadcast caused by player join.
+        await waitForEvent(host, 'update_scores');
+
+        player.emit('host_manual_score_update', { playerId: join.playerId, newScore: 777 });
+        await expect(waitForNoEvent(host, 'update_scores')).resolves.toBeUndefined();
+
+        expect(sessions[roomCode].players[join.playerId].score).toBe(0);
+
+        host.disconnect();
+        player.disconnect();
+    });
+
+    it('should show podium sorted by score descending', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        host.emit('host_manual_score_update', { playerId: joinA.playerId, newScore: 50 });
+        await waitForScores(host, (scores) => scores[joinA.playerId]?.score === 50);
+
+        host.emit('host_manual_score_update', { playerId: joinB.playerId, newScore: 200 });
+        await waitForScores(host, (scores) => scores[joinB.playerId]?.score === 200);
+
+        const podiumPromise = waitForEvent<Array<{ id: string; name: string; score: number }>>(board, 'board_show_podium');
+        host.emit('host_show_podium');
+        const podium = await podiumPromise;
+
+        expect(podium[0].id).toBe(joinB.playerId);
+        expect(podium[0].score).toBe(200);
+        expect(podium[1].id).toBe(joinA.playerId);
+        expect(podium[1].score).toBe(50);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should forward host media control command to board clients', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const payload = { action: 'seek', currentTime: 42.5 };
+        const boardMediaPromise = waitForEvent<{ action: string; currentTime: number }>(board, 'board_media_control');
+
+        host.emit('host_media_control', payload);
+        await expect(boardMediaPromise).resolves.toEqual(payload);
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should block non-host media control', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const payload = { action: 'pause', currentTime: 13 };
+        const boardMediaPromise = waitForNoEvent(board, 'board_media_control');
+
+        player.emit('host_media_control', payload);
+        await expect(boardMediaPromise).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from ending a session', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        player.emit('host_end_session');
+
+        await expect(waitForNoEvent(board, 'session_ended')).resolves.toBeUndefined();
+        expect(sessions[roomCode]).toBeDefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from controlling pixel puzzle', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        player.emit('host_control_pixel_puzzle', 'next');
+        await expect(waitForNoEvent(board, 'board_control_pixel_puzzle')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from toggling QR on board', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        player.emit('host_toggle_qr');
+        await expect(waitForNoEvent(board, 'board_toggle_qr')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from picking a question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        player.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await expect(waitForNoEvent(board, 'board_show_question')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from resolving map results', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const mapQuestion = {
+            type: 'map' as const,
+            points: 200,
+            negativePoints: 0,
+            questionText: 'Wo liegt Berlin?',
+            answerText: 'Deutschland',
+            location: {
+                lat: 52.52,
+                lng: 13.405,
+                isCustomMap: false,
+                customMapPath: '',
+                mapWidth: 1000,
+                mapHeight: 1000,
+                radius: 50000,
+            },
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: mapQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        player.emit('player_submit_map_guess', { lat: 52.5, lng: 13.4 });
+        player.emit('host_resolve_map');
+
+        await expect(waitForNoEvent(board, 'board_reveal_map_results')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from scoring an answer', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        player.emit('host_score_answer', { action: 'correct', playerId: join.playerId });
+        await expect(waitForNoEvent(host, 'update_scores')).resolves.toBeUndefined();
+        expect(sessions[roomCode].players[join.playerId].score).toBe(0);
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should block non-host from closing the active question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        player.emit('host_close_question');
+        await expect(waitForNoEvent(board, 'board_hide_question')).resolves.toBeUndefined();
+        expect(sessions[roomCode].activeQuestion).not.toBeNull();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should load game on host via host_start_game', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        await waitForEvent(host, 'connect');
+
+        await createGameAndSession(host);
+
+        const loadPromise = waitForEvent<{ _id: string; title: string }>(host, 'load_game_on_host');
+        host.emit('host_start_game', gameId);
+        const loaded = await loadPromise;
+
+        expect(loaded._id).toBe(gameId);
+        expect(loaded.title).toBe(mockGame.title);
+
+        host.disconnect();
+    });
+
+    it('should block non-host from host_start_game', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        player.emit('host_start_game', gameId);
+        await expect(waitForNoEvent(player, 'load_game_on_host')).resolves.toBeUndefined();
+
+        host.disconnect();
+        player.disconnect();
+    });
+
+    it('should advance intro flow from title to categories to end', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        const intro1 = waitForEvent<{ text: string; type: string }>(board, 'board_show_intro');
+        host.emit('host_next_intro');
+        await expect(intro1).resolves.toMatchObject({ type: 'title', text: mockGame.title });
+
+        const intro2 = waitForEvent<{ text: string; type: string }>(board, 'board_show_intro');
+        host.emit('host_next_intro');
+        await expect(intro2).resolves.toMatchObject({ type: 'category', text: mockGame.categories[0].name });
+
+        const intro3 = waitForEvent<{ text: string; type: string }>(board, 'board_show_intro');
+        host.emit('host_next_intro');
+        await expect(intro3).resolves.toMatchObject({ type: 'category', text: mockGame.categories[1].name });
+
+        const intro4 = waitForEvent<{ text: string; type: string }>(board, 'board_show_intro');
+        host.emit('host_next_intro');
+        await expect(intro4).resolves.toMatchObject({ type: 'end', text: '' });
+
+        host.disconnect();
+        board.disconnect();
+    });
+
+    it('should resolve estimate guesses, sort by diff and award winners', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+        await waitForEvent(host, 'update_scores');
+
+        const estimateQuestion = {
+            type: 'estimate' as const,
+            points: 300,
+            negativePoints: 0,
+            questionText: 'Wie viele Menschen leben auf der Erde?',
+            answerText: '~8 Milliarden',
+            estimationAnswer: 100,
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: estimateQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        playerA.emit('player_submit_estimate', 101);
+        playerB.emit('player_submit_estimate', 108);
+
+        const resultPromise = waitForEvent<{ correctAnswer: number; guesses: Array<{ playerId: string; diff: number; isWinner: boolean }> }>(
+            board,
+            'board_reveal_estimate_results'
+        );
+        const scoresPromise = waitForScores(host, (s) => s[joinA.playerId]?.score === 300 && s[joinB.playerId]?.score === 0);
+        host.emit('host_resolve_estimate');
+        const result = await resultPromise;
+
+        expect(result.correctAnswer).toBe(100);
+        expect(result.guesses[0].playerId).toBe(joinA.playerId);
+        expect(result.guesses[0].isWinner).toBe(true);
+        expect(result.guesses[1].playerId).toBe(joinB.playerId);
+        expect(result.guesses[1].isWinner).toBe(false);
+
+        const scores = await scoresPromise;
+        expect(scores[joinA.playerId].score).toBe(300);
+        expect(scores[joinB.playerId].score).toBe(0);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should block non-host from resolving estimate', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const estimateQuestion = {
+            type: 'estimate' as const,
+            points: 300,
+            negativePoints: 0,
+            questionText: 'Wie viele Menschen leben auf der Erde?',
+            answerText: '~8 Milliarden',
+            estimationAnswer: 100,
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question: estimateQuestion });
+        await waitForEvent(board, 'board_show_question');
+
+        player.emit('host_resolve_estimate');
+        await expect(waitForNoEvent(board, 'board_reveal_estimate_results')).resolves.toBeUndefined();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
     });
 });

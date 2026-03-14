@@ -635,21 +635,21 @@ io.on('connection', (socket) => {
     // NEU: Host Start Game Handler, falls das Board-Update über Socket läuft
     socket.on('host_start_game', async (gameId) => {
         try {
+            const info = getSessionBySocketId(socket.id);
+            if (!info || !info.isHost) return;
+
             const game = await GameModel.findById(gameId);
             if(game) {
                 // Sende das Spiel zurück an den Host zur Anzeige
                 socket.emit('load_game_on_host', game ) ; 
 
-                const info = getSessionBySocketId(socket.id);
-                if (info && info.isHost) {
-                    setRandomTurnPlayerIfNeeded(info.session);
-                    io.to(info.session.hostSocketId).emit('update_host_controls', {
-                        chooserPlayerId: info.session.currentTurnPlayerId,
-                        chooserPlayerName: info.session.currentTurnPlayerId && info.session.players[info.session.currentTurnPlayerId]
-                            ? info.session.players[info.session.currentTurnPlayerId].name
-                            : undefined
-                    });
-                }
+                setRandomTurnPlayerIfNeeded(info.session);
+                io.to(info.session.hostSocketId).emit('update_host_controls', {
+                    chooserPlayerId: info.session.currentTurnPlayerId,
+                    chooserPlayerName: info.session.currentTurnPlayerId && info.session.players[info.session.currentTurnPlayerId]
+                        ? info.session.players[info.session.currentTurnPlayerId].name
+                        : undefined
+                });
             }
         } catch(e) { console.error(e); }
     });
@@ -739,7 +739,7 @@ io.on('connection', (socket) => {
 
     socket.on('host_score_answer', (data) => {
         const info = getSessionBySocketId(socket.id);
-        if (!info) return;
+        if (!info || !info.isHost) return;
         const { session, code } = info;
         
         const player = session.players[data.playerId];
@@ -843,18 +843,17 @@ io.on('connection', (socket) => {
 
     socket.on('host_resolve_question', () => {
         const info = getSessionBySocketId(socket.id);
-        if (info) {
-            if (info.session.activeQuestion?.type === 'elemination') {
-                revealRemainingEleminationAnswersThenClose(info.session, info.code);
-                return;
-            }
-            io.to(info.code).emit('board_reveal_answer');
+        if (!info || !info.isHost) return;
+        if (info.session.activeQuestion?.type === 'elemination') {
+            revealRemainingEleminationAnswersThenClose(info.session, info.code);
+            return;
         }
+        io.to(info.code).emit('board_reveal_answer');
     });
 
     socket.on('host_pick_question', (data) => {
         const info = getSessionBySocketId(socket.id);
-        if (!info) return;
+        if (!info || !info.isHost) return;
         const { session, code } = info;
         
         session.activeQuestion = data.question;
@@ -1071,7 +1070,7 @@ io.on('connection', (socket) => {
 
     socket.on('host_resolve_map', () => {
         const info = getSessionBySocketId(socket.id);
-        if (!info) return;
+        if (!info || !info.isHost) return;
         const { session, code } = info;
         
         if(!session.activeQuestion?.location) return;
@@ -1164,14 +1163,14 @@ io.on('connection', (socket) => {
     // Weitere einfache Handler
     socket.on('host_toggle_qr', () => {
         const info = getSessionBySocketId(socket.id);
-        if(info) io.to(info.code).emit('board_toggle_qr');
+        if (!info || !info.isHost) return;
+        io.to(info.code).emit('board_toggle_qr');
     });
 
     socket.on('host_control_pixel_puzzle', (action) => {
         const info = getSessionBySocketId(socket.id);
-        if (info) {
-            io.to(info.code).emit('board_control_pixel_puzzle', action);
-        }
+        if (!info || !info.isHost) return;
+        io.to(info.code).emit('board_control_pixel_puzzle', action);
     });
 
     socket.on('host_set_current_player', (playerId) => {
@@ -1202,21 +1201,19 @@ io.on('connection', (socket) => {
 
     socket.on('host_close_question', () => {
         const info = getSessionBySocketId(socket.id);
-        if(info) {
-            if (info.session.activeQuestion?.type === 'elemination') {
-                revealRemainingEleminationAnswersThenClose(info.session, info.code);
-            } else {
-                closeActiveQuestion(info.session, info.code);
-            }
+        if (!info || !info.isHost) return;
+        if (info.session.activeQuestion?.type === 'elemination') {
+            revealRemainingEleminationAnswersThenClose(info.session, info.code);
+        } else {
+            closeActiveQuestion(info.session, info.code);
         }
     });
 
     socket.on('host_end_session', () => {
         const info = getSessionBySocketId(socket.id);
-        if(info) {
-            io.to(info.code).emit('session_ended');
-            delete sessions[info.code];
-        }
+        if (!info || !info.isHost) return;
+        io.to(info.code).emit('session_ended');
+        delete sessions[info.code];
     });
 
     socket.on('disconnect', () => {
@@ -1372,7 +1369,7 @@ io.on('connection', (socket) => {
 
     socket.on('host_media_control', (data) => {
         const info = getSessionBySocketId(socket.id);
-        if (info) {
+        if (info && info.isHost) {
             // Leite den Befehl an alle Clients im Raum (also das Board) weiter
             io.to(info.code).emit('board_media_control', data);
         }
