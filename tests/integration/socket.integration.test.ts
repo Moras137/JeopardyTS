@@ -61,6 +61,28 @@ function waitForScores(
     });
 }
 
+function waitForHostControls(
+    socket: ClientSocket,
+    predicate: (controls: Record<string, any>) => boolean,
+    timeoutMs = 4000
+): Promise<Record<string, any>> {
+    return new Promise((resolve, reject) => {
+        const onControls = (controls: Record<string, any>) => {
+            if (!predicate(controls)) return;
+            clearTimeout(timer);
+            socket.off('update_host_controls', onControls);
+            resolve(controls);
+        };
+
+        const timer = setTimeout(() => {
+            socket.off('update_host_controls', onControls);
+            reject(new Error('Timeout waiting for matching update_host_controls event'));
+        }, timeoutMs);
+
+        socket.on('update_host_controls', onControls);
+    });
+}
+
 async function createGameAndSession(host: ClientSocket): Promise<string> {
     const savedGame = await new GameModel(mockGame).save();
     gameId = savedGame._id!.toString();
@@ -526,6 +548,498 @@ describe('Socket.io Integration Tests (Real Server)', () => {
 
         host.disconnect();
         playerA.disconnect();
+    });
+
+    it('should notify host about buzz winner on standard question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        await waitForEvent(playerB, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        const openControlsPromise = waitForEvent<{ buzzWinnerId?: string | null }>(host, 'update_host_controls');
+        const boardShowPromise = waitForEvent(board, 'board_show_question');
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await boardShowPromise;
+        await openControlsPromise;
+
+        const hostBuzzPromise = waitForEvent<{ buzzWinnerId?: string | null; buzzWinnerName?: string }>(host, 'update_host_controls');
+        const hostWinnerPromise = waitForEvent<{ id: string; name: string }>(host, 'player_won_buzz');
+
+        playerA.emit('player_buzz', { id: joinA.playerId, name: 'Alice' });
+
+        const hostBuzz = await hostBuzzPromise;
+        const hostWinner = await hostWinnerPromise;
+
+        expect(hostWinner).toEqual({ id: joinA.playerId, name: 'Alice' });
+        expect(hostBuzz.buzzWinnerId).toBe(joinA.playerId);
+        expect(hostBuzz.buzzWinnerName).toBe('Alice');
+        expect(sessions[roomCode].currentBuzzWinnerId).toBe(joinA.playerId);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should allow host grading and re-unlock buzzers on standard question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        const openControlsPromise = waitForEvent(host, 'update_host_controls');
+        const boardShowPromise = waitForEvent(board, 'board_show_question');
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await boardShowPromise;
+        await openControlsPromise;
+
+        const firstWinnerPromise = waitForEvent<{ id: string; name: string }>(host, 'player_won_buzz');
+        playerA.emit('player_buzz', { id: joinA.playerId, name: 'Alice' });
+        await expect(firstWinnerPromise).resolves.toEqual({ id: joinA.playerId, name: 'Alice' });
+
+        const clearWinnerPromise = waitForEvent<{ buzzWinnerId?: string | null }>(host, 'update_host_controls');
+        host.emit('host_score_answer', { action: 'incorrect', playerId: joinA.playerId });
+        const cleared = await clearWinnerPromise;
+        expect(cleared.buzzWinnerId).toBeNull();
+        expect(sessions[roomCode].currentBuzzWinnerId).toBeNull();
+
+        const unlockA = waitForEvent(playerA, 'buzzers_unlocked');
+        const unlockB = waitForEvent(playerB, 'buzzers_unlocked');
+        host.emit('host_unlock_buzzers');
+        await unlockA;
+        await unlockB;
+
+        const secondWinnerPromise = waitForEvent<{ id: string; name: string }>(host, 'player_won_buzz');
+        playerB.emit('player_buzz', { id: joinB.playerId, name: 'Bob' });
+        await expect(secondWinnerPromise).resolves.toEqual({ id: joinB.playerId, name: 'Bob' });
+
+        host.emit('host_score_answer', { action: 'correct', playerId: joinB.playerId });
+        const resolvedScores = await waitForScores(host, (scores) => scores[joinB.playerId]?.score === 100, 7000);
+        expect(resolvedScores[joinB.playerId].score).toBe(100);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should keep first buzz winner until host unlocks buzzers', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        const firstWinner = waitForEvent<{ id: string; name: string }>(host, 'player_won_buzz');
+        playerA.emit('player_buzz', { id: joinA.playerId, name: 'Alice' });
+        await expect(firstWinner).resolves.toEqual({ id: joinA.playerId, name: 'Alice' });
+
+        playerB.emit('player_buzz', { id: joinB.playerId, name: 'Bob' });
+        await expect(waitForNoEvent(host, 'player_won_buzz')).resolves.toBeUndefined();
+        expect(sessions[roomCode].currentBuzzWinnerId).toBe(joinA.playerId);
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should reveal answer and award points on correct standard grading', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 120,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        const winner = waitForEvent(host, 'player_won_buzz');
+        player.emit('player_buzz', { id: join.playerId, name: 'Alice' });
+        await winner;
+
+        const revealPromise = waitForEvent(board, 'board_reveal_answer');
+        const scorePromise = waitForScores(host, (s) => s[join.playerId]?.score === 120, 7000);
+        host.emit('host_score_answer', { action: 'correct', playerId: join.playerId });
+        await revealPromise;
+
+        const scores = await scorePromise;
+        expect(scores[join.playerId].score).toBe(120);
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should apply negativePoints and clear winner on incorrect standard grading', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 35,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        const winner = waitForEvent(host, 'player_won_buzz');
+        player.emit('player_buzz', { id: join.playerId, name: 'Alice' });
+        await winner;
+
+        const clearWinner = waitForEvent<{ buzzWinnerId?: string | null }>(host, 'update_host_controls');
+        const scorePromise = waitForScores(host, (s) => s[join.playerId]?.score === -35, 7000);
+        host.emit('host_score_answer', { action: 'incorrect', playerId: join.playerId });
+        const cleared = await clearWinner;
+        expect(cleared.buzzWinnerId).toBeNull();
+
+        const scores = await scorePromise;
+        expect(scores[join.playerId].score).toBe(-35);
+        expect(sessions[roomCode].currentBuzzWinnerId).toBeNull();
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should ignore host_unlock_buzzers for estimate questions', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        await waitForEvent(player, 'join_success');
+
+        const question = {
+            type: 'estimate' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Wie hoch?',
+            answerText: '',
+            estimationAnswer: 42,
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(player, 'player_start_estimate');
+
+        host.emit('host_unlock_buzzers');
+        await expect(waitForNoEvent(player, 'buzzers_unlocked')).resolves.toBeUndefined();
+
+        host.disconnect();
+        player.disconnect();
+    });
+
+    it('should ignore buzz from excluded player on standard question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerA = ioClient(baseUrl, { transports: ['websocket'] });
+        const playerB = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(playerA, 'connect');
+        await waitForEvent(playerB, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        playerA.emit('player_join_session', { roomCode, name: 'Alice' });
+        const joinA = await waitForEvent<{ playerId: string }>(playerA, 'join_success');
+
+        playerB.emit('player_join_session', { roomCode, name: 'Bob' });
+        const joinB = await waitForEvent<{ playerId: string }>(playerB, 'join_success');
+
+        host.emit('host_toggle_player_excluded', { playerId: joinA.playerId, excluded: true });
+        await waitForEvent(host, 'update_player_list');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        playerA.emit('player_buzz', { id: joinA.playerId, name: 'Alice' });
+        await expect(waitForNoEvent(host, 'player_won_buzz')).resolves.toBeUndefined();
+
+        const winner = waitForEvent<{ id: string; name: string }>(host, 'player_won_buzz');
+        playerB.emit('player_buzz', { id: joinB.playerId, name: 'Bob' });
+        await expect(winner).resolves.toEqual({ id: joinB.playerId, name: 'Bob' });
+
+        host.disconnect();
+        board.disconnect();
+        playerA.disconnect();
+        playerB.disconnect();
+    });
+
+    it('should restore active buzz winner for host rejoin on standard question', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 0,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+
+        const winner = waitForEvent(host, 'player_won_buzz');
+        player.emit('player_buzz', { id: join.playerId, name: 'Alice' });
+        await winner;
+
+        host.disconnect();
+
+        const rejoinedHost = ioClient(baseUrl, { transports: ['websocket'] });
+        await waitForEvent(rejoinedHost, 'connect');
+
+        rejoinedHost.emit('host_rejoin_session', roomCode);
+        const restored = await waitForEvent<{ buzzWinnerId: string | null }>(rejoinedHost, 'host_session_restored');
+        expect(restored.buzzWinnerId).toBe(join.playerId);
+
+        rejoinedHost.disconnect();
+        board.disconnect();
+        player.disconnect();
+    });
+
+    it('should emit stable footer-relevant host controls across standard buzz flow', async () => {
+        const host = ioClient(baseUrl, { transports: ['websocket'] });
+        const board = ioClient(baseUrl, { transports: ['websocket'] });
+        const player = ioClient(baseUrl, { transports: ['websocket'] });
+
+        await waitForEvent(host, 'connect');
+        await waitForEvent(board, 'connect');
+        await waitForEvent(player, 'connect');
+
+        const roomCode = await createGameAndSession(host);
+
+        board.emit('board_join_session', roomCode);
+        await waitForEvent(board, 'board_connected_success');
+
+        player.emit('player_join_session', { roomCode, name: 'Alice' });
+        const join = await waitForEvent<{ playerId: string }>(player, 'join_success');
+
+        const question = {
+            type: 'standard' as const,
+            points: 100,
+            negativePoints: 25,
+            questionText: 'Frage?',
+            answerText: 'Antwort',
+            mediaPath: '',
+            hasMedia: false,
+            mediaType: 'none' as const,
+            answerMediaPath: '',
+            hasAnswerMedia: false,
+            answerMediaType: 'none' as const,
+        };
+
+        const openControls = waitForHostControls(host, (c) => c.mapMode === false && c.buzzWinnerId === null, 7000);
+        host.emit('host_pick_question', { catIndex: 0, qIndex: 0, question });
+        await waitForEvent(board, 'board_show_question');
+        await openControls;
+
+        const winnerControls = waitForHostControls(host, (c) => c.buzzWinnerId === join.playerId && c.buzzWinnerName === 'Alice', 7000);
+        player.emit('player_buzz', { id: join.playerId, name: 'Alice' });
+        const won = await winnerControls;
+        expect(won.buzzWinnerId).toBe(join.playerId);
+        expect(won.buzzWinnerName).toBe('Alice');
+
+        const clearedControls = waitForHostControls(host, (c) => c.buzzWinnerId === null, 7000);
+        host.emit('host_score_answer', { action: 'incorrect', playerId: join.playerId });
+        const cleared = await clearedControls;
+        expect(cleared.buzzWinnerId).toBeNull();
+
+        const unlock = waitForEvent(player, 'buzzers_unlocked');
+        const unlockControls = waitForHostControls(host, (c) => c.buzzWinnerId === null, 7000);
+        host.emit('host_unlock_buzzers');
+        await unlock;
+        await unlockControls;
+
+        host.disconnect();
+        board.disconnect();
+        player.disconnect();
     });
 
     it('should restore existing player by existingPlayerId on rejoin', async () => {

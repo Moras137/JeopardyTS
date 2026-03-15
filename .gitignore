@@ -3,6 +3,7 @@ TODO.txt
 READ.ME
 /node_modules/
 /dist   
+/import-samples/
 installation.txt
 
 # Test-Artefakte und Protokolle nicht versionieren
