@@ -379,6 +379,14 @@
             transition: color 0.2s;
         }
 
+        #game-list .sidebar-delete-btn {
+            color: #dc3545;
+        }
+
+        #game-list .sidebar-delete-btn:hover {
+            color: #b02a37;
+        }
+
         .sidebar-delete-btn:hover {
             color: #dc3545;
             background: rgba(0, 0, 0, 0.05);
@@ -597,6 +605,11 @@
             color: white;
         }
 
+        .btn-export {
+            background: #17a2b8;
+            color: white;
+        }
+
         #quiz-editor {
             display: none;
             height: 100%;
@@ -778,6 +791,8 @@
                         <input type="text" id="dashboard-search" placeholder="&#x1F50D; Quiz suchen..." class="search-input">
                     </div>
                     <div class="inline-display-flex-gap-10px-2">
+                        <button id="btn-dashboard-import" class="secondary-btn" title="Quiz Bundle importieren">Quiz importieren</button>
+                        <input type="file" id="import-bundle-input" accept=".zip,application/zip" class="inline-display-none">
                         <button class="theme-toggle-btn inline-background-transparent-border-none" onclick="toggleTheme()" title="Design wechseln">&#x1F313;</button>
                         <a href="/anleitung.html" class="secondary-btn" title="Anleitung oeffnen">Anleitung</a>
                         <button id="btn-dashboard-new" class="primary-btn big-btn">+ Neues Quiz erstellen</button>

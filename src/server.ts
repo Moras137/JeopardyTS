@@ -8,6 +8,8 @@ import path from 'path';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import os from 'os';
+import crypto from 'crypto';
+import AdmZip from 'adm-zip';
 
 // Typen importieren
 import { ISession, ServerToClientEvents, ClientToServerEvents } from './types';
@@ -115,7 +117,8 @@ const syncSessionState = (session: ISession, socketId: string, role: 'host' | 'b
             buzzersActive: session.buzzersActive,
             mapGuessesCount: Object.keys(session.mapGuesses || {}).length,
             eleminationRevealedIndices: q.type === 'elemination' ? [...session.eleminationRevealedIndices] : undefined,
-            eleminationEliminatedPlayerIds: q.type === 'elemination' ? [...session.eleminationEliminatedPlayerIds] : undefined
+            eleminationEliminatedPlayerIds: q.type === 'elemination' ? [...session.eleminationEliminatedPlayerIds] : undefined,
+            eleminationRoundResolved: q.type === 'elemination' ? !!session.eleminationRoundResolved : undefined
         });
         if (session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]) {
             io.to(socketId).emit('update_host_controls', {
@@ -170,6 +173,83 @@ function getLocalIpAddress() {
     return 'localhost';
 }
 
+function normalizeMediaWebPath(rawPath: string | undefined | null): string {
+    if (!rawPath) return '';
+
+    let p = String(rawPath).trim().replace(/\\/g, '/');
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p) || p.startsWith('data:')) return p;
+
+    const lower = p.toLowerCase();
+    const uploadsIdx = lower.lastIndexOf('/uploads/');
+    if (uploadsIdx >= 0) {
+        p = p.slice(uploadsIdx);
+    }
+
+    if (!p.startsWith('/')) p = `/${p}`;
+    return p;
+}
+
+function collectGameMediaPaths(gameData: any): string[] {
+    const result = new Set<string>();
+    if (!gameData || typeof gameData !== 'object') return [];
+
+    const topLevelPaths = [
+        gameData.boardBackgroundPath,
+        gameData.backgroundMusicPath,
+        gameData.soundCorrectPath,
+        gameData.soundIncorrectPath
+    ];
+
+    topLevelPaths.forEach((value) => {
+        const normalized = normalizeMediaWebPath(value);
+        if (normalized && normalized.startsWith('/uploads/')) result.add(normalized);
+    });
+
+    if (Array.isArray(gameData.categories)) {
+        gameData.categories.forEach((cat: any) => {
+            if (!Array.isArray(cat?.questions)) return;
+            cat.questions.forEach((q: any) => {
+                [q?.mediaPath, q?.answerMediaPath, q?.location?.customMapPath].forEach((value) => {
+                    const normalized = normalizeMediaWebPath(value);
+                    if (normalized && normalized.startsWith('/uploads/')) result.add(normalized);
+                });
+            });
+        });
+    }
+
+    return [...result];
+}
+
+function remapGameMediaPaths(gameData: any, pathMap: Record<string, string>) {
+    const mapPath = (value: any): any => {
+        const normalized = normalizeMediaWebPath(value);
+        return pathMap[normalized] || value;
+    };
+
+    gameData.boardBackgroundPath = mapPath(gameData.boardBackgroundPath);
+    gameData.backgroundMusicPath = mapPath(gameData.backgroundMusicPath);
+    gameData.soundCorrectPath = mapPath(gameData.soundCorrectPath);
+    gameData.soundIncorrectPath = mapPath(gameData.soundIncorrectPath);
+
+    if (!Array.isArray(gameData.categories)) return;
+    gameData.categories.forEach((cat: any) => {
+        if (!Array.isArray(cat?.questions)) return;
+        cat.questions.forEach((q: any) => {
+            q.mediaPath = mapPath(q.mediaPath);
+            q.answerMediaPath = mapPath(q.answerMediaPath);
+            if (q.location) {
+                q.location.customMapPath = mapPath(q.location.customMapPath);
+            }
+        });
+    });
+}
+
+function makeStoredUploadFileName(extension: string): string {
+    const safeExt = extension.startsWith('.') ? extension : `.${extension}`;
+    return `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${safeExt}`;
+}
+
 async function deleteMediaFile(filePath: string) {
     if (!filePath || filePath.startsWith('http')) return;
     const relativePath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -220,31 +300,89 @@ function isPointInPolygon(point: {lat: number, lng: number}, vs: {lat: number, l
 function getEleminationRemainingPlayerIds(session: ISession): string[] {
     if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
     return Object.values(session.players)
-    .filter((p) => p.active && !session.eleminationEliminatedPlayerIds.includes(p.id))
+    .filter((p) => !p.excluded && !session.eleminationEliminatedPlayerIds.includes(p.id))
         .map((p) => p.id);
 }
 
-function isValidGamePayload(gameData: any): boolean {
-    if (!gameData || typeof gameData !== 'object') return false;
-    if (typeof gameData.title !== 'string' || gameData.title.trim().length === 0) return false;
-    if (!Array.isArray(gameData.categories) || gameData.categories.length === 0) return false;
+function isPlayerInQuiz(session: ISession, playerId: string): boolean {
+    const p = session.players[playerId];
+    return !!p && !p.excluded;
+}
 
-    for (const category of gameData.categories) {
-        if (!category || typeof category !== 'object') return false;
-        if (typeof category.name !== 'string' || category.name.trim().length === 0) return false;
-        if (!Array.isArray(category.questions) || category.questions.length === 0) return false;
+function getInQuizPlayerCount(session: ISession): number {
+    return Object.values(session.players).filter((p) => !p.excluded).length;
+}
 
-        for (const question of category.questions) {
-            if (!question || typeof question !== 'object') return false;
-            if (typeof question.type !== 'string' || question.type.trim().length === 0) return false;
-            if (typeof question.questionText !== 'string' || question.questionText.trim().length === 0) return false;
-            if (typeof question.answerText !== 'string' || question.answerText.trim().length === 0) return false;
-            if (typeof question.points !== 'number' || Number.isNaN(question.points)) return false;
-            if (question.negativePoints !== undefined && typeof question.negativePoints !== 'number') return false;
+function getGamePayloadValidationError(gameData: any): string | null {
+    const hasNonEmptyStringArray = (value: unknown): boolean => {
+        return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.trim().length > 0);
+    };
+
+    if (!gameData || typeof gameData !== 'object') return 'Payload ist leer oder kein Objekt';
+    if (typeof gameData.title !== 'string' || gameData.title.trim().length === 0) return 'Titel fehlt';
+    if (!Array.isArray(gameData.categories) || gameData.categories.length === 0) return 'Keine Kategorien vorhanden';
+
+    for (let catIndex = 0; catIndex < gameData.categories.length; catIndex++) {
+        const category = gameData.categories[catIndex];
+        if (!category || typeof category !== 'object') return `Kategorie ${catIndex + 1} ist ungueltig`;
+        if (typeof category.name !== 'string') return `Kategorie ${catIndex + 1}: Name ist kein String`;
+        if (!Array.isArray(category.questions) || category.questions.length === 0) return `Kategorie ${catIndex + 1}: keine Fragen vorhanden`;
+
+        for (let qIndex = 0; qIndex < category.questions.length; qIndex++) {
+            const question = category.questions[qIndex];
+            if (!question || typeof question !== 'object') return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: ungueltiges Objekt`;
+            if (typeof question.type !== 'string' || question.type.trim().length === 0) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Typ fehlt`;
+            if (typeof question.questionText !== 'string' || question.questionText.trim().length === 0) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Fragetext fehlt`;
+            if (typeof question.points !== 'number' || Number.isNaN(question.points)) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Punkte ungueltig`;
+            if (question.negativePoints !== undefined && typeof question.negativePoints !== 'number') return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Minuspunkte ungueltig`;
+
+            const qType = question.type as string;
+            switch (qType) {
+                case 'estimate': {
+                    if (typeof question.estimationAnswer !== 'number' || Number.isNaN(question.estimationAnswer)) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Schaetzantwort fehlt/ungueltig`;
+                    break;
+                }
+                case 'map': {
+                    // Map questions can be solved by coordinates/custom map/zone and therefore do not require answerText.
+                    const loc = question.location;
+                    const hasZone = Array.isArray(loc?.zone) && loc.zone.length > 0;
+                    const hasCoords = typeof loc?.lat === 'number' && !Number.isNaN(loc.lat)
+                        && typeof loc?.lng === 'number' && !Number.isNaN(loc.lng);
+                    const hasCustomMap = !!loc?.isCustomMap && typeof loc?.customMapPath === 'string' && loc.customMapPath.trim().length > 0;
+                    if (!hasZone && !hasCoords && !hasCustomMap) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Karte ohne Zielposition/Zonen/Custom-Map`;
+                    break;
+                }
+                case 'elemination': {
+                    const hasListItems = hasNonEmptyStringArray(question.listItems);
+                    const hasLegacyAnswerText = typeof question.answerText === 'string' && question.answerText.trim().length > 0;
+                    if (!hasListItems && !hasLegacyAnswerText) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Elimination ohne Antwortoptionen`;
+                    break;
+                }
+                case 'list': {
+                    // List questions are valid with hint items; answerText is optional in existing quizzes.
+                    if (!hasNonEmptyStringArray(question.listItems)) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Liste ohne Eintraege`;
+                    break;
+                }
+                case 'standard':
+                case 'pixel':
+                case 'freetext': {
+                    if (typeof question.answerText !== 'string' || question.answerText.trim().length === 0) return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Antwort fehlt`;
+                    break;
+                }
+                default: {
+                    // Unknown/legacy types fall back to permissive checks to avoid blocking save for old data.
+                    if (question.answerText !== undefined && typeof question.answerText !== 'string') return `Kategorie ${catIndex + 1}, Frage ${qIndex + 1}: Antwortformat ungueltig`;
+                    break;
+                }
+            }
         }
     }
 
-    return true;
+    return null;
+}
+
+function isValidGamePayload(gameData: any): boolean {
+    return getGamePayloadValidationError(gameData) === null;
 }
 
 function ensurePlayerOrder(session: ISession) {
@@ -259,7 +397,7 @@ function ensurePlayerOrder(session: ISession) {
         }
     });
 
-    if (session.currentTurnPlayerId && !session.playerOrder.includes(session.currentTurnPlayerId)) {
+    if (session.currentTurnPlayerId && (!session.playerOrder.includes(session.currentTurnPlayerId) || !isPlayerInQuiz(session, session.currentTurnPlayerId))) {
         session.currentTurnPlayerId = null;
     }
 }
@@ -268,19 +406,19 @@ function setRandomTurnPlayerIfNeeded(session: ISession) {
     ensurePlayerOrder(session);
     if (session.currentTurnPlayerId) return;
 
-    const activePlayers = session.playerOrder.filter((pid) => session.players[pid]?.active);
-    if (activePlayers.length === 0) {
+    const availablePlayers = session.playerOrder.filter((pid) => isPlayerInQuiz(session, pid));
+    if (availablePlayers.length === 0) {
         session.currentTurnPlayerId = null;
         return;
     }
 
-    const idx = Math.floor(Math.random() * activePlayers.length);
-    session.currentTurnPlayerId = activePlayers[idx];
+    const idx = Math.floor(Math.random() * availablePlayers.length);
+    session.currentTurnPlayerId = availablePlayers[idx];
 }
 
 function setTurnPlayer(session: ISession, playerId: string | null) {
     ensurePlayerOrder(session);
-    if (!playerId || !session.playerOrder.includes(playerId) || !session.players[playerId]?.active) {
+    if (!playerId || !session.playerOrder.includes(playerId) || !isPlayerInQuiz(session, playerId)) {
         session.currentTurnPlayerId = null;
         return;
     }
@@ -303,7 +441,7 @@ function advanceTurnPlayer(session: ISession, options?: { skipEleminated?: boole
     for (let step = 1; step <= session.playerOrder.length; step++) {
         const idx = (startIndex + step) % session.playerOrder.length;
         const candidate = session.playerOrder[idx];
-        if (!blocked.has(candidate) && session.players[candidate]?.active) {
+        if (!blocked.has(candidate) && isPlayerInQuiz(session, candidate)) {
             session.currentTurnPlayerId = candidate;
             return;
         }
@@ -313,7 +451,7 @@ function advanceTurnPlayer(session: ISession, options?: { skipEleminated?: boole
 }
 
 function emitCurrentTurn(session: ISession, code: string) {
-    if (!session.currentTurnPlayerId || !session.players[session.currentTurnPlayerId] || !session.players[session.currentTurnPlayerId].active) return;
+    if (!session.currentTurnPlayerId || !session.players[session.currentTurnPlayerId] || !isPlayerInQuiz(session, session.currentTurnPlayerId)) return;
     const p = session.players[session.currentTurnPlayerId];
     io.to(code).emit('player_won_buzz', { id: p.id, name: p.name });
     io.to(session.hostSocketId).emit('update_host_controls', {
@@ -329,6 +467,38 @@ function awardPointsToPlayers(session: ISession, playerIds: string[], points: nu
         if (session.players[pid]) {
             session.players[pid].score += points;
         }
+    });
+}
+
+function getActivePlayerIds(session: ISession): string[] {
+    return Object.values(session.players)
+    .filter((p) => !p.excluded)
+        .map((p) => p.id);
+}
+
+function resolveEleminationByAllRevealedIfNeeded(session: ISession, code: string) {
+    const q = session.activeQuestion;
+    if (!q || q.type !== 'elemination' || !Array.isArray(q.listItems)) return;
+    if (session.eleminationRoundResolved) return;
+
+    const total = q.listItems.length;
+    const revealed = session.eleminationRevealedIndices?.length || 0;
+    if (total === 0 || revealed < total) return;
+
+    session.eleminationRoundResolved = true;
+    session.currentBuzzWinnerId = null;
+
+    // Wenn alle Antworten offen sind und die Runde noch nicht vorher entschieden wurde,
+    // erhalten alle aktiven Spieler Punkte.
+    const activePlayerIds = getActivePlayerIds(session);
+    awardPointsToPlayers(session, activePlayerIds, session.activeQuestionPoints);
+
+    io.to(code).emit('update_scores', session.players);
+    io.to(session.hostSocketId).emit('update_host_controls', {
+        buzzWinnerId: null,
+        eleminationRevealedIndices: [...(session.eleminationRevealedIndices || [])],
+        eleminationEliminatedPlayerIds: [...(session.eleminationEliminatedPlayerIds || [])],
+        eleminationRoundResolved: true
     });
 }
 
@@ -476,6 +646,10 @@ const storage = multer.diskStorage({
     filename: (_req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage: storage });
+const importBundleUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 200 * 1024 * 1024 }
+});
 
 app.post('/api/upload', upload.single('mediaFile'), (req: Request, res: Response) => {
     if (req.file) {
@@ -508,12 +682,167 @@ app.get('/api/games/:id', async (req, res) => {
     }
 });
 
+app.get('/api/games/:id/export', async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, error: 'Ungültige ID' });
+        }
+
+        const gameDoc = await GameModel.findById(id);
+        if (!gameDoc) {
+            return res.status(404).json({ success: false, error: 'Quiz nicht gefunden' });
+        }
+
+        const gameData = JSON.parse(JSON.stringify(gameDoc));
+        const mediaPaths = collectGameMediaPaths(gameData);
+
+        const zip = new AdmZip();
+        const assets: Array<{ originalPath: string; bundlePath: string; fileName: string }> = [];
+
+        const usedBundleNames = new Set<string>();
+        for (const mediaPath of mediaPaths) {
+            const normalized = normalizeMediaWebPath(mediaPath);
+            const fileName = path.basename(normalized);
+            const absolutePath = path.join(UPLOADS_DIR, fileName);
+
+            try {
+                await fs.access(absolutePath);
+            } catch {
+                continue;
+            }
+
+            let bundleName = fileName;
+            let counter = 1;
+            while (usedBundleNames.has(bundleName)) {
+                const parsed = path.parse(fileName);
+                bundleName = `${parsed.name}-${counter}${parsed.ext}`;
+                counter++;
+            }
+            usedBundleNames.add(bundleName);
+
+            zip.addLocalFile(absolutePath, 'assets', bundleName);
+            assets.push({
+                originalPath: normalized,
+                bundlePath: `assets/${bundleName}`,
+                fileName: bundleName
+            });
+        }
+
+        const manifest = {
+            type: 'jeopardy-quiz-bundle',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            quiz: {
+                id: String(gameDoc._id),
+                title: gameDoc.title,
+                file: 'quiz.json'
+            },
+            assets
+        };
+
+        zip.addFile('quiz.json', Buffer.from(JSON.stringify(gameData, null, 2), 'utf-8'));
+        zip.addFile('quiz-import-manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'));
+
+        const safeTitle = (gameDoc.title || 'quiz').replace(/[^a-zA-Z0-9-_]+/g, '_');
+        const fileName = `${safeTitle || 'quiz'}-export.zip`;
+
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        return res.send(zip.toBuffer());
+    } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Export fehlgeschlagen' });
+    }
+});
+
+app.post('/api/games/import', importBundleUpload.single('importBundle'), async (req, res) => {
+    try {
+        if (!req.file?.buffer) {
+            return res.status(400).json({ success: false, error: 'Keine Import-Datei empfangen' });
+        }
+
+        const zip = new AdmZip(req.file.buffer);
+        const entries = zip.getEntries();
+        const findEntry = (entryPath: string) => entries.find((entry) => entry.entryName === entryPath);
+
+        const manifestEntry = findEntry('quiz-import-manifest.json');
+        if (!manifestEntry) {
+            return res.status(400).json({ success: false, error: 'Manifest fehlt (quiz-import-manifest.json)' });
+        }
+
+        let manifest: any;
+        try {
+            manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
+        } catch {
+            return res.status(400).json({ success: false, error: 'Manifest ist kein gültiges JSON' });
+        }
+
+        if (manifest?.type !== 'jeopardy-quiz-bundle') {
+            return res.status(400).json({ success: false, error: 'Unbekanntes Bundle-Format' });
+        }
+
+        const quizPath = manifest?.quiz?.file || 'quiz.json';
+        const quizEntry = findEntry(quizPath);
+        if (!quizEntry) {
+            return res.status(400).json({ success: false, error: `Quiz-Datei fehlt (${quizPath})` });
+        }
+
+        let importedGame: any;
+        try {
+            importedGame = JSON.parse(quizEntry.getData().toString('utf-8'));
+        } catch {
+            return res.status(400).json({ success: false, error: 'Quiz-Datei ist kein gültiges JSON' });
+        }
+
+        const pathMap: Record<string, string> = {};
+        const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+
+        for (const asset of assets) {
+            const originalPath = normalizeMediaWebPath(asset?.originalPath || '');
+            const bundlePath = String(asset?.bundlePath || '');
+            if (!originalPath || !bundlePath) continue;
+
+            const assetEntry = findEntry(bundlePath);
+            if (!assetEntry || assetEntry.isDirectory) continue;
+
+            const ext = path.extname(assetEntry.entryName) || '.bin';
+            const storedFileName = makeStoredUploadFileName(ext);
+            const absolutePath = path.join(UPLOADS_DIR, storedFileName);
+            await fs.writeFile(absolutePath, assetEntry.getData());
+            pathMap[originalPath] = `/uploads/${storedFileName}`;
+        }
+
+        remapGameMediaPaths(importedGame, pathMap);
+        delete importedGame._id;
+
+        const validationError = getGamePayloadValidationError(importedGame);
+        if (validationError) {
+            return res.status(400).json({ success: false, error: `Import ungültig: ${validationError}` });
+        }
+
+        const savedGame = await new GameModel(importedGame).save();
+
+        if (process.env.NODE_ENV !== 'test') {
+            void runCleanupUnusedFilesSafely();
+        }
+
+        return res.json({ success: true, gameId: savedGame._id, title: savedGame.title });
+    } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message || 'Import fehlgeschlagen' });
+    }
+});
+
 app.post('/api/create-game', async (req, res) => {
     try {
         const gameData = req.body;
+        const validationError = getGamePayloadValidationError(gameData);
 
-        if (!isValidGamePayload(gameData)) {
-            return res.status(400).json({ success: false, error: 'Ungültige Spieldaten' });
+        if (validationError) {
+            const showDetails = process.env.NODE_ENV !== 'production';
+            const message = showDetails
+                ? `Ungültige Spieldaten: ${validationError}`
+                : 'Ungültige Spieldaten';
+            return res.status(400).json({ success: false, error: message });
         }
 
         let savedGame;
@@ -668,7 +997,8 @@ io.on('connection', (socket) => {
             submittedCount: submittedCount,
             listRevealedCount: listRevealedCount,
             eleminationRevealedIndices,
-            eleminationEliminatedPlayerIds
+            eleminationEliminatedPlayerIds,
+            eleminationRoundResolved: session.activeQuestion?.type === 'elemination' ? !!session.eleminationRoundResolved : undefined
         });
         
         // Punktestand-Update sicherheitshalber hinterher
@@ -744,7 +1074,8 @@ io.on('connection', (socket) => {
                 score: 0,
                 socketId: socket.id,
                 color: '#' + Math.floor(Math.random()*16777215).toString(16),
-                active: true
+                active: true,
+                excluded: false
             };
             ensurePlayerOrder(session);
             socket.join(roomCode);
@@ -753,9 +1084,9 @@ io.on('connection', (socket) => {
 
         if (!session.activeQuestion && (session.usedQuestions?.length ?? 0) === 0) {
             ensurePlayerOrder(session);
-            const activeCandidates = session.playerOrder.filter((pid) => session.players[pid]?.active);
-            session.currentTurnPlayerId = activeCandidates.length > 0
-                ? activeCandidates[Math.floor(Math.random() * activeCandidates.length)]
+            const turnCandidates = session.playerOrder.filter((pid) => isPlayerInQuiz(session, pid));
+            session.currentTurnPlayerId = turnCandidates.length > 0
+                ? turnCandidates[Math.floor(Math.random() * turnCandidates.length)]
                 : null;
         } else {
             setRandomTurnPlayerIfNeeded(session);
@@ -787,6 +1118,7 @@ io.on('connection', (socket) => {
         
         const player = session.players[data.playerId];
         if (player) {
+            if (player.excluded) return;
             if (session.activeQuestion?.type === 'elemination') {
                 if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
                 if (!session.eleminationRevealedIndices) session.eleminationRevealedIndices = [];
@@ -825,7 +1157,13 @@ io.on('connection', (socket) => {
                             io.to(code).emit('board_play_sfx', 'correct');
                         }
                         io.to(code).emit('update_scores', session.players);
-                        revealRemainingEleminationAnswersThenClose(session, code);
+                        session.currentBuzzWinnerId = null;
+                        io.to(session.hostSocketId).emit('update_host_controls', {
+                            buzzWinnerId: null,
+                            eleminationRevealedIndices: [...session.eleminationRevealedIndices],
+                            eleminationEliminatedPlayerIds: [...session.eleminationEliminatedPlayerIds],
+                            eleminationRoundResolved: true
+                        });
                     } else {
                         advanceTurnPlayer(session, { skipEleminated: true });
                         session.currentBuzzWinnerId = session.currentTurnPlayerId;
@@ -888,7 +1226,7 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (!info || !info.isHost) return;
         if (info.session.activeQuestion?.type === 'elemination') {
-            revealRemainingEleminationAnswersThenClose(info.session, info.code);
+            closeActiveQuestion(info.session, info.code);
             return;
         }
         io.to(info.code).emit('board_reveal_answer');
@@ -957,11 +1295,21 @@ io.on('connection', (socket) => {
         } else if (data.question.type === 'elemination') {
             session.buzzersActive = false;
             session.lockedPlayers = [];
-            session.currentBuzzWinnerId = session.currentTurnPlayerId;
+            const remainingAtStart = getEleminationRemainingPlayerIds(session);
+            const autoResolved = remainingAtStart.length === 1;
+
+            if (autoResolved) {
+                session.eleminationRoundResolved = true;
+                session.currentBuzzWinnerId = null;
+                awardPointsToPlayers(session, remainingAtStart, session.activeQuestionPoints);
+                io.to(code).emit('update_scores', session.players);
+            } else {
+                session.currentBuzzWinnerId = session.currentTurnPlayerId;
+            }
 
             io.to(session.hostSocketId).emit('update_host_controls', {
-                buzzWinnerId: session.currentTurnPlayerId,
-                buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                buzzWinnerId: autoResolved ? null : session.currentTurnPlayerId,
+                buzzWinnerName: !autoResolved && session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
                     ? session.players[session.currentTurnPlayerId].name
                     : undefined,
                 mapMode: false,
@@ -970,14 +1318,17 @@ io.on('connection', (socket) => {
                 freetextMode: false,
                 eleminationMode: true,
                 eleminationRevealedIndices: [],
-                eleminationEliminatedPlayerIds: []
+                eleminationEliminatedPlayerIds: [],
+                eleminationRoundResolved: autoResolved
             });
 
             io.to(code).emit('player_new_question', {
                 text: data.question.questionText,
                 points: data.question.points
             });
-            emitCurrentTurn(session, code);
+            if (!autoResolved) {
+                emitCurrentTurn(session, code);
+            }
         } else if (data.question.type === 'estimate') {
             // NEU: Schätzfrage Initialisierung
             session.buzzersActive = false;
@@ -1062,8 +1413,8 @@ io.on('connection', (socket) => {
         if (!session.eleminationRevealedIndices) session.eleminationRevealedIndices = [];
         if (!session.eleminationEliminatedPlayerIds) session.eleminationEliminatedPlayerIds = [];
         if (!q || q.type !== 'elemination' || !Array.isArray(q.listItems)) return;
-        if (session.currentBuzzWinnerId === null) return;
         const revealingPlayerId = session.currentBuzzWinnerId;
+        if (!revealingPlayerId && !session.eleminationRoundResolved) return;
         if (index < 0 || index >= q.listItems.length) return;
 
         if (session.eleminationRevealedIndices.includes(index)) return;
@@ -1071,43 +1422,59 @@ io.on('connection', (socket) => {
         session.eleminationRevealedIndices.push(index);
         io.to(code).emit('board_reveal_elemination_answer', index);
         io.to(code).emit('board_play_sfx', 'correct');
-        session.lastEleminationRevealerId = revealingPlayerId;
-
-        advanceTurnPlayer(session, { skipEleminated: true });
-        session.currentBuzzWinnerId = session.currentTurnPlayerId;
+        if (revealingPlayerId) {
+            session.lastEleminationRevealerId = revealingPlayerId;
+        }
 
         io.to(session.hostSocketId).emit('update_host_controls', {
-            buzzWinnerId: session.currentTurnPlayerId,
-            buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
-                ? session.players[session.currentTurnPlayerId].name
+            buzzWinnerId: session.eleminationRoundResolved ? null : session.currentBuzzWinnerId,
+            buzzWinnerName: !session.eleminationRoundResolved && session.currentBuzzWinnerId && session.players[session.currentBuzzWinnerId]
+                ? session.players[session.currentBuzzWinnerId].name
                 : undefined,
             eleminationRevealedIndices: [...session.eleminationRevealedIndices],
-            eleminationEliminatedPlayerIds: [...session.eleminationEliminatedPlayerIds]
+            eleminationEliminatedPlayerIds: [...session.eleminationEliminatedPlayerIds],
+            eleminationRoundResolved: !!session.eleminationRoundResolved
         });
 
-        if (session.currentTurnPlayerId) {
-            emitCurrentTurn(session, code);
+        resolveEleminationByAllRevealedIfNeeded(session, code);
+    });
+
+    socket.on('host_reveal_all_elemination_answers', () => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+
+        const { session, code } = info;
+        const q = session.activeQuestion;
+        if (!q || q.type !== 'elemination' || !Array.isArray(q.listItems)) return;
+        if (!session.eleminationRevealedIndices) session.eleminationRevealedIndices = [];
+
+        for (let idx = 0; idx < q.listItems.length; idx++) {
+            if (!session.eleminationRevealedIndices.includes(idx)) {
+                session.eleminationRevealedIndices.push(idx);
+                io.to(code).emit('board_reveal_elemination_answer', idx);
+            }
         }
 
-        if (session.eleminationRevealedIndices.length >= q.listItems.length && !session.eleminationRoundResolved) {
-            session.eleminationRoundResolved = true;
-            const remaining = getEleminationRemainingPlayerIds(session);
-            awardPointsToPlayers(session, remaining, session.activeQuestionPoints);
-            io.to(code).emit('update_scores', session.players);
-            revealRemainingEleminationAnswersThenClose(session, code);
-        }
+        io.to(session.hostSocketId).emit('update_host_controls', {
+            eleminationRevealedIndices: [...session.eleminationRevealedIndices],
+            eleminationEliminatedPlayerIds: [...(session.eleminationEliminatedPlayerIds || [])],
+            eleminationRoundResolved: !!session.eleminationRoundResolved
+        });
+
+        resolveEleminationByAllRevealedIfNeeded(session, code);
     });
 
     socket.on('player_submit_map_guess', (coords) => {
         const info = getSessionBySocketId(socket.id);
         if (!info || !info.isPlayer || !info.playerId) return;
         const { session } = info;
+        if (!isPlayerInQuiz(session, info.playerId)) return;
         
         session.mapGuesses[info.playerId] = coords;
         const count = Object.keys(session.mapGuesses).length;
         io.to(session.hostSocketId).emit('host_update_map_status', { 
             submittedCount: count, 
-            totalPlayers: Object.keys(session.players).length 
+            totalPlayers: getInQuizPlayerCount(session)
         });
     });
 
@@ -1166,6 +1533,7 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (!info || !info.isPlayer || !info.playerId) return;
         const { session } = info;
+        if (!isPlayerInQuiz(session, info.playerId)) return;
 
         // Speichern
         if (!session.freetextAnswers) session.freetextAnswers = {};
@@ -1173,7 +1541,7 @@ io.on('connection', (socket) => {
 
         // Host updaten (Anzahl eingegangen)
         const count = Object.keys(session.freetextAnswers).length;
-        const total = Object.keys(session.players).length;
+        const total = getInQuizPlayerCount(session);
         
         // Wir nutzen einfach das existierende Event für Estimates oder Maps auch hier
         // oder ein generisches update
@@ -1221,13 +1589,55 @@ io.on('connection', (socket) => {
         if (!info || !info.isHost) return;
 
         const { session, code } = info;
-        if (!playerId || !session.players[playerId] || !session.players[playerId].active) return;
+        if (!playerId || !session.players[playerId] || !isPlayerInQuiz(session, playerId)) return;
 
         setTurnPlayer(session, playerId);
         session.currentBuzzWinnerId = session.currentTurnPlayerId;
 
         if (!session.currentTurnPlayerId) return;
         emitCurrentTurn(session, code);
+    });
+
+    socket.on('host_toggle_player_excluded', (data) => {
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+
+        const { session, code } = info;
+        const player = session.players[data.playerId];
+        if (!player) return;
+
+        player.excluded = !!data.excluded;
+
+        if (player.excluded) {
+            session.lockedPlayers = (session.lockedPlayers || []).filter((pid) => pid !== player.id);
+            session.eleminationEliminatedPlayerIds = (session.eleminationEliminatedPlayerIds || []).filter((pid) => pid !== player.id);
+            delete session.mapGuesses[player.id];
+            delete session.estimateGuesses[player.id];
+            delete session.freetextAnswers[player.id];
+
+            if (session.currentTurnPlayerId === player.id || session.currentBuzzWinnerId === player.id) {
+                advanceTurnPlayer(session, { skipEleminated: session.activeQuestion?.type === 'elemination' });
+                session.currentBuzzWinnerId = session.currentTurnPlayerId;
+            }
+        }
+
+        io.to(code).emit('update_player_list', session.players);
+        io.to(session.hostSocketId).emit('update_host_controls', {
+            buzzWinnerId: session.currentBuzzWinnerId,
+            buzzWinnerName: session.currentBuzzWinnerId && session.players[session.currentBuzzWinnerId]
+                ? session.players[session.currentBuzzWinnerId].name
+                : undefined,
+            chooserPlayerId: session.currentTurnPlayerId,
+            chooserPlayerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
+                ? session.players[session.currentTurnPlayerId].name
+                : undefined,
+            eleminationEliminatedPlayerIds: [...(session.eleminationEliminatedPlayerIds || [])]
+        });
+        io.to(code).emit('update_scores', session.players);
+
+        if (session.currentTurnPlayerId) {
+            emitCurrentTurn(session, code);
+        }
     });
 
     socket.on('host_unlock_buzzers', () => {
@@ -1245,11 +1655,7 @@ io.on('connection', (socket) => {
     socket.on('host_close_question', () => {
         const info = getSessionBySocketId(socket.id);
         if (!info || !info.isHost) return;
-        if (info.session.activeQuestion?.type === 'elemination') {
-            revealRemainingEleminationAnswersThenClose(info.session, info.code);
-        } else {
-            closeActiveQuestion(info.session, info.code);
-        }
+        closeActiveQuestion(info.session, info.code);
     });
 
     socket.on('host_end_session', () => {
@@ -1263,19 +1669,16 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (info && info.isPlayer && info.playerId) {
             info.session.players[info.playerId].active = false;
-            if (info.session.currentTurnPlayerId === info.playerId) {
-                advanceTurnPlayer(info.session, { skipEleminated: info.session.activeQuestion?.type === 'elemination' });
-                info.session.currentBuzzWinnerId = info.session.currentTurnPlayerId;
-                if (info.session.currentTurnPlayerId) {
-                    emitCurrentTurn(info.session, info.code);
-                }
-                io.to(info.session.hostSocketId).emit('update_host_controls', {
-                    chooserPlayerId: info.session.currentTurnPlayerId,
-                    chooserPlayerName: info.session.currentTurnPlayerId && info.session.players[info.session.currentTurnPlayerId]
-                        ? info.session.players[info.session.currentTurnPlayerId].name
-                        : undefined
-                });
-            }
+            io.to(info.session.hostSocketId).emit('update_host_controls', {
+                chooserPlayerId: info.session.currentTurnPlayerId,
+                chooserPlayerName: info.session.currentTurnPlayerId && info.session.players[info.session.currentTurnPlayerId]
+                    ? info.session.players[info.session.currentTurnPlayerId].name
+                    : undefined,
+                buzzWinnerId: info.session.currentBuzzWinnerId,
+                buzzWinnerName: info.session.currentBuzzWinnerId && info.session.players[info.session.currentBuzzWinnerId]
+                    ? info.session.players[info.session.currentBuzzWinnerId].name
+                    : undefined
+            });
             io.to(info.code).emit('update_player_list', info.session.players);
         }
     });
@@ -1323,13 +1726,14 @@ io.on('connection', (socket) => {
         const info = getSessionBySocketId(socket.id);
         if (!info || !info.isPlayer || !info.playerId) return;
         const { session } = info;
+        if (!isPlayerInQuiz(session, info.playerId)) return;
 
         // Speichern
         session.estimateGuesses[info.playerId] = val;
 
         // Host updaten
         const count = Object.keys(session.estimateGuesses).length;
-        const total = Object.keys(session.players).length;
+        const total = getInQuizPlayerCount(session);
         io.to(session.hostSocketId).emit('host_update_estimate_status', { submittedCount: count, totalPlayers: total });
     });
 
@@ -1420,7 +1824,23 @@ io.on('connection', (socket) => {
 });
 
 function startServer(port: number = PORT) {
+    const onError = (err: NodeJS.ErrnoException) => {
+        if (err?.code === 'EADDRINUSE') {
+            console.warn(`Port ${port} ist bereits belegt. Wahrscheinlich laeuft bereits ein Server-Prozess.`);
+            if (process.env.NODE_ENV !== 'test') {
+                process.exit(0);
+            }
+            return;
+        }
+        console.error('Server-Startfehler:', err);
+        if (process.env.NODE_ENV !== 'test') {
+            process.exit(1);
+        }
+    };
+
+    server.once('error', onError);
     server.listen(port, () => {
+        server.off('error', onError);
         console.log(`Server läuft auf http://localhost:${port}`);
     });
 }

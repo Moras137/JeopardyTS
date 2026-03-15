@@ -10,6 +10,7 @@ let activePlayerId: string | null = null;
 let currentChooserPlayerId: string | null = null;
 let eleminationRevealedIndices: number[] = [];
 let eleminationEliminatedPlayerIds: string[] = [];
+let eleminationRoundResolved = false;
 
 // --- DOM ELEMENTE ---
 // Sidebar & Info
@@ -32,6 +33,7 @@ const activeQSection = document.getElementById('active-question-section') as HTM
 const qTitle = document.getElementById('question-title') as HTMLHeadingElement;
 const qDisplay = document.getElementById('question-display') as HTMLDivElement;
 const aDisplay = document.getElementById('answer-display') as HTMLDivElement;
+const answerSeparator = document.getElementById('answer-separator') as HTMLHRElement;
 const btnCloseModalTop = document.getElementById('btn-close-modal-top') as HTMLButtonElement; 
 
 // Controls im Modal
@@ -40,7 +42,6 @@ const buzzWinnerName = document.getElementById('buzz-winner-name') as HTMLSpanEl
 const correctBtn = document.getElementById('correct-btn') as HTMLButtonElement;
 const incorrectBtn = document.getElementById('incorrect-btn') as HTMLButtonElement;
 const unlockBuzzersBtn = document.getElementById('unlock-buzzers-btn') as HTMLButtonElement;
-const closeQuestionBtn = document.getElementById('close-question-btn') as HTMLButtonElement;
 
 const mapModeControls = document.getElementById('map-mode-controls') as HTMLDivElement;
 const mapSubmittedCount = document.getElementById('map-submitted-count') as HTMLSpanElement;
@@ -52,6 +53,7 @@ const btnRevealList = document.getElementById('btn-reveal-list') as HTMLButtonEl
 const eleminationModeControls = document.getElementById('elemination-mode-controls') as HTMLDivElement;
 const eleminationStatus = document.getElementById('elemination-status') as HTMLDivElement;
 const eleminationAnswerButtons = document.getElementById('elemination-answer-buttons') as HTMLDivElement;
+const btnRevealAllElemination = document.getElementById('btn-reveal-all-elemination') as HTMLButtonElement;
 
 const pixelModeControls = document.getElementById('pixel-mode-controls') as HTMLDivElement;
 const btnPixelPause = document.getElementById('btn-pixel-pause') as HTMLButtonElement;
@@ -112,9 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if(correctBtn) correctBtn.addEventListener('click', () => {
     if (activePlayerId) {
         socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId });
-        if (activeQuestion?.type !== 'elemination') {
-            buzzWinnerSection.style.display = 'none';
-        }
+        buzzWinnerSection.style.display = 'none';
     }
 });
 
@@ -128,7 +128,6 @@ if(incorrectBtn) incorrectBtn.addEventListener('click', () => {
 if(unlockBuzzersBtn) unlockBuzzersBtn.addEventListener('click', () => socket.emit('host_unlock_buzzers'));
 
 const handleClose = () => socket.emit('host_close_question');
-if(closeQuestionBtn) closeQuestionBtn.addEventListener('click', handleClose);
 if(btnCloseModalTop) btnCloseModalTop.addEventListener('click', handleClose);
 
 // Sidebar Actions
@@ -139,6 +138,9 @@ if(resolveMapBtn) resolveMapBtn.addEventListener('click', () => {
 });
 if(themeToggleBtn) themeToggleBtn.addEventListener('click', toggleTheme);
 if(btnRevealList) btnRevealList.addEventListener('click', () => {socket.emit('host_reveal_next_list_item');});
+if(btnRevealAllElemination) btnRevealAllElemination.addEventListener('click', () => {
+    socket.emit('host_reveal_all_elemination_answers');
+});
 
 if(btnPixelPause) btnPixelPause.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'pause'));
 if(btnPixelResume) btnPixelResume.addEventListener('click', () => socket.emit('host_control_pixel_puzzle', 'resume'));
@@ -215,6 +217,7 @@ socket.on('host_session_restored', (data) => {
     if(resolveEstimateBtn) resolveEstimateBtn.style.display = 'none';
     eleminationRevealedIndices = [];
     eleminationEliminatedPlayerIds = [];
+    eleminationRoundResolved = false;
 
     // Alle Modi-Controls verstecken
     mapModeControls.style.display = 'none';
@@ -232,11 +235,7 @@ socket.on('host_session_restored', (data) => {
 
         // Titel und Texte setzen
         const catName = currentGame?.categories[data.catIndex]?.name || 'Frage';
-        qTitle.innerText = `${catName} - ${q.points} Punkte`;
-
-        // Inhalte rendern
-        qDisplay.innerHTML = renderQuestionContent(q, 'question');
-        aDisplay.innerHTML = renderQuestionContent(q, 'answer');
+        applyQuestionLayout(q, catName);
 
         // Medien-Sync wieder aktivieren (WICHTIG!)
         // (Setzt voraus, dass die Hilfsfunktion attachMediaSyncListeners existiert)
@@ -300,6 +299,7 @@ socket.on('host_session_restored', (data) => {
                 eleminationModeControls.style.display = 'block';
                 eleminationRevealedIndices = data.eleminationRevealedIndices || [];
                 eleminationEliminatedPlayerIds = data.eleminationEliminatedPlayerIds || [];
+                eleminationRoundResolved = !!data.eleminationRoundResolved;
                 renderEleminationControls();
                 if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
@@ -382,10 +382,9 @@ socket.on('host_update_map_status', (data) => {
 socket.on('host_restore_active_question', (data) => {
     activeQuestion = data.question;
     activeQSection.style.display = 'flex'; // Overlay zeigen
-    
-    qTitle.innerText = `${currentGame?.categories[data.catIndex]?.name || 'Frage'} - ${data.question.points} Punkte`;
-    qDisplay.innerHTML = renderQuestionContent(data.question, 'question');
-    aDisplay.innerHTML = renderQuestionContent(data.question, 'answer');
+
+    const catName = currentGame?.categories[data.catIndex]?.name || 'Frage';
+    applyQuestionLayout(data.question, catName);
 
     attachMediaSyncListeners('question-display');
     attachMediaSyncListeners('answer-display');
@@ -397,7 +396,7 @@ socket.on('host_restore_active_question', (data) => {
         buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = 'flex';
         unlockBuzzersBtn.style.display = 'none';
-        mapSubmittedCount.innerText = `${data.mapGuessesCount}/${Object.keys(players).length}`;
+        mapSubmittedCount.innerText = `${data.mapGuessesCount}/${getInQuizPlayerCount()}`;
         eleminationModeControls.style.display = 'none';
     } else if (data.question.type === 'list') {
         listModeControls.style.display = 'block';
@@ -418,6 +417,7 @@ socket.on('host_restore_active_question', (data) => {
         eleminationModeControls.style.display = 'block';
         eleminationRevealedIndices = data.eleminationRevealedIndices || [];
         eleminationEliminatedPlayerIds = data.eleminationEliminatedPlayerIds || [];
+        eleminationRoundResolved = !!data.eleminationRoundResolved;
         renderEleminationControls();
         unlockBuzzersBtn.style.display = 'none';
     } else if (data.question.type === 'pixel') {
@@ -457,6 +457,7 @@ socket.on('host_restore_active_question', (data) => {
 });
 
 socket.on('board_hide_question', () => {
+    eleminationRoundResolved = false;
      activeQSection.style.display = 'none';
 });
 
@@ -479,8 +480,6 @@ socket.on('host_update_freetext_buttons', (data) => {
 // --- HELPER FUNKTIONEN ---
 
 function updateHostControls(data: any) {
-    const correctButton = document.getElementById('correct-btn') as HTMLButtonElement;
-    
     // 1. INTRO LOGIK
     if (data.nextIntroStep !== undefined) {
         if (data.nextIntroStep === null) {
@@ -509,14 +508,14 @@ function updateHostControls(data: any) {
             buzzWinnerSection.style.display = 'block';
             unlockBuzzersBtn.style.display = 'none';
             mapModeControls.style.display = 'none';
-            if (correctButton) {
-                correctButton.style.display = 'inline-flex';
+            if (correctBtn) {
+                correctBtn.style.display = activeQuestion?.type === 'elemination' ? 'none' : 'inline-flex';
             }
             //if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
         } else {
             activePlayerId = null;
             buzzWinnerSection.style.display = 'none';
-            if (correctButton) correctButton.style.display = 'inline-flex';
+            if (correctBtn) correctBtn.style.display = activeQuestion?.type === 'elemination' ? 'none' : 'inline-flex';
             unlockBuzzersBtn.style.display = 'none';
             // if(unlockBuzzersBtn && unlockBuzzersBtn.style.display === 'block') {
             //      if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
@@ -558,7 +557,7 @@ function updateHostControls(data: any) {
 
     // 4. MAP COUNTS
     if (data.submittedCount !== undefined) {
-        mapSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
+        mapSubmittedCount.innerText = `${data.submittedCount}/${getInQuizPlayerCount()}`;
     }
 
     if (data.estimateMode !== undefined) {
@@ -586,12 +585,12 @@ function updateHostControls(data: any) {
         // Z�hler nutzen wir denselben Generic Count oder ein eigenes Feld
         // Im Server hatten wir 'submittedCount' allgemein gesendet
         if (data.submittedCount !== undefined && data.freetextMode) {
-             freetextSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
+             freetextSubmittedCount.innerText = `${data.submittedCount}/${getInQuizPlayerCount()}`;
         }
     }
     
     if (data.submittedCount !== undefined && freetextModeControls.style.display === 'flex') {
-        freetextSubmittedCount.innerText = `${data.submittedCount}/${Object.keys(players).length}`;
+        freetextSubmittedCount.innerText = `${data.submittedCount}/${getInQuizPlayerCount()}`;
     }
 
     if (data.eleminationMode !== undefined) {
@@ -600,12 +599,20 @@ function updateHostControls(data: any) {
         estimateModeControls.style.display = 'none';
         freetextModeControls.style.display = 'none';
         eleminationModeControls.style.display = data.eleminationMode ? 'block' : 'none';
+        if (!data.eleminationMode) eleminationRoundResolved = false;
         unlockBuzzersBtn.style.display = 'none';
     }
 
     if (data.eleminationRevealedIndices !== undefined) {
         eleminationRevealedIndices = data.eleminationRevealedIndices;
         renderEleminationControls();
+    }
+
+    if (data.eleminationRoundResolved !== undefined) {
+        eleminationRoundResolved = !!data.eleminationRoundResolved;
+        if (eleminationModeControls.style.display === 'block') {
+            renderEleminationControls();
+        }
     }
 
     if (data.eleminationEliminatedPlayerIds !== undefined) {
@@ -644,26 +651,42 @@ function updateListPreview(items: string[], revealedIndex: number) {
     listItemsPreview.innerHTML = html;
 }
 
+function getInQuizPlayerCount(): number {
+    return Object.values(players).filter((p) => !p.excluded).length;
+}
+
 function renderEleminationStatus() {
     if (!eleminationStatus || !activeQuestion || activeQuestion.type !== 'elemination') return;
     const total = activeQuestion.listItems?.length || 0;
-    const remaining = Math.max(0, Object.keys(players).length - eleminationEliminatedPlayerIds.length);
-    eleminationStatus.innerText = `Aufgedeckt: ${eleminationRevealedIndices.length}/${total} | Im Rennen: ${remaining}`;
+    const remaining = Math.max(0, getInQuizPlayerCount() - eleminationEliminatedPlayerIds.length);
+    const resolvedText = eleminationRoundResolved ? ' | Runde beendet' : '';
+    eleminationStatus.innerText = `Aufgedeckt: ${eleminationRevealedIndices.length}/${total} | Im Rennen: ${remaining}${resolvedText}`;
 }
 
 function renderEleminationControls() {
     if (!eleminationAnswerButtons || !activeQuestion || activeQuestion.type !== 'elemination') return;
     const answers = activeQuestion.listItems || [];
+    eleminationModeControls.classList.toggle('compact', answers.length > 10);
+
+    if (btnRevealAllElemination) {
+        const allRevealed = answers.length > 0 && eleminationRevealedIndices.length >= answers.length;
+        btnRevealAllElemination.disabled = allRevealed;
+        btnRevealAllElemination.innerText = allRevealed ? 'Alle aufgedeckt' : 'Alle aufdecken';
+    }
 
     eleminationAnswerButtons.innerHTML = '';
     answers.forEach((ans, idx) => {
         const btn = document.createElement('button');
         const isRevealed = eleminationRevealedIndices.includes(idx);
-        btn.className = `host-btn ${isRevealed ? 'btn-secondary' : 'btn-success'}`;
+        btn.className = `host-btn${isRevealed ? ' revealed' : ''}`;
         btn.disabled = isRevealed;
-        btn.style.marginBottom = '6px';
-        btn.innerText = isRevealed ? `Aufgedeckt: ${ans}` : `Aufdecken: ${ans}`;
+        btn.innerText = `${idx + 1}. ${ans}`;
         btn.addEventListener('click', () => {
+            if (activePlayerId && !eleminationRoundResolved) {
+                socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId });
+                buzzWinnerSection.style.display = 'none';
+                activePlayerId = null;
+            }
             socket.emit('host_reveal_elemination_answer', idx);
         });
         eleminationAnswerButtons.appendChild(btn);
@@ -701,10 +724,10 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     activeQuestion = question;
     eleminationRevealedIndices = [];
     eleminationEliminatedPlayerIds = [];
+    eleminationRoundResolved = false;
     activeQSection.style.display = 'flex'; // Overlay zeigen
-    qTitle.innerText = `${currentGame?.categories[catIndex].name} - ${question.points} Punkte`;
-    qDisplay.innerHTML = renderQuestionContent(question, 'question');
-    aDisplay.innerHTML = renderQuestionContent(question, 'answer');
+    const catName = currentGame?.categories[catIndex].name || 'Frage';
+    applyQuestionLayout(question, catName);
 
     attachMediaSyncListeners('question-display');
     attachMediaSyncListeners('answer-display');
@@ -725,7 +748,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
 
     if (question.type === 'map') {
         mapModeControls.style.display = 'flex';
-        mapSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+        mapSubmittedCount.innerText = `0/${getInQuizPlayerCount()}`;
         if(resolveMapBtn) resolveMapBtn.style.display = 'block';
     
     } else if (question.type === 'list') {
@@ -751,12 +774,12 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
         
     } else if (question.type === 'estimate') {
         estimateModeControls.style.display = 'flex';
-        estimateSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+        estimateSubmittedCount.innerText = `0/${getInQuizPlayerCount()}`;
         if(resolveEstimateBtn) resolveEstimateBtn.style.display = 'block';
 
     } else if (question.type === 'freetext') {
         freetextModeControls.style.display = 'flex';
-        freetextSubmittedCount.innerText = `0/${Object.keys(players).length}`;
+        freetextSubmittedCount.innerText = `0/${getInQuizPlayerCount()}`;
 
     } else {
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
@@ -778,19 +801,28 @@ function renderPlayerList() {
         const item = document.createElement('li');
         item.className = 'player-item';
         item.title = 'Doppelklick: als aktuellen Spieler setzen';
+        const isExcluded = !!p.excluded;
         
-        // Visuelles Feedback wenn offline
-        if (!p.active) {
+        // Visuelles Feedback wenn offline / ausgeschlossen
+        if (isExcluded) {
+            item.style.opacity = '0.55';
+            item.style.filter = 'grayscale(100%)';
+            item.style.borderStyle = 'dashed';
+        } else if (!p.active) {
             item.style.opacity = '0.5';
             item.style.filter = 'grayscale(100%)';
-        } else {
+        }
+
+        if (!isExcluded) {
             item.style.cursor = 'pointer';
             item.ondblclick = () => {
                 socket.emit('host_set_current_player', p.id);
             };
+        } else {
+            item.style.cursor = 'default';
         }
 
-        if (currentChooserPlayerId && p.id === currentChooserPlayerId) {
+        if (!isExcluded && currentChooserPlayerId && p.id === currentChooserPlayerId) {
             item.style.border = '2px solid #007bff';
         }
 
@@ -799,7 +831,9 @@ function renderPlayerList() {
         nameSpan.style.color = p.color;
         nameSpan.style.fontWeight = 'bold';
         const chooserLabel = currentChooserPlayerId === p.id ? ' <small>(wählt als Nächstes)</small>' : '';
-        nameSpan.innerHTML = `${p.name}${chooserLabel} ${!p.active ? '<small>(Offline)</small>' : ''}`;
+        const offlineLabel = !p.active ? '<small>(Offline)</small>' : '';
+        const excludedLabel = isExcluded ? '<small>(Ausgeschlossen)</small>' : '';
+        nameSpan.innerHTML = `${p.name}${chooserLabel} ${offlineLabel} ${excludedLabel}`;
 
         // --- Rechte Seite: Score + Edit Button ---
         const scoreContainer = document.createElement('div');
@@ -813,14 +847,14 @@ function renderPlayerList() {
 
         // Edit Button (Stift)
         const editBtn = document.createElement('button');
-        editBtn.innerText = 'Edit';
+        editBtn.innerText = '✏';
         editBtn.title = 'Punkte korrigieren';
         editBtn.style.background = 'transparent';
         editBtn.style.border = '1px solid #ccc';
         editBtn.style.borderRadius = '4px';
         editBtn.style.cursor = 'pointer';
-        editBtn.style.padding = '0px 5px';
-        editBtn.style.fontSize = '0.8rem';
+        editBtn.style.padding = '0px 7px';
+        editBtn.style.fontSize = '0.9rem';
         editBtn.style.color = '#555';
 
         // Klick-Event f�r Korrektur
@@ -836,8 +870,23 @@ function renderPlayerList() {
             }
         };
 
+        const toggleExcludeBtn = document.createElement('button');
+        toggleExcludeBtn.innerText = isExcluded ? '↺' : '✕';
+        toggleExcludeBtn.title = isExcluded ? 'Spieler wieder ins Quiz aufnehmen' : 'Spieler aus dem Quiz ausschließen';
+        toggleExcludeBtn.style.background = 'transparent';
+        toggleExcludeBtn.style.border = `1px solid ${isExcluded ? '#28a745' : '#dc3545'}`;
+        toggleExcludeBtn.style.borderRadius = '4px';
+        toggleExcludeBtn.style.cursor = 'pointer';
+        toggleExcludeBtn.style.padding = '0px 7px';
+        toggleExcludeBtn.style.fontSize = '0.85rem';
+        toggleExcludeBtn.style.color = isExcluded ? '#28a745' : '#dc3545';
+        toggleExcludeBtn.onclick = () => {
+            socket.emit('host_toggle_player_excluded', { playerId: p.id, excluded: !isExcluded });
+        };
+
         scoreContainer.appendChild(scoreSpan);
         scoreContainer.appendChild(editBtn);
+        scoreContainer.appendChild(toggleExcludeBtn);
 
         item.appendChild(nameSpan);
         item.appendChild(scoreContainer);
@@ -848,9 +897,7 @@ function renderPlayerList() {
 
 function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): string {
     if (part === 'answer' && q.type === 'elemination') {
-        const items = q.listItems || [];
-        const rows = items.map((it, idx) => `<li>${idx + 1}. ${it}</li>`).join('');
-        return `<p style="color: var(--color-success); font-weight: bold;">Antwortmoeglichkeiten:</p><ol>${rows}</ol>`;
+        return '';
     }
 
     const text = part === 'question' ? q.questionText : q.answerText;
@@ -881,6 +928,33 @@ function renderQuestionContent(q: IQuestion, part: 'question' | 'answer'): strin
     }
 
     return html;
+}
+
+function applyQuestionLayout(question: IQuestion, categoryName: string) {
+    const titleBase = `${categoryName} - ${question.points} Punkte`;
+    const isElemination = question.type === 'elemination';
+    activeQSection.classList.toggle('elemination-active', isElemination);
+
+    if (correctBtn) {
+        correctBtn.style.display = isElemination ? 'none' : 'inline-flex';
+    }
+    if (incorrectBtn) {
+        incorrectBtn.style.display = 'inline-flex';
+    }
+
+    if (isElemination) {
+        const questionTitle = (question.questionText || '').trim();
+        qTitle.innerText = questionTitle ? `${titleBase} | ${questionTitle}` : titleBase;
+        qDisplay.style.display = 'none';
+    } else {
+        qTitle.innerText = titleBase;
+        qDisplay.style.display = 'block';
+    }
+
+    qDisplay.innerHTML = renderQuestionContent(question, 'question');
+    aDisplay.innerHTML = renderQuestionContent(question, 'answer');
+    aDisplay.style.display = isElemination ? 'none' : 'block';
+    if (answerSeparator) answerSeparator.style.display = isElemination ? 'none' : 'block';
 }
 
 function setupSessionUI(code: string) {

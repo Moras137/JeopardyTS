@@ -189,19 +189,21 @@
             z-index: 1000;
             display: none; /* Standardmäßig aus */
             justify-content: center;
-            align-items: center;
-            padding: 20px;
+                        align-items: center;
+                        padding: 12px;
+                        overflow: hidden;
         }
 
         .question-modal-content {
             background: var(--bg-card);
-            width: 90%; max-width: 800px;
+            width: 96%; max-width: 1100px;
             border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             display: flex; flex-direction: column;
             overflow: hidden;
             animation: fadeIn 0.3s ease-out;
-            max-height: 90vh;
+            max-height: calc(100vh - 24px);
+            margin: 0 auto;
         }
 
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
@@ -210,14 +212,24 @@
             background: var(--bg-body);
             padding: 15px 20px;
             border-bottom: 1px solid var(--border-color);
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            gap: 12px;
         }
-        .modal-header h4 { margin: 0; font-size: 1.2rem; color: var(--text-muted); }
+        .modal-header h4 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            flex: 1 1 auto;
+            line-height: 1.3;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
         .modal-points { font-weight: bold; color: var(--color-primary); font-size: 1.2rem; }
 
         .modal-body {
             padding: 20px;
-            overflow-y: auto;
+            overflow: hidden;
             flex-grow: 1;
         }
 
@@ -227,6 +239,21 @@
             border-top: 1px solid var(--border-color);
             display: flex; justify-content: space-between; align-items: center;
             flex-wrap: wrap; gap: 10px;
+            max-height: 36vh;
+            overflow: hidden;
+            align-content: flex-start;
+        }
+
+        #active-question-section.elemination-active .question-modal-content {
+            max-height: calc(100vh - 16px);
+        }
+
+        #active-question-section.elemination-active .modal-header {
+            padding: 10px 16px;
+        }
+
+        #active-question-section.elemination-active .modal-body {
+            padding: 10px 14px;
         }
 
         /* --- BUTTONS --- */
@@ -354,6 +381,101 @@
         .inline-display-none-align-items-center-4 { display:none; align-items: center; gap: 15px; background: #e8f5e9; padding: 10px; border-radius: 5px; border: 1px solid #a5d6a7; }
         .inline-font-weight-bold-color-2e7d32 { font-weight:bold; color: #2e7d32; }
         .inline-display-none-margin-top-15px-elemination { display:none; margin-top:15px; background:#f0f8ff; padding:10px; border:1px solid #8ec5ff; border-radius:5px; color:#222; }
+
+        #elemination-mode-controls {
+            flex: 1 1 100%;
+            max-height: none;
+            overflow: visible;
+            background: #f0f8ff;
+            border: 1px solid #8ec5ff;
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 8px;
+        }
+
+        .elemination-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        #btn-reveal-all-elemination {
+            margin-left: auto;
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            white-space: nowrap;
+        }
+
+        #elemination-status {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f0f8ff;
+            padding: 4px 0 8px;
+            margin-bottom: 8px;
+        }
+
+        #elemination-answer-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            max-height: none;
+            overflow: visible;
+            padding-right: 0;
+        }
+
+        #elemination-answer-buttons .host-btn {
+            width: 100%;
+            min-height: 54px;
+            border: 3px solid rgba(255,255,255,0.85);
+            border-radius: 12px;
+            background: #00008b;
+            color: #ffe100;
+            font-size: 0.98rem;
+            font-weight: 800;
+            padding: 8px;
+            line-height: 1.15;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+            white-space: normal;
+            text-align: center;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+
+        #elemination-answer-buttons .host-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            opacity: 0.95;
+        }
+
+        #elemination-answer-buttons .host-btn.revealed {
+            background: #0d7a2f;
+            color: #ffffff;
+            border-color: #c8ffd8;
+            cursor: default;
+            opacity: 0.98;
+        }
+
+        #elemination-mode-controls.compact #elemination-answer-buttons .host-btn {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            line-height: 1.2;
+            min-height: 48px;
+        }
+
+        @media (max-width: 900px) {
+            #elemination-answer-buttons {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            #elemination-answer-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -415,17 +537,9 @@
 
             <div class="modal-body">
                 <div id="question-display" class="inline-font-size-1-2rem-margin-bottom-20px"></div>
-                <hr class="inline-border-0-border-top-1px-dashed-border-co">
+                <hr id="answer-separator" class="inline-border-0-border-top-1px-dashed-border-co">
                 <div id="answer-display" class="inline-font-size-1-1rem-color-text-muted"></div>
-                
-                <div id="freetext-grading-view" class="inline-display-none-margin-top-20px">
-                    <h5 class="inline-margin-0-0-10px-0">Antworten bewerten:</h5>
-                    <div id="freetext-list" class="inline-display-flex-flex-direction-column"></div>
-                </div>
-            </div>
 
-            <div class="modal-footer">
-                
                 <div id="buzz-winner-section" class="inline-width-100-display-none">
                     <div class="inline-text-align-center-font-weight-bold">
                         Dran: <span id="buzz-winner-name" class="inline-color-color-primary-font-size-1-4rem">Name</span>
@@ -436,6 +550,22 @@
                     </div>
                 </div>
 
+                <div id="elemination-mode-controls" class="inline-display-none-margin-top-15px-elemination">
+                    <div class="elemination-header-row">
+                        <div class="inline-font-weight-bold-margin-bottom-5px">Elemination: passende Antwort aufdecken</div>
+                        <button id="btn-reveal-all-elemination" class="host-btn btn-secondary">Alle aufdecken</button>
+                    </div>
+                    <div id="elemination-status" class="inline-font-size-0-9rem-color-555"></div>
+                    <div id="elemination-answer-buttons" class="inline-display-flex-flex-direction-column"></div>
+                </div>
+                
+                <div id="freetext-grading-view" class="inline-display-none-margin-top-20px">
+                    <h5 class="inline-margin-0-0-10px-0">Antworten bewerten:</h5>
+                    <div id="freetext-list" class="inline-display-flex-flex-direction-column"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
                 <button id="unlock-buzzers-btn" class="host-btn btn-warning inline-display-none">Nicht verwendet</button>
 
                 <button id="resolve-question-btn" class="host-btn btn-info btn-xl inline-display-none-margin-left-10px">Auflösen</button>
@@ -452,16 +582,6 @@
                     <button id="btn-reveal-list" class="host-btn btn-info">Nächsten Hinweis zeigen</button>
                 </div>
 
-                <div id="elemination-mode-controls" class="inline-display-none-margin-top-15px-elemination">
-                    <div class="inline-font-weight-bold-margin-bottom-5px">Elemination: passende Antwort aufdecken</div>
-                    <div id="elemination-status" class="inline-font-size-0-9rem-color-555"></div>
-                    <div id="elemination-answer-buttons" class="inline-display-flex-flex-direction-column"></div>
-                </div>
-
-                <div class="inline-margin-left-auto">
-                    <button id="close-question-btn" class="host-btn btn-secondary">Frage schließen</button>
-                </div>
-                
                 <div id="pixel-mode-controls" class="inline-display-none-align-items-center-2">
                     <span class="inline-font-weight-bold-color-007bff">Pixel:</span>
                     <button id="btn-pixel-pause" class="host-btn btn-warning inline-padding-5px-10px">Pause</button>

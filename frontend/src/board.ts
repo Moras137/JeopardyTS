@@ -804,7 +804,10 @@ function renderPlayerBar(players: Record<string, IPlayer>) {
         div.id = 'p-' + p.id; 
         div.style.color = p.color;
         div.style.borderColor = p.color;
-        div.innerText = `${p.name}: ${p.score}`;
+        if (p.excluded) {
+            div.classList.add('excluded');
+        }
+        div.innerText = p.excluded ? `${p.name}: ${p.score} (aus)` : `${p.name}: ${p.score}`;
         if (currentTurnPlayerId === p.id) {
             div.classList.add('buzzing');
         }

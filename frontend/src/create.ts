@@ -17,6 +17,7 @@ declare global {
         loadGame: (id: string) => void;
         toggleTheme: () => void;
         loadGameTiles: () => void;
+        exportGame: (id: string) => void;
         removeQuestionMedia: (qId: string, target: 'question' | 'answer') => void;
         searchAddress: (qId: string) => void;
         updateMapFromCoords: (qId: string) => void; 
@@ -96,6 +97,8 @@ const btnSidebarNew = document.getElementById('btn-sidebar-new') as HTMLButtonEl
 const btnBackDash = document.getElementById('btn-back-dashboard') as HTMLButtonElement;
 const searchInput = document.getElementById('dashboard-search') as HTMLInputElement;
 const sidebarSearchInput = document.getElementById('sidebar-search') as HTMLInputElement;
+const btnDashboardImport = document.getElementById('btn-dashboard-import') as HTMLButtonElement;
+const importBundleInput = document.getElementById('import-bundle-input') as HTMLInputElement;
 const mapDrawingStates: Record<string, boolean> = {}; 
 const mapPolygons: Record<string, L.Polygon> = {};
 
@@ -179,6 +182,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(backToDashBtn) backToDashBtn.onclick = showDashboard;
+
+    if (btnDashboardImport && importBundleInput) {
+        btnDashboardImport.addEventListener('click', () => importBundleInput.click());
+        importBundleInput.addEventListener('change', () => {
+            if (importBundleInput.files && importBundleInput.files.length > 0) {
+                void importQuizBundle(importBundleInput.files[0]);
+            }
+        });
+    }
 });
 
 document.getElementById('backgroundMusicUpload')?.addEventListener('change', async function(this: HTMLInputElement) {
@@ -371,7 +383,13 @@ function addQuestion(catId: string, qData: Partial<IQuestion> = {}) {
     const aText = qData.answerText ?? ''; 
     const estAns = qData.estimationAnswer ?? '';
     const listItems = qData.listItems ? qData.listItems.join('\n') : ''; 
-    const eleminationItems = qData.listItems ? qData.listItems.join('\n') : '';
+    const eleminationItems = (qData.listItems && qData.listItems.length > 0)
+        ? qData.listItems.join('\n')
+        : ((qData.answerText || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .join('\n'));
     
     const lat = qData.location?.lat ?? '';
     const lng = qData.location?.lng ?? '';
@@ -813,8 +831,13 @@ async function saveGame() {
             const type = (qBlock.querySelector('.q-type-select') as HTMLSelectElement).value as QuestionType;
             const points = parseInt((qBlock.querySelector('.q-points') as HTMLInputElement).value) || 0;
             const negPoints = parseInt((qBlock.querySelector('.q-negative-points') as HTMLInputElement).value) || 0;
-            const text = (qBlock.querySelector('.q-text') as HTMLInputElement).value;
+            const text = (qBlock.querySelector('.q-text') as HTMLInputElement).value.trim();
             const media = (qBlock.querySelector('.q-media-path') as HTMLInputElement).value;
+
+            // Leere Platzhalter-Fragen nicht mitsenden.
+            if (!text) {
+                return;
+            }
             
             // Initialwerte
             let answerText = '';
@@ -901,8 +924,17 @@ async function saveGame() {
                 pixelConfig: pixelConf
             });
         });
-        cats.push({ name, questions });
+
+        // Kategorien ohne Fragen nicht mitsenden.
+        if (questions.length > 0) {
+            cats.push({ name, questions });
+        }
     });
+
+    if (cats.length === 0) {
+        alert('Bitte mindestens eine Frage mit Fragetext anlegen.');
+        return;
+    }
 
     const game: IGame = {
         title: titleInput.value,
@@ -921,6 +953,12 @@ async function saveGame() {
             body: JSON.stringify(game)
         });
         const result = await res.json();
+        if (!res.ok || !result?.success) {
+            const msg = result?.error || result?.message || `Serverfehler (${res.status})`;
+            alert(`Speichern fehlgeschlagen: ${msg}`);
+            return;
+        }
+
         if (result.success) {
             alert("Gespeichert!");
             editingGameId = result.gameId;
@@ -1903,6 +1941,7 @@ function filterAndRenderTiles(searchTerm: string) {
                 <div class="tile-actions">
                     <button class="tile-btn btn-play" onclick="startGame('${game._id}')">Spielen</button>
                     <button class="tile-btn btn-edit" onclick="loadGame('${game._id}')">Bearbeiten</button>
+                    <button class="tile-btn btn-export" onclick="exportGame('${game._id}')">Export</button>
                     <button class="tile-btn btn-del" onclick="deleteGame('${game._id}')">Löschen</button>
                 </div>
             </div>
@@ -2307,6 +2346,70 @@ function startGame(id: string) {
     window.location.href = `/host.html?gameId=${id}`;
 }
 window.startGame = startGame;
+
+async function exportGame(id: string) {
+    if (!id) return;
+
+    try {
+        const res = await fetch(`/api/games/${id}/export`);
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            const msg = data?.error || `Serverfehler (${res.status})`;
+            alert(`Export fehlgeschlagen: ${msg}`);
+            return;
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const disp = res.headers.get('Content-Disposition') || '';
+        const fileNameMatch = disp.match(/filename="?([^";]+)"?/i);
+        const fileName = fileNameMatch?.[1] || `quiz-${id}-export.zip`;
+
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error(e);
+        alert('Export fehlgeschlagen.');
+    }
+}
+window.exportGame = exportGame;
+
+async function importQuizBundle(file: File) {
+    if (!file) return;
+
+    const fd = new FormData();
+    fd.append('importBundle', file);
+
+    try {
+        const res = await fetch('/api/games/import', {
+            method: 'POST',
+            body: fd
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data?.success) {
+            const msg = data?.error || `Serverfehler (${res.status})`;
+            alert(`Import fehlgeschlagen: ${msg}`);
+            return;
+        }
+
+        alert(`Import erfolgreich: ${data.title || 'Quiz'}`);
+        await loadGameTiles();
+        await loadGameList();
+    } catch (e) {
+        console.error(e);
+        alert('Import fehlgeschlagen.');
+    } finally {
+        if (importBundleInput) {
+            importBundleInput.value = '';
+        }
+    }
+}
 
 async function deleteGame(id: string) {
     if(!confirm("Möchtest du dieses Quiz wirklich unwiderruflich löschen?")) return;

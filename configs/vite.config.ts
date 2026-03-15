@@ -20,12 +20,16 @@ export default defineConfig({
     host: true,
     proxy: {
       // Leitet API-Anfragen im Dev-Modus an dein Express-Backend weiter
-      '/api': 'http://localhost:3000',
+      '/api': {
+        target: 'http://127.0.0.1:3000'
+      },
       '/socket.io': {
-        target: 'http://localhost:3000',
+        target: 'http://127.0.0.1:3000',
         ws: true
       },
-      '/uploads': 'http://localhost:3000'
+      '/uploads': {
+        target: 'http://127.0.0.1:3000'
+      }
     }
   }
 });

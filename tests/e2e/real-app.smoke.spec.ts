@@ -94,4 +94,30 @@ test.describe('Real App Smoke E2E', () => {
 
         await playerContext.close();
     });
+
+    test('should save from create page', async ({ page }) => {
+        const dialogs: string[] = [];
+        page.on('dialog', async (dialog) => {
+            dialogs.push(dialog.message());
+            await dialog.accept();
+        });
+
+        await page.goto(`${baseUrl}/create.html`);
+        await page.click('#btn-dashboard-new');
+
+        await page.fill('#numCategories', '1');
+        await page.dispatchEvent('#numCategories', 'change');
+        await page.fill('#numQuestions', '1');
+        await page.dispatchEvent('#numQuestions', 'change');
+
+        await page.fill('#gameTitle', 'Save Smoke Quiz');
+        await page.locator('.question-block .q-text').first().fill('Smoke Test Frage');
+        await page.locator('.question-block .q-answer').first().fill('Smoke Test Antwort');
+
+        await page.click('#btn-save');
+
+        await expect
+            .poll(() => dialogs.some((msg) => msg.includes('Gespeichert!')), { timeout: 15000 })
+            .toBe(true);
+    });
 });

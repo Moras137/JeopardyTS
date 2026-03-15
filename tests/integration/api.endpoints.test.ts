@@ -221,6 +221,34 @@ describe('API Endpoints - Integration Tests', () => {
             expect(res.body.success).toBe(false);
         });
 
+        it('should include detailed validation reason outside production', async () => {
+            const res = await request(app)
+                .post('/api/create-game')
+                .send({ title: '', categories: [] });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(typeof res.body.error).toBe('string');
+            expect(res.body.error).toContain('Ungültige Spieldaten:');
+        });
+
+        it('should return generic validation message in production', async () => {
+            const previousEnv = process.env.NODE_ENV;
+            process.env.NODE_ENV = 'production';
+
+            try {
+                const res = await request(app)
+                    .post('/api/create-game')
+                    .send({ title: '', categories: [] });
+
+                expect(res.status).toBe(400);
+                expect(res.body.success).toBe(false);
+                expect(res.body.error).toBe('Ungültige Spieldaten');
+            } finally {
+                process.env.NODE_ENV = previousEnv;
+            }
+        });
+
         it('should handle missing request body', async () => {
             const res = await request(app)
                 .post('/api/create-game')

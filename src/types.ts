@@ -61,6 +61,7 @@ export interface IPlayer {
     socketId: string;
     color: string;
     active: boolean;
+    excluded?: boolean;
 }
 
 export interface ISession {
@@ -110,6 +111,7 @@ export interface ServerToClientEvents {
         listRevealedCount?: number;
         eleminationRevealedIndices?: number[];
         eleminationEliminatedPlayerIds?: string[];
+        eleminationRoundResolved?: boolean;
         isResolved?: boolean;        
     }) => void;
     host_rejoin_error: () => void;
@@ -149,7 +151,8 @@ export interface ServerToClientEvents {
         buzzersActive: boolean,
         mapGuessesCount: number,
         eleminationRevealedIndices?: number[],
-        eleminationEliminatedPlayerIds?: string[]
+        eleminationEliminatedPlayerIds?: string[],
+        eleminationRoundResolved?: boolean
     }) => void;
     music_control: (data: { action: 'play' | 'pause' | 'volume', value?: number }) => void;
     server_network_info: (data: { ip: string, port: number }) => void;
@@ -208,5 +211,7 @@ export interface ClientToServerEvents {
     host_media_control: (data: { action: 'play' | 'pause' | 'seek', currentTime: number }) => void;
     host_resolve_question: () => void;
     host_reveal_elemination_answer: (index: number) => void;
+    host_reveal_all_elemination_answers: () => void;
     host_set_current_player: (playerId: string) => void;
+    host_toggle_player_excluded: (data: { playerId: string, excluded: boolean }) => void;
 }
