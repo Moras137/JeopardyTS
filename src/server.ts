@@ -1107,8 +1107,37 @@ io.on('connection', (socket) => {
     });
 
     socket.on('player_buzz', () => {
-        // Buzzer sind im Turn-Mode deaktiviert.
-        return;
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isPlayer || !info.playerId) return;
+
+        const { session, code, playerId } = info;
+        if (!isPlayerInQuiz(session, playerId)) return;
+
+        const qType = session.activeQuestion?.type;
+        if (!qType) return;
+
+        // Elimination läuft bewusst im Reihum-/Ausscheidungsmodus.
+        if (qType === 'elemination') return;
+
+        // Nur klassische Buzz-Fragen reagieren auf Buzz-Events.
+        const supportsBuzz = qType === 'standard' || qType === 'pixel' || qType === 'list';
+        if (!supportsBuzz) return;
+
+        if (!session.buzzersActive || session.currentBuzzWinnerId) return;
+
+        session.currentBuzzWinnerId = playerId;
+        session.buzzersActive = false;
+
+        const p = session.players[playerId];
+        if (!p) return;
+
+        io.to(code).emit('buzzers_locked');
+        io.to(code).emit('player_won_buzz', { id: p.id, name: p.name });
+        io.to(session.hostSocketId).emit('player_won_buzz', { id: p.id, name: p.name });
+        io.to(session.hostSocketId).emit('update_host_controls', {
+            buzzWinnerId: p.id,
+            buzzWinnerName: p.name
+        });
     });
 
     socket.on('host_score_answer', (data) => {
@@ -1176,49 +1205,75 @@ io.on('connection', (socket) => {
             }
 
             const points = session.activeQuestionPoints;
-            const newAction = data.action;
-            
-            if (!session.freetextGrading) session.freetextGrading = {};
-            const previousStatus = session.freetextGrading[data.playerId];
-
-            if (previousStatus === 'correct') {
-                player.score -= points; 
-            } 
-
-            if (previousStatus === newAction) {
-                delete session.freetextGrading[data.playerId];
-                
-                io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'none' });
-            } 
-            else {
-                session.freetextGrading[data.playerId] = newAction;
-
-                if (newAction === 'correct') {
-                    player.score += points;
-                    io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'correct' });
-                    io.to(code).emit('board_play_sfx', 'correct');
-                    if (session.activeQuestion?.type !== 'freetext') {
-                        io.to(code).emit('board_reveal_answer');
-                    }
-                } else {
-                    io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'incorrect' });
-                    io.to(code).emit('board_play_sfx', 'incorrect');
-                }
-            }
-
-            // Scores und Host-Buttons aktualisieren
-            io.to(code).emit('update_scores', session.players);
-            io.to(session.hostSocketId).emit('host_update_freetext_buttons', { 
-                playerId: data.playerId, 
-                status: session.freetextGrading[data.playerId] 
-            });
-
             const qType = session.activeQuestion?.type;
-            if (qType === 'standard' || qType === 'pixel' || qType === 'list') {
-                advanceTurnPlayer(session);
-                session.currentBuzzWinnerId = session.currentTurnPlayerId;
-                emitCurrentTurn(session, code);
+
+            if (qType === 'freetext') {
+                const newAction = data.action;
+
+                if (!session.freetextGrading) session.freetextGrading = {};
+                const previousStatus = session.freetextGrading[data.playerId];
+
+                if (previousStatus === 'correct') {
+                    player.score -= points;
+                }
+
+                if (previousStatus === newAction) {
+                    delete session.freetextGrading[data.playerId];
+
+                    io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'none' });
+                }
+                else {
+                    session.freetextGrading[data.playerId] = newAction;
+
+                    if (newAction === 'correct') {
+                        player.score += points;
+                        io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'correct' });
+                        io.to(code).emit('board_play_sfx', 'correct');
+                    } else {
+                        io.to(code).emit('board_freetext_update_state', { playerId: data.playerId, status: 'incorrect' });
+                        io.to(code).emit('board_play_sfx', 'incorrect');
+                    }
+                }
+
+                io.to(code).emit('update_scores', session.players);
+                io.to(session.hostSocketId).emit('host_update_freetext_buttons', {
+                    playerId: data.playerId,
+                    status: session.freetextGrading[data.playerId]
+                });
+                return;
             }
+
+            if (qType === 'standard' || qType === 'pixel' || qType === 'list') {
+                if (data.action === 'correct') {
+                    player.score += points;
+                    io.to(code).emit('board_reveal_answer');
+                    io.to(code).emit('board_play_sfx', 'correct');
+                } else {
+                    const penalty = session.activeQuestion?.negativePoints ?? points;
+                    player.score -= penalty;
+                    session.currentBuzzWinnerId = null;
+                    session.buzzersActive = false;
+                    io.to(code).emit('buzzers_locked');
+                    io.to(code).emit('board_play_sfx', 'incorrect');
+                    io.to(session.hostSocketId).emit('update_host_controls', {
+                        buzzWinnerId: null,
+                        buzzWinnerName: null
+                    });
+                }
+
+                io.to(code).emit('update_scores', session.players);
+                return;
+            }
+
+            if (data.action === 'correct') {
+                player.score += points;
+                io.to(code).emit('board_play_sfx', 'correct');
+            } else {
+                const penalty = session.activeQuestion?.negativePoints ?? points;
+                player.score -= penalty;
+                io.to(code).emit('board_play_sfx', 'incorrect');
+            }
+            io.to(code).emit('update_scores', session.players);
         }
     });
 
@@ -1279,19 +1334,17 @@ io.on('connection', (socket) => {
             });
         
         } else if (data.question.type === 'list') {
-            session.buzzersActive = false;
-            session.currentBuzzWinnerId = session.currentTurnPlayerId;
+            session.buzzersActive = true;
+            session.currentBuzzWinnerId = null;
             io.to(session.hostSocketId).emit('update_host_controls', { 
-                buzzWinnerId: session.currentTurnPlayerId,
-                buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
-                    ? session.players[session.currentTurnPlayerId].name
-                    : undefined,
+                buzzWinnerId: null,
+                buzzWinnerName: null,
                 mapMode: false,
                 listMode: true,           // Flag für Host UI
                 listRevealedCount: -1 
             });
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
-            emitCurrentTurn(session, code);
+            io.to(code).emit('buzzers_unlocked', []);
         } else if (data.question.type === 'elemination') {
             session.buzzersActive = false;
             session.lockedPlayers = [];
@@ -1368,17 +1421,15 @@ io.on('connection', (socket) => {
             });
         } 
         else {
-            session.buzzersActive = false;
-            session.currentBuzzWinnerId = session.currentTurnPlayerId;
+            session.buzzersActive = true;
+            session.currentBuzzWinnerId = null;
             io.to(session.hostSocketId).emit('update_host_controls', {
-                buzzWinnerId: session.currentTurnPlayerId,
-                buzzWinnerName: session.currentTurnPlayerId && session.players[session.currentTurnPlayerId]
-                    ? session.players[session.currentTurnPlayerId].name
-                    : undefined,
+                buzzWinnerId: null,
+                buzzWinnerName: null,
                 mapMode: false
             });
             io.to(code).emit('player_new_question', { text: data.question.questionText, points: data.question.points });
-            emitCurrentTurn(session, code);
+            io.to(code).emit('buzzers_unlocked', []);
         }
         io.to(code).emit('board_show_question', {
             ...data,
@@ -1641,7 +1692,21 @@ io.on('connection', (socket) => {
     });
 
     socket.on('host_unlock_buzzers', () => {
-        return;
+        const info = getSessionBySocketId(socket.id);
+        if (!info || !info.isHost) return;
+
+        const { session, code } = info;
+        const qType = session.activeQuestion?.type;
+        if (!qType) return;
+        if (qType === 'elemination' || qType === 'map' || qType === 'estimate' || qType === 'freetext') return;
+
+        session.currentBuzzWinnerId = null;
+        session.buzzersActive = true;
+        io.to(code).emit('buzzers_unlocked', []);
+        io.to(session.hostSocketId).emit('update_host_controls', {
+            buzzWinnerId: null,
+            buzzWinnerName: null
+        });
     });
 
     socket.on('music_control', (data) => {

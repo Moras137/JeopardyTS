@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if(correctBtn) correctBtn.addEventListener('click', () => {
     if (activePlayerId) {
         socket.emit('host_score_answer', { action: 'correct', playerId: activePlayerId });
+        activePlayerId = null;
         buzzWinnerSection.style.display = 'none';
     }
 });
@@ -121,6 +122,7 @@ if(correctBtn) correctBtn.addEventListener('click', () => {
 if(incorrectBtn) incorrectBtn.addEventListener('click', () => {
     if (activePlayerId) {
         socket.emit('host_score_answer', { action: 'incorrect', playerId: activePlayerId });
+        activePlayerId = null;
         buzzWinnerSection.style.display = 'none';
     }
 });
@@ -278,7 +280,7 @@ socket.on('host_session_restored', (data) => {
                 qTitle.innerText += " (PIXEL PUZZLE)";
                 
                 // Pixel hat Buzzer + Aufl�sen
-                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzWinnerId ? 'none' : 'block';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
                 break;
 
@@ -286,7 +288,7 @@ socket.on('host_session_restored', (data) => {
                 listModeControls.style.display = 'block';
                 
                 // Liste hat Buzzer + Aufl�sen
-                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzWinnerId ? 'none' : 'block';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
 
                 // Listen-Fortschritt wiederherstellen
@@ -307,7 +309,7 @@ socket.on('host_session_restored', (data) => {
 
             default: // 'standard'
                 // Standard Frage
-                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = 'none';
+                if(unlockBuzzersBtn) unlockBuzzersBtn.style.display = data.buzzWinnerId ? 'none' : 'block';
                 if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
                 break;
         }
@@ -319,7 +321,7 @@ socket.on('host_session_restored', (data) => {
             const winnerName = data.players[data.buzzWinnerId]?.name || 'Spieler';
             
             buzzWinnerName.innerText = winnerName;
-            buzzWinnerSection.style.display = 'block';
+            buzzWinnerSection.style.display = 'flex';
 
             // Buttons anpassen: 
             // Unlock Button zeigen wir oft trotzdem an (um zu resetten), 
@@ -365,11 +367,7 @@ socket.on('update_scores', (updatedPlayers) => {
 });
 
 socket.on('player_won_buzz', (data) => {
-    activePlayerId = data.id;
-    updateHostControls({
-        buzzWinnerId: data.id,
-        buzzWinnerName: data.name
-    });
+    showBuzzWinner(data.id, data.name);
 });
 
 // WICHTIG: Hier kommt auch das Update f�r den Intro-Button an
@@ -424,7 +422,7 @@ socket.on('host_restore_active_question', (data) => {
         listModeControls.style.display = 'none';
         mapModeControls.style.display = 'none';
         eleminationModeControls.style.display = 'none';
-        unlockBuzzersBtn.style.display = 'none';
+        unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
     } else if (data.question.type === 'estimate') {
          buzzWinnerSection.style.display = 'none';
          mapModeControls.style.display = 'none';
@@ -450,7 +448,7 @@ socket.on('host_restore_active_question', (data) => {
         estimateModeControls.style.display = 'none';
         freetextModeControls.style.display = 'none';
         pixelModeControls.style.display = 'none';   
-        unlockBuzzersBtn.style.display = 'none';
+        unlockBuzzersBtn.style.display = data.buzzersActive ? 'none' : 'block';
     }
 
     if (freetextGradingView) freetextGradingView.style.display = 'none';
@@ -493,8 +491,6 @@ function updateHostControls(data: any) {
                      btnIntroNext.className = "host-btn btn-success btn-full";
                 } else {
                      btnIntroNext.className = "host-btn btn-warning btn-full";
-                     // Style f�r Border zur�cksetzen falls n�tig
-                     btnIntroNext.style.border = "2px solid white";
                 }
             }
         }
@@ -503,20 +499,19 @@ function updateHostControls(data: any) {
     // 2. BUZZER LOGIK
     if (data.buzzWinnerId !== undefined) {
         if (data.buzzWinnerId) {
-            activePlayerId = data.buzzWinnerId;
-            buzzWinnerName.innerText = data.buzzWinnerName || 'Spieler';
-            buzzWinnerSection.style.display = 'block';
-            unlockBuzzersBtn.style.display = 'none';
-            mapModeControls.style.display = 'none';
-            if (correctBtn) {
-                correctBtn.style.display = activeQuestion?.type === 'elemination' ? 'none' : 'inline-flex';
+            showBuzzWinner(data.buzzWinnerId, data.buzzWinnerName);
+            if (resolveQuestionBtn && activeQuestion && isClassicBuzzQuestion(activeQuestion)) {
+                resolveQuestionBtn.style.display = 'block';
             }
             //if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'none';
         } else {
             activePlayerId = null;
             buzzWinnerSection.style.display = 'none';
             if (correctBtn) correctBtn.style.display = activeQuestion?.type === 'elemination' ? 'none' : 'inline-flex';
-            unlockBuzzersBtn.style.display = 'none';
+            unlockBuzzersBtn.style.display = isClassicBuzzQuestion(activeQuestion) ? 'block' : 'none';
+            if (resolveQuestionBtn && activeQuestion && isClassicBuzzQuestion(activeQuestion)) {
+                resolveQuestionBtn.style.display = 'block';
+            }
             // if(unlockBuzzersBtn && unlockBuzzersBtn.style.display === 'block') {
             //      if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
             // }
@@ -531,7 +526,7 @@ function updateHostControls(data: any) {
         
         // Im Reihum-Modus bleibt der Unlock-Button immer ausgeblendet
         if (data.listMode && !activePlayerId) {
-            unlockBuzzersBtn.style.display = 'none';
+            unlockBuzzersBtn.style.display = 'block';
             buzzWinnerSection.style.display = 'none';
         }
     }
@@ -543,11 +538,11 @@ function updateHostControls(data: any) {
 
     // 3. MAP LOGIK
     if (data.mapMode !== undefined) {
-        activePlayerId = null; 
-        buzzWinnerSection.style.display = 'none';
         mapModeControls.style.display = data.mapMode ? 'flex' : 'none';
         if (data.mapMode) {
             eleminationModeControls.style.display = 'none';
+            activePlayerId = null;
+            buzzWinnerSection.style.display = 'none';
         }
         
         if (data.mapMode) {
@@ -626,6 +621,23 @@ function updateHostControls(data: any) {
     }
 }
 
+function showBuzzWinner(playerId: string, playerName?: string) {
+    activePlayerId = playerId;
+    if (activeQuestion && isClassicBuzzQuestion(activeQuestion)) {
+        activeQSection.style.display = 'flex';
+    }
+    buzzWinnerName.innerText = playerName || 'Spieler';
+    buzzWinnerSection.style.display = 'flex';
+    unlockBuzzersBtn.style.display = 'none';
+    mapModeControls.style.display = 'none';
+    if (correctBtn) {
+        correctBtn.style.display = activeQuestion?.type === 'elemination' ? 'none' : 'inline-flex';
+    }
+    if (incorrectBtn) {
+        incorrectBtn.style.display = 'inline-flex';
+    }
+}
+
 function updateListPreview(items: string[], revealedIndex: number) {
     if (!listItemsPreview) return;
     let html = '<ol style="padding-left:20px; margin:0;">';
@@ -649,6 +661,10 @@ function updateListPreview(items: string[], revealedIndex: number) {
     }
     
     listItemsPreview.innerHTML = html;
+}
+
+function isClassicBuzzQuestion(question: IQuestion | null): boolean {
+    return !!question && (question.type === 'standard' || question.type === 'list' || question.type === 'pixel');
 }
 
 function getInQuizPlayerCount(): number {
@@ -753,7 +769,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
     
     } else if (question.type === 'list') {
         listModeControls.style.display = 'block';
-        unlockBuzzersBtn.style.display = 'none'; 
+        unlockBuzzersBtn.style.display = 'block'; 
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         
         if (question.listItems) {
@@ -768,7 +784,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
 
     } else if (question.type === 'pixel') {
         pixelModeControls.style.display = 'flex';
-        unlockBuzzersBtn.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'block';
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
         qTitle.innerText += " (PIXEL PUZZLE)";
         
@@ -783,7 +799,7 @@ function handleQuestionClick(question: IQuestion, catIndex: number, qIndex: numb
 
     } else {
         if(resolveQuestionBtn) resolveQuestionBtn.style.display = 'block';
-        unlockBuzzersBtn.style.display = 'none';
+        unlockBuzzersBtn.style.display = 'block';
     }
 
     markQuestionAsUsed(catIndex, qIndex);

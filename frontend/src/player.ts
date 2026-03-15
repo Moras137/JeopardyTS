@@ -100,7 +100,12 @@ joinBtn.addEventListener('click', () => {
 });
 
 buzzerBtn.addEventListener('click', () => {
-    // Kein Buzzern mehr: Button dient nur als Turn-Indikator.
+    if (!myPlayerId) return;
+    socket.emit('player_buzz', {
+        id: myPlayerId,
+        name: playerInfoDiv?.innerText || ''
+    });
+    setBuzzerState('waiting');
 });
 
 confirmGuessBtn.addEventListener('click', () => {
@@ -195,7 +200,8 @@ socket.on('join_error', (msg) => {
 // --- BUZZER LOGIK ---
 
 socket.on('buzzers_unlocked', () => {
-    setBuzzerState('locked');
+    setBuzzerState('ready');
+    statusMsg.innerText = 'Jetzt buzzern!';
 });
 
 socket.on('buzzers_locked', () => {
@@ -381,13 +387,17 @@ socket.on('player_start_freetext', (data) => {
 
 // --- HELPER ---
 
-function setBuzzerState(state: 'active' | 'locked' | 'waiting') {
+function setBuzzerState(state: 'active' | 'locked' | 'waiting' | 'ready') {
     buzzerBtn.disabled = true;
 
     if (state === 'active') {
         buzzerBtn.style.backgroundColor = 'var(--btn-buzz-active)';
         buzzerBtn.innerText = "DU BIST DRAN";
         statusMsg.innerText = 'Du bist dran!';
+    } else if (state === 'ready') {
+        buzzerBtn.disabled = false;
+        buzzerBtn.style.backgroundColor = 'var(--btn-buzz-active)';
+        buzzerBtn.innerText = 'JETZT BUZZERN';
     } else if (state === 'waiting') {
         buzzerBtn.style.backgroundColor = 'var(--btn-buzz-wait)';
         buzzerBtn.innerText = "WARTEN";
