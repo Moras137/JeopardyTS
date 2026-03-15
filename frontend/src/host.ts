@@ -802,15 +802,18 @@ function renderPlayerList() {
         item.className = 'player-item';
         item.title = 'Doppelklick: als aktuellen Spieler setzen';
         const isExcluded = !!p.excluded;
+        const isCurrentChooser = !!currentChooserPlayerId && p.id === currentChooserPlayerId;
         
         // Visuelles Feedback wenn offline / ausgeschlossen
         if (isExcluded) {
             item.style.opacity = '0.55';
             item.style.filter = 'grayscale(100%)';
             item.style.borderStyle = 'dashed';
+            item.title = 'Ausgeschlossen';
         } else if (!p.active) {
             item.style.opacity = '0.5';
             item.style.filter = 'grayscale(100%)';
+            item.title = 'Offline';
         }
 
         if (!isExcluded) {
@@ -822,40 +825,90 @@ function renderPlayerList() {
             item.style.cursor = 'default';
         }
 
-        if (!isExcluded && currentChooserPlayerId && p.id === currentChooserPlayerId) {
+        if (!isExcluded && isCurrentChooser) {
             item.style.border = '2px solid #007bff';
+            item.style.boxShadow = '0 0 0 2px rgba(0,123,255,0.2) inset';
+            item.title = 'Aktuell dran';
         }
 
         // --- Linke Seite: Name ---
         const nameSpan = document.createElement('span');
         nameSpan.style.color = p.color;
         nameSpan.style.fontWeight = 'bold';
-        const chooserLabel = currentChooserPlayerId === p.id ? ' <small>(wählt als Nächstes)</small>' : '';
-        const offlineLabel = !p.active ? '<small>(Offline)</small>' : '';
-        const excludedLabel = isExcluded ? '<small>(Ausgeschlossen)</small>' : '';
-        nameSpan.innerHTML = `${p.name}${chooserLabel} ${offlineLabel} ${excludedLabel}`;
+        nameSpan.textContent = p.name;
+
+        const statusIcons = document.createElement('span');
+        statusIcons.style.marginLeft = '8px';
+        statusIcons.style.display = 'inline-flex';
+        statusIcons.style.gap = '6px';
+        statusIcons.style.verticalAlign = 'middle';
+
+        if (isCurrentChooser && !isExcluded) {
+            const currentIcon = document.createElement('span');
+            currentIcon.textContent = '◉';
+            currentIcon.title = 'Aktuell dran';
+            currentIcon.style.color = '#007bff';
+            currentIcon.style.fontSize = '0.75rem';
+            statusIcons.appendChild(currentIcon);
+        }
+
+        if (isExcluded) {
+            const excludedIcon = document.createElement('span');
+            excludedIcon.textContent = '⛔';
+            excludedIcon.title = 'Ausgeschlossen';
+            excludedIcon.style.color = '#888';
+            excludedIcon.style.fontSize = '0.8rem';
+            statusIcons.appendChild(excludedIcon);
+        } else if (!p.active) {
+            const offlineIcon = document.createElement('span');
+            offlineIcon.textContent = '○';
+            offlineIcon.title = 'Offline';
+            offlineIcon.style.color = '#999';
+            offlineIcon.style.fontSize = '0.8rem';
+            statusIcons.appendChild(offlineIcon);
+        }
+
+        if (statusIcons.childElementCount > 0) {
+            nameSpan.appendChild(statusIcons);
+        }
 
         // --- Rechte Seite: Score + Edit Button ---
         const scoreContainer = document.createElement('div');
         scoreContainer.style.display = 'flex';
         scoreContainer.style.alignItems = 'center';
-        scoreContainer.style.gap = '8px';
+        scoreContainer.style.gap = '2px';
 
         const scoreSpan = document.createElement('span');
         scoreSpan.className = 'score';
         scoreSpan.innerText = p.score.toString();
+        scoreSpan.style.marginRight = '6px';
 
         // Edit Button (Stift)
         const editBtn = document.createElement('button');
-        editBtn.innerText = '✏';
+        editBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M8 16l1.5-4.5L16.8 4.2a1.6 1.6 0 0 1 2.3 0l.7.7a1.6 1.6 0 0 1 0 2.3l-7.3 7.3L8 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path><path d="M14.7 6.3l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
         editBtn.title = 'Punkte korrigieren';
+        editBtn.setAttribute('aria-label', 'Punkte korrigieren');
         editBtn.style.background = 'transparent';
-        editBtn.style.border = '1px solid #ccc';
-        editBtn.style.borderRadius = '4px';
+        editBtn.style.border = 'none';
         editBtn.style.cursor = 'pointer';
-        editBtn.style.padding = '0px 7px';
-        editBtn.style.fontSize = '0.9rem';
-        editBtn.style.color = '#555';
+        editBtn.style.padding = '0 4px';
+        editBtn.style.width = '24px';
+        editBtn.style.height = '24px';
+        editBtn.style.display = 'inline-flex';
+        editBtn.style.alignItems = 'center';
+        editBtn.style.justifyContent = 'center';
+        editBtn.style.lineHeight = '1';
+        editBtn.style.fontSize = '1rem';
+        editBtn.style.color = '#5aa9ff';
+        editBtn.style.transition = 'transform 0.1s, color 0.2s';
+        editBtn.onmouseenter = () => {
+            editBtn.style.color = '#8fc4ff';
+            editBtn.style.transform = 'scale(1.15)';
+        };
+        editBtn.onmouseleave = () => {
+            editBtn.style.color = '#5aa9ff';
+            editBtn.style.transform = 'scale(1)';
+        };
 
         // Klick-Event f�r Korrektur
         editBtn.onclick = () => {
@@ -871,15 +924,31 @@ function renderPlayerList() {
         };
 
         const toggleExcludeBtn = document.createElement('button');
-        toggleExcludeBtn.innerText = isExcluded ? '↺' : '✕';
+        toggleExcludeBtn.innerHTML = isExcluded
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 12a7 7 0 1 0 2-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg>';
         toggleExcludeBtn.title = isExcluded ? 'Spieler wieder ins Quiz aufnehmen' : 'Spieler aus dem Quiz ausschließen';
         toggleExcludeBtn.style.background = 'transparent';
-        toggleExcludeBtn.style.border = `1px solid ${isExcluded ? '#28a745' : '#dc3545'}`;
-        toggleExcludeBtn.style.borderRadius = '4px';
+        toggleExcludeBtn.style.border = 'none';
         toggleExcludeBtn.style.cursor = 'pointer';
-        toggleExcludeBtn.style.padding = '0px 7px';
-        toggleExcludeBtn.style.fontSize = '0.85rem';
+        toggleExcludeBtn.style.padding = '0 4px';
+        toggleExcludeBtn.style.width = '24px';
+        toggleExcludeBtn.style.height = '24px';
+        toggleExcludeBtn.style.display = 'inline-flex';
+        toggleExcludeBtn.style.alignItems = 'center';
+        toggleExcludeBtn.style.justifyContent = 'center';
+        toggleExcludeBtn.style.lineHeight = '1';
+        toggleExcludeBtn.style.fontSize = '1rem';
         toggleExcludeBtn.style.color = isExcluded ? '#28a745' : '#dc3545';
+        toggleExcludeBtn.style.transition = 'transform 0.1s, color 0.2s';
+        toggleExcludeBtn.onmouseenter = () => {
+            toggleExcludeBtn.style.color = isExcluded ? '#1e7e34' : '#b02a37';
+            toggleExcludeBtn.style.transform = 'scale(1.15)';
+        };
+        toggleExcludeBtn.onmouseleave = () => {
+            toggleExcludeBtn.style.color = isExcluded ? '#28a745' : '#dc3545';
+            toggleExcludeBtn.style.transform = 'scale(1)';
+        };
         toggleExcludeBtn.onclick = () => {
             socket.emit('host_toggle_player_excluded', { playerId: p.id, excluded: !isExcluded });
         };
