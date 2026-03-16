@@ -43,6 +43,11 @@ function ensureRootNodeModules() {
 }
 
 function ensureBuildArtifacts() {
+  const staleAssetsDir = path.join(ROOT_DIR, 'output', 'public', 'assets');
+  if (fs.existsSync(staleAssetsDir)) {
+    fs.rmSync(staleAssetsDir, { recursive: true, force: true });
+  }
+
   console.log('Baue Anwendung fuer Portable-Export...');
   runNpm(['run', 'build']);
 
@@ -210,9 +215,9 @@ function ensurePortableFolders() {
 
 async function main() {
   console.log('Starte Portable-Generierung...');
+  recreatePortableDir();
   ensureRootNodeModules();
   ensureBuildArtifacts();
-  recreatePortableDir();
   copyPortableAssets();
   writePortablePackageFiles();
   copyNodeBinary();
