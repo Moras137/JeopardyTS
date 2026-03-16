@@ -1,4 +1,6 @@
 /output/
+/JeopardyPortable/
+/mongodb/
 TODO.txt
 READ.ME
 /node_modules/
@@ -6,6 +8,7 @@ READ.ME
 /import-samples/
 installation.txt
 /docs/
+/scripts/generate-e2e-sample-quizzes.ts
 
 # Test-Artefakte und Protokolle nicht versionieren
 /coverage/

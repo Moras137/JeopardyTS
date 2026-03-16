@@ -19,7 +19,7 @@ import { GameModel } from './models/Quiz';
 const app = express();
 const server = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server);
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.resolve(process.cwd(), 'output/public');
 const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
 
@@ -31,7 +31,7 @@ app.use(express.static(PUBLIC_DIR));
 app.use(express.json());
 
 // --- MONGODB ---
-const DB_URI = 'mongodb://localhost:27017/jeopardyquiz';
+const DB_URI = process.env.DB_URI || 'mongodb://localhost:27017/jeopardyquiz';
 
 async function connectDatabase(uri: string = DB_URI) {
     if (mongoose.connection.readyState === 1) return;
