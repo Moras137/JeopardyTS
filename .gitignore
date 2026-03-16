@@ -5,11 +5,13 @@ READ.ME
 /dist   
 /import-samples/
 installation.txt
+/docs/
 
 # Test-Artefakte und Protokolle nicht versionieren
 /coverage/
 /test-results/
 /playwright-report/
+/output/playwright-report/
 /.nyc_output/
 *.log
 *.lcov

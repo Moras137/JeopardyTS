@@ -1,4 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
+
+const visualMode = process.env['PW_VISUAL'] === '1';
+const allBrowsers = process.env['E2E_ALL_BROWSERS'] === '1';
+
+const projects = allBrowsers
+  ? [
+      { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+      { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+      { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    ]
+  : [
+      { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    ];
 
 export default defineConfig({
   testDir: '../tests/e2e',
@@ -7,6 +21,9 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: '../output/playwright-report', open: 'never' }],
+    [path.resolve(__dirname, '../tests/e2e/helpers/test-protocol-reporter.cjs'), {
+      outputDir: path.resolve(__dirname, '../output/playwright-report'),
+    }],
   ],
   
   /* Run tests in files in parallel */
@@ -27,20 +44,17 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     
     /* Collect trace when retrying the failed test */
-    trace: 'on-first-retry',
+    trace: visualMode ? 'on' : 'on-first-retry',
     
     /* Screenshots on failure */
-    screenshot: 'only-on-failure',
+    screenshot: visualMode ? 'on' : 'only-on-failure',
     
     /* Video on failure */
-    video: 'retain-on-failure',
+    video: visualMode ? 'on' : 'retain-on-failure',
   },
 
+  preserveOutput: 'always',
+
   /* Configure projects for major browsers */
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-  ],
+  projects,
 });

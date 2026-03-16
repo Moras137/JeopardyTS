@@ -491,7 +491,9 @@ test.describe('Jeopardy E2E Tests', () => {
 
             // Bob wird inaktiv (Disconnect)
             await playerBContext.close();
-            await expect(hostPage.locator('#player-list li', { hasText: 'Bob' })).toContainText('Offline', { timeout: 10000 });
+            await expect(
+                hostPage.locator('#player-list li', { hasText: 'Bob' }).locator('span[title="Offline"]')
+            ).toBeVisible({ timeout: 10000 });
 
             // Doppelklick auf inaktiven Bob darf den aktiven Spieler nicht wieder auf Bob setzen
             await hostPage.locator('#player-list li', { hasText: 'Bob' }).dblclick();
